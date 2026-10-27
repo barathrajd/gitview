@@ -96,7 +96,7 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
             if help {
                 frame.render_widget(
                     Paragraph::new(
-                        "Up/Down Navigate   Enter Open   Tab History/working tree   Esc Back   ? Help   q Quit",
+                        "Up/Down Navigate   Enter Open   Tab History/working tree   s Stage   u Unstage   r Refresh   Esc Back   q Quit",
                     )
                     .block(Block::bordered().title("Help")),
                     frame.area(),
@@ -186,7 +186,7 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                     Some(Ok(entries)) if entries.is_empty() => vec!["Working tree clean".to_owned()],
                     Some(Ok(entries)) => entries.iter().map(|entry| format!("{:?}  {}", entry.section, entry.path.to_string_lossy())).collect(),
                 };
-                let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>()).block(Block::bordered().title("Working tree — Tab history • r refresh • ? help")).highlight_symbol("> ");
+                let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>()).block(Block::bordered().title("Working tree — s stage • u unstage • r refresh • Tab history")).highlight_symbol("> ");
                 frame.render_stateful_widget(list, frame.area(), &mut status_selection);
             } else {
                 let lines = match &history {
@@ -223,6 +223,33 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                                 let _ =
                                     sender.send((current, gitview::worktree::load_status(&path)));
                             });
+                        }
+                    }
+                    KeyCode::Char(action @ ('s' | 'u'))
+                        if !help && tree_view && details.is_none() && diff.is_none() =>
+                    {
+                        if let (Some(Ok(entries)), Some(index)) =
+                            (&status, status_selection.selected())
+                        {
+                            if let Some(entry) = entries.get(index) {
+                                let entry = entry.clone();
+                                status_request += 1;
+                                let current = status_request;
+                                let sender = status_sender.clone();
+                                let path = std::path::PathBuf::from(root);
+                                status = None;
+                                std::thread::spawn(move || {
+                                    let result = if action == 's' {
+                                        gitview::worktree::stage(&path, &entry)
+                                    } else {
+                                        gitview::worktree::unstage(&path, &entry)
+                                    };
+                                    let _ = sender.send((
+                                        current,
+                                        result.and_then(|()| gitview::worktree::load_status(&path)),
+                                    ));
+                                });
+                            }
                         }
                     }
                     KeyCode::Char('r')
