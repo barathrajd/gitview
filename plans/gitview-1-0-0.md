@@ -1,5 +1,10 @@
 # Gitview 1.0.0: a full-featured Rust Git TUI
 
+> **Scope update:** This document records the original Lazygit v0.66.2 parity
+> baseline. The broader Git porcelain coverage, Basic/Medium/Advanced tiers,
+> and December 31, 2026 checkpoints are now tracked in the
+> [Git CLI capability roadmap](git-cli-capability-roadmap-2026.md).
+
 This plan grows Gitview from a Git review MVP into a full keyboard-driven Git
 workbench, with a modern terminal interface and a merge preview that protects
 the current worktree until the user confirms an operation.

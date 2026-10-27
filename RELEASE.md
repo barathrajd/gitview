@@ -9,6 +9,32 @@ from Conventional Commits on `main`.
 
 ## Released
 
+### Gitview 0.4.0 — October 27, 2026
+
+Gitview 0.4.0 adds hunk-level staging, grouped worktree sections, and
+page-specific keyboard help.
+
+Highlights:
+
+- Added selected-hunk stage and unstage actions, plus whole-file and
+  whole-worktree operations.
+- Grouped staged changes separately from unstaged and untracked changes, with
+  section-aware selection and highlighting.
+- Added background worktree status refresh and contextual help overlays.
+- Opened Gitview in the worktree by default and kept selection within the
+  originating section after stage or unstage actions.
+
+Downloads:
+
+- `gitview-v0.4.0-macos-arm64.tar.gz` contains the macOS Apple Silicon
+  executable.
+- `gitview-v0.4.0-macos-arm64.tar.gz.sha256` contains the archive checksum.
+- GitHub provides source archives for the `v0.4.0` tag.
+
+- Release: [GitHub v0.4.0][release-040]
+- Tag: `v0.4.0`
+- Release PR: [#5](https://github.com/barathrajd/gitview/pull/5)
+
 ### Gitview 0.3.3 — October 27, 2026
 
 Published by the Release Please GitHub Action. The action created the matching
@@ -137,6 +163,7 @@ Windows support and Linux release packaging remain deferred.
 [release-031]: https://github.com/barathrajd/gitview/releases/tag/v0.3.1
 [release-032]: https://github.com/barathrajd/gitview/releases/tag/v0.3.2
 [release-033]: https://github.com/barathrajd/gitview/releases/tag/v0.3.3
+[release-040]: https://github.com/barathrajd/gitview/releases/tag/v0.4.0
 [release-021]: https://github.com/barathrajd/gitview/releases/tag/v0.2.1
 [definition-of-done]:
   .agents/skills/release-plan/references/definition-of-done.md

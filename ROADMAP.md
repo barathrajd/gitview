@@ -2,22 +2,25 @@
 
 ## Now
 
-- [Gitview 1.0.0](plans/gitview-1-0-0.md) — build Lazygit v0.66.2 workflow
-  parity with a polished Rust TUI and safe merge previews; defer AI.
+- [Git CLI capability roadmap](plans/git-cli-capability-roadmap-2026.md) — map Basic, Medium, and Advanced porcelain coverage through December 31, 2026, including guarded plumbing access.
 
 ## Next
 
-No planned work is queued between the 1.0.0 target and later items.
+- Basic Git workflows — finish commit, repository, remote, tag, and merge pages.
+- Medium Git workflows — add recovery, history editing, conflict, stash, and
+  collaboration pages.
+- Advanced Git workflows — add repository-scale, maintenance, object/ref
+  inspection, and guarded command access.
 
 ## Later
 
-- AI chat — plan provider and subscription support after Gitview 1.0.0.
-- Windows support — revisit after the macOS and Linux release.
-- New differentiators beyond Lazygit parity — prioritize from user feedback
-  after 1.0.0.
+- AI chat — plan provider and subscription support after the core Git workbench.
+- Windows support — revisit after macOS and Linux support is stable.
 
 ## Shipped
 
+- 2026-10-27: Gitview 0.4.0 — hunk staging, grouped worktree status, and
+  contextual page help; published as [v0.4.0][release-040].
 - 2026-10-27: [License, local installation, and release automation](plans/release-installation-0-3-1.md)
   — published as [Gitview 0.3.1][release-031].
 - 2026-10-27: [UI navigation polish](plans/ui-navigation-0-3-0.md) — published
@@ -31,3 +34,4 @@ No planned work is queued between the 1.0.0 target and later items.
 
 [release-030]: https://github.com/barathrajd/gitview/releases/tag/v0.3.0
 [release-031]: https://github.com/barathrajd/gitview/releases/tag/v0.3.1
+[release-040]: https://github.com/barathrajd/gitview/releases/tag/v0.4.0
