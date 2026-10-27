@@ -2,10 +2,11 @@
 
 ## Now
 
-- [Git CLI capability roadmap](plans/git-cli-capability-roadmap-2026.md) — map Basic, Medium, and Advanced porcelain coverage through December 31, 2026, including guarded plumbing access.
+- [Git config profiles](plans/git-config-profiles.md) — select account settings by repository folder before Basic-tier implementation.
 
 ## Next
 
+- [Git CLI capability roadmap](plans/git-cli-capability-roadmap-2026.md) — implement Basic, Medium, and Advanced workflows through December 31, 2026.
 - Basic Git workflows — finish commit, repository, remote, tag, and merge pages.
 - Medium Git workflows — add recovery, history editing, conflict, stash, and
   collaboration pages.
