@@ -328,3 +328,64 @@ fn refuses_a_stale_selection_without_changing_the_index() {
     assert!(load_status(&root).unwrap().is_empty());
     fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn refuses_to_unstage_a_file_that_is_no_longer_staged() {
+    use gitview::worktree::unstage;
+    let root = std::env::temp_dir().join(format!(
+        "gitview-stale-unstage-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&root).unwrap();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .current_dir(&root)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        )
+    };
+    git(&["init", "-q"]);
+    fs::write(root.join("tracked"), "base\n").unwrap();
+    git(&["add", "--", "tracked"]);
+    git(&[
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-qm",
+        "base",
+    ]);
+    fs::write(root.join("tracked"), "changed\n").unwrap();
+    git(&["add", "--", "tracked"]);
+    let selected = load_status(&root)
+        .unwrap()
+        .into_iter()
+        .find(|entry| entry.section == Section::Staged)
+        .unwrap();
+
+    git(&["restore", "--staged", "--", "tracked"]);
+    assert!(
+        unstage(&root, &selected)
+            .unwrap_err()
+            .contains("status changed")
+    );
+    assert!(
+        Command::new("git")
+            .current_dir(&root)
+            .args(["diff", "--cached", "--quiet"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    assert_eq!(fs::read(root.join("tracked")).unwrap(), b"changed\n");
+    fs::remove_dir_all(root).unwrap();
+}

@@ -109,10 +109,12 @@ workflows available.
   loading and error messages, help and confirmations, and narrow and wide diff
   layouts with `TestBackend`. Verify the live help screen and normal terminal
   restoration in a PTY smoke check.
-- [ ] **4. Harden mutation boundaries:** Revalidate selected paths and branch
+- [x] **4. Harden mutation boundaries:** Revalidate selected paths and branch
   state at the operation boundary, preserve Git's non-forcing safeguards, and
   test stale selections, dirty-worktree failures, and changes detected before
-  execution.
+  execution. Existing adapter checks already enforce the boundary; regression
+  tests now cover removed branches and stale unstage selections. Independent
+  Git processes can still race after validation.
 - [ ] **5. Verify lifecycle and supported platforms:** Add a panic-restoration
   regression check for Ratatui's existing hook; verify path parsing and
   untracked diffs on macOS and Linux; run format, test, lint, and build checks.

@@ -119,6 +119,30 @@ fn refuses_remote_or_option_like_names() {
 }
 
 #[test]
+fn refuses_a_branch_removed_after_it_was_selected() {
+    use gitview::branches::switch_branch;
+    let root = fixture();
+    commit(&root);
+    git(&root, &["branch", "topic"]);
+    let selected = load_branches(&root)
+        .unwrap()
+        .branches
+        .into_iter()
+        .find(|name| name == "topic")
+        .unwrap();
+    let before = load_branches(&root).unwrap().head;
+    git(&root, &["branch", "-D", "topic"]);
+
+    assert!(
+        switch_branch(&root, &selected)
+            .unwrap_err()
+            .contains("no longer exists")
+    );
+    assert_eq!(load_branches(&root).unwrap().head, before);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn preserves_nonconflicting_changes_and_respects_other_worktrees() {
     use gitview::branches::switch_branch;
     let root = fixture();
