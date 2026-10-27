@@ -10,7 +10,7 @@ use ratatui::{
     layout::{Constraint, Layout},
     style::{Color, Style},
     text::{Line, Span, Text},
-    widgets::{Block, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{Block, Clear, List, ListItem, ListState, Paragraph, Wrap},
 };
 use std::path::Path;
 
@@ -86,6 +86,9 @@ pub fn render(
     screen: Screen<'_>,
     border: ratatui::symbols::border::Set<'static>,
 ) {
+    // Clear cells left by the previous full-screen view before rendering the
+    // next one, including when switching from a wide pane layout to a dialog.
+    frame.render_widget(Clear, frame.area());
     match screen {
         Screen::Cockpit(cockpit) => render_cockpit(frame, cockpit, border),
         Screen::Help => frame.render_widget(
@@ -317,7 +320,7 @@ fn render_cockpit(
             Span::raw("search  "),
             Span::styled("? ", Style::default().fg(Color::Rgb(94, 234, 212)).bold()),
             Span::raw("help  "),
-            Span::styled("Q ", Style::default().fg(Color::Rgb(94, 234, 212)).bold()),
+            Span::styled("q ", Style::default().fg(Color::Rgb(94, 234, 212)).bold()),
             Span::raw("quit"),
         ])),
         sections[3],
