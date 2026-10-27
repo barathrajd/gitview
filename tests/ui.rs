@@ -91,7 +91,7 @@ fn renders_debounced_search_result_list() {
     assert!(search.contains("search"));
     assert!(search.contains("Fix search results"));
     assert!(!search.contains("Unrelated change"));
-    assert!(search.contains("open details"));
+    assert!(search.contains("open"));
 }
 
 #[test]

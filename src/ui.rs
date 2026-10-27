@@ -53,6 +53,7 @@ const HELP_ROWS: &[(&str, &str, &str, &str)] = &[
 const ACCENT: Color = Color::Rgb(94, 234, 212);
 const BORDER: Color = Color::Rgb(71, 85, 105);
 const MUTED: Color = Color::Rgb(148, 163, 184);
+const BAR_BACKGROUND: Color = Color::Rgb(30, 41, 59);
 
 fn page_block(
     title: impl Into<Line<'static>>,
@@ -65,41 +66,56 @@ fn page_block(
 }
 
 fn hint_row_count(hints: &[(&str, &str)]) -> u16 {
-    hints
-        .len()
-        .div_ceil(2)
-        .saturating_add(1)
-        .try_into()
-        .unwrap_or(u16::MAX)
+    if hints.is_empty() { 0 } else { 1 }
 }
 
 fn render_key_hints(frame: &mut Frame<'_>, area: ratatui::layout::Rect, hints: &[(&str, &str)]) {
-    let rows = hints
-        .chunks(2)
-        .map(|chunk| {
-            let mut cells = Vec::with_capacity(4);
-            for (key, details) in chunk {
-                cells.push(Cell::from(*key).style(Style::default().fg(ACCENT).bold()));
-                cells.push(Cell::from(*details).style(Style::default().fg(MUTED)));
-            }
-            if chunk.len() == 1 {
-                cells.extend([Cell::default(), Cell::default()]);
-            }
-            Row::new(cells)
-        })
-        .collect::<Vec<_>>();
-    let table = Table::new(
-        rows,
-        [
-            Constraint::Percentage(20),
-            Constraint::Percentage(30),
-            Constraint::Percentage(20),
-            Constraint::Percentage(30),
-        ],
-    )
-    .header(Row::new(["KEY", "DETAILS", "KEY", "DETAILS"]).style(Style::default().fg(MUTED)))
-    .column_spacing(1);
-    frame.render_widget(table, area);
+    let mut visible = hints.to_vec();
+    let trim_order = ["next match", "branches", "refresh", "move", "pane"];
+    while hint_text_width(&visible) > usize::from(area.width) {
+        let Some(index) = trim_order
+            .iter()
+            .find_map(|optional| visible.iter().position(|(_, details)| details == optional))
+        else {
+            break;
+        };
+        visible.remove(index);
+    }
+
+    let mut spans = Vec::with_capacity(visible.len() * 3);
+    for (index, (key, details)) in visible.iter().enumerate() {
+        if index > 0 {
+            spans.push(Span::styled(
+                "  ",
+                Style::default().fg(BORDER).bg(BAR_BACKGROUND),
+            ));
+        }
+        spans.push(Span::styled(
+            format!(" {key} "),
+            Style::default()
+                .fg(Color::Rgb(12, 24, 30))
+                .bg(ACCENT)
+                .bold(),
+        ));
+        spans.push(Span::styled(
+            format!(" {details} "),
+            Style::default()
+                .fg(Color::Rgb(226, 232, 240))
+                .bg(BAR_BACKGROUND),
+        ));
+    }
+    frame.render_widget(
+        Paragraph::new(Line::from(spans)).style(Style::default().bg(BAR_BACKGROUND)),
+        area,
+    );
+}
+
+fn hint_text_width(hints: &[(&str, &str)]) -> usize {
+    hints
+        .iter()
+        .map(|(key, details)| key.len() + details.len() + 4)
+        .sum::<usize>()
+        .saturating_add(hints.len().saturating_sub(1) * 2)
 }
 
 fn render_help(frame: &mut Frame<'_>, border: ratatui::symbols::border::Set<'static>) {
@@ -979,10 +995,10 @@ fn render_search(
         format!("SEARCH  {query}_   {} matches", matches.len())
     };
     let hints = [
-        ("Up/Down", "select result"),
-        ("Enter", "open details"),
-        ("Backspace", "edit query"),
-        ("Esc", "return to cockpit"),
+        ("Up/Down", "select"),
+        ("Enter", "open"),
+        ("Backspace", "edit"),
+        ("Esc", "back"),
     ];
     let sections = Layout::vertical([
         Constraint::Min(1),

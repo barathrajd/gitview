@@ -63,6 +63,9 @@ fn renders_responsive_repository_cockpit() {
     assert!(narrow.contains("main"));
     assert!(narrow.contains("HISTORY"));
     assert!(narrow.contains("Ship the cockpit"));
+    assert!(narrow.contains("help"));
+    assert!(narrow.contains("quit"));
+    assert!(!narrow.contains("DETAILS"));
     assert!(!narrow.contains("WORKTREE"));
 
     let compact = render_cockpit(100);
