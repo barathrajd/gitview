@@ -40,6 +40,9 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
     });
     let mut history: Option<Result<Vec<String>, String>> = None;
     let mut selection = ListState::default();
+    let (details_sender, details_receiver) = std::sync::mpsc::channel();
+    let mut details: Option<(u64, Option<Result<gitview::details::CommitDetails, String>>)> = None;
+    let mut request_id = 0u64;
     loop {
         if let Ok(result) = receiver.try_recv() {
             if result.as_ref().is_ok_and(|rows| !rows.is_empty()) {
@@ -47,11 +50,42 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
             }
             history = Some(result);
         }
+        while let Ok((id, result)) = details_receiver.try_recv() {
+            if let Some((active, value)) = &mut details {
+                if *active == id {
+                    *value = Some(result);
+                }
+            }
+        }
         terminal.draw(|frame| {
             if help {
                 frame.render_widget(
-                    Paragraph::new("Up/Down Navigate   ? Close help   q Quit")
-                        .block(Block::bordered().title("Help")),
+                    Paragraph::new(
+                        "Up/Down Navigate   Enter Open commit   Esc Back   ? Close help   q Quit",
+                    )
+                    .block(Block::bordered().title("Help")),
+                    frame.area(),
+                );
+            } else if let Some((_, value)) = &details {
+                let text = match value {
+                    None => "Loading commit…".to_string(),
+                    Some(Err(error)) => error.clone(),
+                    Some(Ok(commit)) => format!(
+                        "{}\nAuthor: {}\nDate: {}\nCommit: {}\n\nChanged files:\n{}",
+                        commit.subject,
+                        commit.author,
+                        commit.date,
+                        commit.hash,
+                        if commit.files.is_empty() {
+                            "(none)".to_string()
+                        } else {
+                            commit.files.join("\n")
+                        }
+                    ),
+                };
+                frame.render_widget(
+                    Paragraph::new(text)
+                        .block(Block::bordered().title("Commit — Esc back • ? help • q quit")),
                     frame.area(),
                 );
             } else {
@@ -77,7 +111,29 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                 match key.code {
                     KeyCode::Char('q') => return Ok(()),
                     KeyCode::Char('?') => help = !help,
-                    KeyCode::Down if !help => {
+                    KeyCode::Esc if !help => {
+                        details = None;
+                    }
+                    KeyCode::Enter if !help && details.is_none() => {
+                        if let (Some(Ok(rows)), Some(index)) = (&history, selection.selected()) {
+                            if let Some(id) = rows
+                                .get(index)
+                                .and_then(|row| gitview::history::commit_id(row))
+                            {
+                                request_id += 1;
+                                let id = id.to_owned();
+                                let path = std::path::PathBuf::from(root);
+                                let sender = details_sender.clone();
+                                let current = request_id;
+                                details = Some((current, None));
+                                std::thread::spawn(move || {
+                                    let _ = sender
+                                        .send((current, gitview::details::load_commit(&path, &id)));
+                                });
+                            }
+                        }
+                    }
+                    KeyCode::Down if !help && details.is_none() => {
                         if let Some(Ok(rows)) = &history {
                             if !rows.is_empty() {
                                 selection.select(Some(
@@ -86,7 +142,7 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                             }
                         }
                     }
-                    KeyCode::Up if !help => {
+                    KeyCode::Up if !help && details.is_none() => {
                         if let Some(i) = selection.selected() {
                             selection.select(Some(i.saturating_sub(1)));
                         }

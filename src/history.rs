@@ -51,3 +51,19 @@ pub fn load_history(root: &Path) -> Result<Vec<String>, String> {
     }
     Ok(rows)
 }
+
+pub fn commit_id(row: &str) -> Option<&str> {
+    let (prefix, suffix) = row.split_once('*')?;
+    if !prefix
+        .chars()
+        .all(|c| matches!(c, ' ' | '|' | '/' | '\\' | '_' | '-'))
+    {
+        return None;
+    }
+    let id = suffix.split_whitespace().next()?;
+    if (4..=64).contains(&id.len()) && id.bytes().all(|c| c.is_ascii_hexdigit()) {
+        Some(id)
+    } else {
+        None
+    }
+}
