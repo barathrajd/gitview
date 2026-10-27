@@ -38,9 +38,9 @@ Initial UX decisions: arrow keys navigate, Tab changes pane, Enter selects, `/` 
 
 - [x] **1. Runnable shell:** Initialize Cargo, pin compatible dependencies, discover the repository, show a basic screen and help, and restore the terminal on quit and panic. Verify missing Git and non-repository errors.
 - [x] **2. Browse history:** Load a bounded recent history asynchronously and navigate graph rows with refs. Verify branches, tags, merge lanes, empty repository and detached HEAD against a reproducible demo repository.
-- [ ] **3. Review commits:** Select a commit and file to view metadata and unified diff; add side-by-side display and narrow-width fallback. Verify renames, binary files and selection changes during loading.
-- [ ] **4. Review and stage changes:** Show staged, unstaged and untracked files and their diffs; stage/unstage selected files and refresh. Test filenames with whitespace, leading dashes and unusual characters, including an unborn branch and Git failures.
-- [ ] **5. Discover and harden:** Add search, help, feedback and resize handling. Test large histories/diffs, responsiveness, stale results, terminal recovery and plain-text fallback; document any limits.
+- [x] **3. Review commits:** Select a commit and file to view metadata and unified diff; add side-by-side display and narrow-width fallback. Verify renames, binary files and selection changes during loading.
+- [x] **4. Review and stage changes:** Show staged, unstaged and untracked files and their diffs; stage/unstage selected files and refresh. Test filenames with whitespace, leading dashes and unusual characters, including an unborn branch and Git failures.
+- [x] **5. Discover and harden:** Add search, help, feedback and resize handling. Test large histories/diffs, responsiveness, stale results, terminal recovery and plain-text fallback; document any limits.
 - [ ] **6. Preview release:** Run automated checks and manual smoke tests on macOS; build and test Linux if available. Write install, usage, keybindings, limitations and demo instructions, then prepare the tagged preview and artifacts when release is authorized.
 
 ## Risks & open questions
