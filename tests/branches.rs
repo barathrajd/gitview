@@ -69,3 +69,71 @@ fn lists_local_branches_and_current_or_detached_head() {
     assert!(data.branches.iter().any(|name| name == "topic"));
     fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn switches_to_an_existing_local_branch() {
+    use gitview::branches::switch_branch;
+    let root = fixture();
+    commit(&root);
+    git(&root, &["branch", "topic"]);
+    switch_branch(&root, std::ffi::OsStr::new("topic")).unwrap();
+    assert_eq!(
+        load_branches(&root).unwrap().head,
+        HeadState::Attached("topic".into())
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn refuses_a_switch_that_would_overwrite_local_changes() {
+    use gitview::branches::switch_branch;
+    let root = fixture();
+    fs::write(root.join("file"), "base\n").unwrap();
+    git(&root, &["add", "file"]);
+    commit(&root);
+    git(&root, &["switch", "-qc", "topic"]);
+    fs::write(root.join("file"), "branch\n").unwrap();
+    git(&root, &["add", "file"]);
+    commit(&root);
+    git(&root, &["switch", "-q", "-"]);
+    let before = load_branches(&root).unwrap().head;
+    fs::write(root.join("file"), "local\n").unwrap();
+    assert!(switch_branch(&root, std::ffi::OsStr::new("topic")).is_err());
+    assert_eq!(load_branches(&root).unwrap().head, before);
+    assert_eq!(fs::read(root.join("file")).unwrap(), b"local\n");
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn refuses_remote_or_option_like_names() {
+    use gitview::branches::switch_branch;
+    let root = fixture();
+    commit(&root);
+    assert!(switch_branch(&root, std::ffi::OsStr::new("--discard-changes")).is_err());
+    assert!(switch_branch(&root, std::ffi::OsStr::new("missing")).is_err());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn preserves_nonconflicting_changes_and_respects_other_worktrees() {
+    use gitview::branches::switch_branch;
+    let root = fixture();
+    commit(&root);
+    git(&root, &["branch", "topic"]);
+    fs::write(root.join("local"), "untracked").unwrap();
+    switch_branch(&root, std::ffi::OsStr::new("topic")).unwrap();
+    assert_eq!(fs::read(root.join("local")).unwrap(), b"untracked");
+    git(&root, &["switch", "-q", "-"]);
+    let other = root.with_extension("other");
+    git(
+        &root,
+        &["worktree", "add", "-q", other.to_str().unwrap(), "topic"],
+    );
+    assert!(switch_branch(&root, std::ffi::OsStr::new("topic")).is_err());
+    assert_eq!(fs::read(root.join("local")).unwrap(), b"untracked");
+    git(
+        &root,
+        &["worktree", "remove", "--force", other.to_str().unwrap()],
+    );
+    fs::remove_dir_all(root).unwrap();
+}

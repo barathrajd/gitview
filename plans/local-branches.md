@@ -38,7 +38,7 @@ Execute operations on a worker, serialize mutations, and invalidate outstanding 
 ## Milestones
 
 - [x] **1. Browse local branches:** Add the branch view, current/detached/unborn indicators, navigation and loading/error states. Test a repository with multiple branches, detached HEAD and no commits; verify the actual terminal view.
-- [ ] **2. Switch safely:** Confirm a selected local branch, execute the switch on a worker, and refresh review state. Test clean, dirty-conflicting, dirty-non-conflicting and other-worktree cases; verify the repository state and terminal feedback.
+- [x] **2. Switch safely:** Confirm a selected local branch, execute the switch on a worker, and refresh review state. Test clean, dirty-conflicting, dirty-non-conflicting and other-worktree cases; verify the repository state and terminal feedback.
 - [ ] **3. Create and switch:** Add the name prompt and confirmation, validate the name, and create from committed HEAD. Test valid, invalid, duplicate, detached and unborn cases; verify no unintended branch or working-tree changes on failure.
 - [ ] **4. Harden and document:** Test fast navigation and stale results during switching, mutation serialization, help/ASCII mode and existing review workflows. Document controls, Git version requirements and limitations; run the full test suite, format, lint and build checks.
 

@@ -85,3 +85,20 @@ pub fn load_branches(root: &Path) -> Result<Branches, String> {
     };
     Ok(Branches { head, branches })
 }
+
+pub fn switch_branch(root: &Path, name: &std::ffi::OsStr) -> Result<(), String> {
+    let data = load_branches(root)?;
+    if !data.branches.iter().any(|branch| branch == name) {
+        return Err("The selected local branch no longer exists; refresh and try again".into());
+    }
+    let output = Command::new("git")
+        .current_dir(root)
+        .args(["switch", "--no-guess", "--no-recurse-submodules", "--"])
+        .arg(name)
+        .output()
+        .map_err(|e| format!("Could not run Git: {e}"))?;
+    if !output.status.success() {
+        return Err(error(&output));
+    }
+    Ok(())
+}
