@@ -91,25 +91,42 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                     Some(Ok(text)) if text.is_empty() => "No textual diff",
                     Some(Ok(text)) => text,
                 };
-                let lines: Vec<Line> = message
-                    .lines()
-                    .map(|line| {
-                        let color = if line.starts_with('+') && !line.starts_with("+++") {
-                            Color::Green
-                        } else if line.starts_with('-') && !line.starts_with("---") {
-                            Color::Red
-                        } else {
-                            Color::Reset
-                        };
-                        Line::styled(line.to_owned(), Style::default().fg(color))
-                    })
-                    .collect();
-                frame.render_widget(
-                    Paragraph::new(Text::from(lines))
-                        .scroll((diff_scroll, 0))
-                        .block(Block::bordered().title("Diff — up/down scroll • Esc back")),
-                    frame.area(),
-                );
+                if frame.area().width >= 120 && matches!(value, Some(Ok(_))) {
+                    let panes = Layout::horizontal([
+                        Constraint::Percentage(50),
+                        Constraint::Percentage(50),
+                    ])
+                    .split(frame.area());
+                    let rows = gitview::diff::side_by_side(message);
+                    let left: Vec<Line> = rows
+                        .iter()
+                        .map(|(line, _)| styled_diff_line(line))
+                        .collect();
+                    let right: Vec<Line> = rows
+                        .iter()
+                        .map(|(_, line)| styled_diff_line(line))
+                        .collect();
+                    frame.render_widget(
+                        Paragraph::new(Text::from(left))
+                            .scroll((diff_scroll, 0))
+                            .block(Block::bordered().title("Before — up/down scroll • Esc back")),
+                        panes[0],
+                    );
+                    frame.render_widget(
+                        Paragraph::new(Text::from(right))
+                            .scroll((diff_scroll, 0))
+                            .block(Block::bordered().title("After")),
+                        panes[1],
+                    );
+                } else {
+                    let lines: Vec<Line> = message.lines().map(styled_diff_line).collect();
+                    frame.render_widget(
+                        Paragraph::new(Text::from(lines))
+                            .scroll((diff_scroll, 0))
+                            .block(Block::bordered().title("Diff — up/down scroll • Esc back")),
+                        frame.area(),
+                    );
+                }
             } else if let Some((_, value)) = &details {
                 match value {
                     None => frame.render_widget(
@@ -256,6 +273,17 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
             }
         }
     }
+}
+
+fn styled_diff_line(line: &str) -> Line<'static> {
+    let color = if line.starts_with('+') && !line.starts_with("+++") {
+        Color::Green
+    } else if line.starts_with('-') && !line.starts_with("---") {
+        Color::Red
+    } else {
+        Color::Reset
+    };
+    Line::styled(line.to_owned(), Style::default().fg(color))
 }
 
 fn main() -> ExitCode {
