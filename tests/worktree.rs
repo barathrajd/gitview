@@ -301,3 +301,30 @@ fn stages_and_unstages_a_tracked_deletion() {
     assert!(!root.join("gone").exists());
     fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn refuses_a_stale_selection_without_changing_the_index() {
+    use gitview::worktree::stage;
+    let root = std::env::temp_dir().join(format!(
+        "gitview-stale-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&root).unwrap();
+    assert!(
+        Command::new("git")
+            .current_dir(&root)
+            .args(["init", "-q"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    fs::write(root.join("new"), "content").unwrap();
+    let entry = load_status(&root).unwrap().remove(0);
+    fs::remove_file(root.join("new")).unwrap();
+    assert!(stage(&root, &entry).unwrap_err().contains("status changed"));
+    assert!(load_status(&root).unwrap().is_empty());
+    fs::remove_dir_all(root).unwrap();
+}
