@@ -89,7 +89,8 @@ fn path_from_bytes(bytes: &[u8]) -> OsString {
 }
 
 pub fn load_diff(root: &Path, revision: &str, file: impl AsRef<OsStr>) -> Result<String, String> {
-    let output = Command::new("git")
+    let mut command = Command::new("git");
+    command
         .current_dir(root)
         .args([
             "--literal-pathspecs",
@@ -103,14 +104,17 @@ pub fn load_diff(root: &Path, revision: &str, file: impl AsRef<OsStr>) -> Result
             revision,
             "--",
         ])
-        .arg(file)
-        .output()
-        .map_err(|e| format!("Could not run Git: {e}"))?;
-    if !output.status.success() {
+        .arg(file);
+    let output = crate::process::limited_output(&mut command, 1_000_000)?;
+    if !output.status.success() && !output.truncated {
         return Err(format!(
             "Git failed: {}",
             String::from_utf8_lossy(&output.stderr).trim()
         ));
     }
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
+    if output.truncated {
+        text.insert_str(0, "[diff truncated after 1 MB]\n");
+    }
+    Ok(text)
 }

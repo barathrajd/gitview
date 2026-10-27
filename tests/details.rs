@@ -212,3 +212,43 @@ fn preserves_non_utf8_paths_when_opening_a_diff() {
     );
     fs::remove_dir_all(path).unwrap();
 }
+
+#[test]
+fn limits_large_diff_output_and_reports_truncation() {
+    use gitview::details::load_diff;
+    let path = std::env::temp_dir().join(format!(
+        "gitview-large-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&path).unwrap();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .current_dir(&path)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        )
+    };
+    git(&["init", "-q"]);
+    fs::write(path.join("large.txt"), "line with text\n".repeat(200_000)).unwrap();
+    git(&["add", "--", "large.txt"]);
+    git(&[
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-qm",
+        "large",
+    ]);
+    let diff = load_diff(&path, "HEAD", "large.txt").unwrap();
+    assert!(diff.len() < 1_100_000 && diff.contains("diff truncated"));
+    fs::remove_dir_all(path).unwrap();
+}
