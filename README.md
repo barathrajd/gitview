@@ -1,13 +1,13 @@
 # Gitview
 
-Gitview is a keyboard-first terminal interface for reviewing Git history and working-tree changes. This is an **MVP in development**, not a published release.
+Gitview is a keyboard-first terminal interface for reviewing Git history and working-tree changes. Version 0.2.1 is available as a source release and an Apple Silicon macOS archive.
 
-## Install a preview archive
+## Install the macOS Apple Silicon release
 
-On Apple Silicon macOS, extract the preview archive and run its `gitview` binary from the Git repository you want to inspect:
+Download `gitview-v0.2.1-macos-arm64.tar.gz` from the [GitHub releases](https://github.com/barathrajd/gitview/releases), extract it, and run its `gitview` binary from the Git repository you want to inspect:
 
 ```sh
-tar -xzf gitview-v0.1.0-preview-macos-arm64.tar.gz
+tar -xzf gitview-v0.2.1-macos-arm64.tar.gz
 # From a Git repository, use the absolute path to the extracted binary:
 /path/to/extracted/gitview
 ```
@@ -28,7 +28,7 @@ and `gitview --ascii` for plain terminal borders. Development checks are
 The `test-support` feature enables a test-only PTY probe for terminal
 restoration and is excluded from normal builds.
 
-The current build and terminal checks have been performed on macOS with Rust 1.99.1 and Git 2.54. Branch operations require `git switch`, introduced in Git 2.23; the minimum supported Git version and Linux builds have not yet been verified.
+Version 0.2.1 was verified on macOS Apple Silicon and Linux x86_64 with Rust 1.99.1. Branch operations require `git switch`, introduced in Git 2.23; the minimum supported Git version has not yet been verified. Windows support remains deferred.
 
 ## Controls
 
@@ -44,4 +44,4 @@ From the source directory, run `scripts/create-demo.sh`. It prints the path to a
 
 ## Current limitations
 
-History is limited to 200 commits. Diffs are limited to 1 MB or 5,000 lines and indicate truncation; binary changes show Git's binary notice. Diff lines wider than the available pane are clipped. Terminals at least 120 columns wide show side-by-side diffs; narrower terminals show a unified diff. Commit rename changes are displayed as separate deletion and addition entries. Unmerged working-tree entries are not supported; resolve conflicts using Git. Branch creation requires a first commit. Git checkout hooks run normally and can report failure after a switch has already occurred; Gitview refreshes the branch state and displays the error. Submodules, remote operations, commit creation, interactive rebase, and conflict resolution are outside the MVP. Linux packaging, terminal compatibility, and release artifacts remain to be verified.
+History is limited to 200 commits. Diffs are limited to 1 MB or 5,000 lines and indicate truncation; binary changes show Git's binary notice. Diff lines wider than the available pane are clipped. Terminals at least 120 columns wide show side-by-side diffs; narrower terminals show a unified diff. Commit rename changes are displayed as separate deletion and addition entries. Unmerged working-tree entries are not supported; resolve conflicts using Git. Branch creation requires a first commit. Git checkout hooks run normally and can report failure after a switch has already occurred; Gitview refreshes the branch state and displays the error. Submodules, remote operations, commit creation, interactive rebase, and conflict resolution are outside the MVP. Linux builds and tests are verified; Linux release packaging is not provided.

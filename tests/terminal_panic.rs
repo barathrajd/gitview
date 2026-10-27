@@ -9,10 +9,11 @@ use std::{
 };
 
 #[test]
+#[allow(clippy::unnecessary_mut_passed)]
 fn ratatui_restores_the_terminal_when_the_application_panics() {
     let mut master = -1;
     let mut slave = -1;
-    let size = libc::winsize {
+    let mut size = libc::winsize {
         ws_row: 24,
         ws_col: 80,
         ws_xpixel: 0,
@@ -24,7 +25,7 @@ fn ratatui_restores_the_terminal_when_the_application_panics() {
             &mut slave,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
-            &size,
+            &mut size,
         )
     };
     assert_eq!(result, 0, "could not create a pseudo-terminal");

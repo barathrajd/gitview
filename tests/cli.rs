@@ -62,7 +62,7 @@ fn version_and_help_show_navigation_keys() {
     assert!(version.status.success());
     assert_eq!(
         String::from_utf8_lossy(&version.stdout).trim(),
-        "gitview 0.2.0"
+        "gitview 0.2.1"
     );
     let help = Command::new(env!("CARGO_BIN_EXE_gitview"))
         .arg("--help")
