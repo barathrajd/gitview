@@ -27,11 +27,13 @@ fn draw(screen: Screen<'_>, width: u16, height: u16) -> String {
 fn renders_help_and_loading_or_empty_history_states() {
     let help = draw(Screen::Help, 80, 24);
     assert!(help.contains("KEYBOARD SHORTCUTS"));
-    assert!(
-        gitview::ui::HELP.contains("s Stage selected file; u Unstage selected file; r Refresh")
-    );
-    assert!(help.contains("q quit"));
-    assert!(help.contains("Up/Down or j/k"));
+    assert!(help.contains("KEY"));
+    assert!(help.contains("DETAILS"));
+    assert!(gitview::ui::HELP.contains("j/k"));
+    assert!(gitview::ui::HELP.contains("Enter"));
+    assert!(gitview::ui::HELP.contains(" h "));
+    assert!(gitview::ui::HELP.contains(" l "));
+    assert!(gitview::ui::HELP.contains("q                   Quit outside prompts"));
 
     let history = None;
     let mut selection = ListState::default();
@@ -63,6 +65,33 @@ fn renders_help_and_loading_or_empty_history_states() {
         24,
     );
     assert!(empty.contains("No commits yet"));
+}
+
+#[test]
+fn renders_debounced_search_result_list() {
+    let history = Ok(vec![
+        "* abcdef0 Unrelated change - Alex\u{1f}abcdef0".to_owned(),
+        "* 1234567 Fix search results - Sam\u{1f}1234567".to_owned(),
+    ]);
+    let matches = vec![1];
+    let mut selection = ListState::default();
+    selection.select(Some(0));
+    let search = draw(
+        Screen::Search {
+            history: Some(&history),
+            matches: &matches,
+            query: "search",
+            pending: false,
+            selection: &mut selection,
+        },
+        120,
+        24,
+    );
+    assert!(search.contains("SEARCH"));
+    assert!(search.contains("search"));
+    assert!(search.contains("Fix search results"));
+    assert!(!search.contains("Unrelated change"));
+    assert!(search.contains("open details"));
 }
 
 #[test]
@@ -136,7 +165,7 @@ fn renders_error_states_for_git_backed_views() {
 
 #[test]
 fn renders_diff_titles_for_narrow_and_wide_terminals() {
-    let diff = (1, Some(Ok("-before\n+after\n".to_owned())));
+    let diff = (1, Some(Ok("@@ -10 +20 @@\n-before\n+after\n".to_owned())));
     let narrow = draw(
         Screen::Diff {
             diff: &diff,
@@ -147,6 +176,8 @@ fn renders_diff_titles_for_narrow_and_wide_terminals() {
     );
     assert!(narrow.contains("DIFF"));
     assert!(!narrow.contains("Before"));
+    assert!(narrow.contains("10"));
+    assert!(narrow.contains("20"));
 
     let wide = draw(
         Screen::Diff {
@@ -158,6 +189,8 @@ fn renders_diff_titles_for_narrow_and_wide_terminals() {
     );
     assert!(wide.contains("BEFORE"));
     assert!(wide.contains("AFTER"));
+    assert!(wide.contains("10"));
+    assert!(wide.contains("20"));
     assert!(wide.contains("Up/Down or j/k"));
     assert!(wide.contains("Esc/h"));
 }
@@ -182,7 +215,7 @@ fn renders_branch_and_commit_details() {
     assert!(branch_list.contains("Local branches"));
     assert!(branch_list.contains("topic"));
     assert!(branch_list.contains("Enter/l"));
-    assert!(branch_list.contains("q quit"));
+    assert!(branch_list.contains("quit"));
 
     let details = (
         1,
@@ -206,5 +239,5 @@ fn renders_branch_and_commit_details() {
     assert!(commit.contains("Add a feature"));
     assert!(commit.contains("src/main.rs"));
     assert!(commit.contains("j/k"));
-    assert!(commit.contains("Enter diff"));
+    assert!(commit.contains("diff"));
 }

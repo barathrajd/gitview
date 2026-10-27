@@ -9,7 +9,7 @@ use std::{
     env, io,
     process::{Command, ExitCode},
     sync::mpsc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 #[derive(KeyBind)]
@@ -68,7 +68,9 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
     let mut help = false;
     let mut searching = false;
     let mut query = String::new();
-    let mut search_message = String::new();
+    let mut search_results = Vec::new();
+    let mut search_selection = ListState::default();
+    let mut search_debounce: Option<Instant> = None;
     let (history_sender, receiver) =
         std::sync::mpsc::channel::<(u64, Result<Vec<String>, String>)>();
     let mut history_request = 0u64;
@@ -137,6 +139,18 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 selection.select(Some(0));
             }
             history = Some(result);
+            if searching {
+                search_debounce = Some(Instant::now());
+            }
+        }
+        if searching && search_debounce.is_some_and(|deadline| Instant::now() >= deadline) {
+            update_search_results(
+                history.as_ref(),
+                &query,
+                &mut search_results,
+                &mut search_selection,
+            );
+            search_debounce = None;
         }
         while let Ok((id, result)) = details_receiver.try_recv() {
             if let Some((active, value)) = &mut details
@@ -246,13 +260,12 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                     selection: &mut file_selection,
                 }
             } else if searching {
-                Screen::History {
+                Screen::Search {
                     history: history.as_ref(),
-                    searching,
+                    matches: &search_results,
                     query: &query,
-                    search_message: &search_message,
-                    root,
-                    selection: &mut selection,
+                    pending: search_debounce.is_some(),
+                    selection: &mut search_selection,
                 }
             } else {
                 Screen::Cockpit(ui::Cockpit {
@@ -277,26 +290,57 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
         {
             if searching {
                 match key.code {
-                    KeyCode::Esc => searching = false,
-                    KeyCode::Backspace => {
-                        query.pop();
-                    }
-                    KeyCode::Enter => {
+                    KeyCode::Esc => {
                         searching = false;
-                        if let Some(Ok(rows)) = &history {
-                            if let Some(index) = gitview::history::find_next(
-                                rows,
-                                &query,
-                                selection.selected().unwrap_or(0),
-                            ) {
-                                selection.select(Some(index));
-                                search_message = format!("Search: {query} - n next | / new search");
-                            } else {
-                                search_message = format!("No match for: {query}");
-                            }
+                        search_debounce = None;
+                    }
+                    KeyCode::Backspace => {
+                        if query.pop().is_some() {
+                            search_debounce = Some(Instant::now() + Duration::from_millis(180));
                         }
                     }
-                    KeyCode::Char(c) => query.push(c),
+                    KeyCode::Enter => {
+                        if search_debounce.is_some() {
+                            update_search_results(
+                                history.as_ref(),
+                                &query,
+                                &mut search_results,
+                                &mut search_selection,
+                            );
+                        }
+                        search_debounce = None;
+                        if let Some((index, id)) = selected_search_commit(
+                            history.as_ref(),
+                            &search_results,
+                            search_selection.selected(),
+                        ) {
+                            selection.select(Some(index));
+                            request_id += 1;
+                            let path = root.to_path_buf();
+                            let sender = details_sender.clone();
+                            let current = request_id;
+                            file_selection.select(None);
+                            details = Some((current, None));
+                            std::thread::spawn(move || {
+                                let _ = sender
+                                    .send((current, gitview::details::load_commit(&path, &id)));
+                            });
+                            searching = false;
+                        }
+                    }
+                    KeyCode::Up => {
+                        search_selection.select(gitview::app::move_up(search_selection.selected()));
+                    }
+                    KeyCode::Down => {
+                        search_selection.select(gitview::app::move_down(
+                            search_selection.selected(),
+                            search_results.len(),
+                        ));
+                    }
+                    KeyCode::Char(c) => {
+                        query.push(c);
+                        search_debounce = Some(Instant::now() + Duration::from_millis(180));
+                    }
                     _ => {}
                 }
                 continue;
@@ -425,7 +469,19 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                     AppAction::StartSearch => {
                         searching = true;
                         query.clear();
-                        search_message.clear();
+                        search_results = history
+                            .as_ref()
+                            .and_then(|result| result.as_ref().ok())
+                            .map(|rows| gitview::history::search_matches(rows, ""))
+                            .unwrap_or_default();
+                        let selected = selection.selected().unwrap_or(0);
+                        let result_selection = search_results
+                            .iter()
+                            .position(|index| *index == selected)
+                            .unwrap_or(0);
+                        search_selection
+                            .select((!search_results.is_empty()).then_some(result_selection));
+                        search_debounce = history.is_none().then_some(Instant::now());
                     }
                     AppAction::NextMatch => {
                         if let Some(Ok(rows)) = &history
@@ -627,6 +683,37 @@ fn navigation_key(key: KeyEvent) -> KeyCode {
     }
 }
 
+fn update_search_results(
+    history: Option<&Result<Vec<String>, String>>,
+    query: &str,
+    results: &mut Vec<usize>,
+    selection: &mut ListState,
+) {
+    let previously_selected = results.get(selection.selected().unwrap_or(0)).copied();
+    *results = history
+        .and_then(|result| result.as_ref().ok())
+        .map(|rows| gitview::history::search_matches(rows, query))
+        .unwrap_or_default();
+    let selected = previously_selected
+        .and_then(|previous| results.iter().position(|index| *index == previous))
+        .or_else(|| (!results.is_empty()).then_some(0));
+    selection.select(selected);
+}
+
+fn selected_search_commit(
+    history: Option<&Result<Vec<String>, String>>,
+    results: &[usize],
+    selected: Option<usize>,
+) -> Option<(usize, String)> {
+    let index = *results.get(selected.unwrap_or(0))?;
+    let id = history
+        .and_then(|result| result.as_ref().ok())?
+        .get(index)
+        .and_then(|row| gitview::history::commit_id(row))?
+        .to_owned();
+    Some((index, id))
+}
+
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
@@ -664,5 +751,18 @@ mod tests {
             navigation_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
             KeyCode::Down
         );
+    }
+
+    #[test]
+    fn search_selection_resolves_to_the_matching_commit_for_direct_open() {
+        let rows = Ok(vec![
+            "* abcdef0 First result\u{1f}abcdef0".to_owned(),
+            "* 1234567 Second result\u{1f}1234567".to_owned(),
+        ]);
+        assert_eq!(
+            selected_search_commit(Some(&rows), &[1], Some(0)),
+            Some((1, "1234567".to_owned()))
+        );
+        assert_eq!(selected_search_commit(Some(&rows), &[], None), None);
     }
 }

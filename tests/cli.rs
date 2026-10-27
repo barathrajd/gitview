@@ -69,5 +69,9 @@ fn version_and_help_show_navigation_keys() {
         .output()
         .unwrap();
     let text = String::from_utf8_lossy(&help.stdout);
-    assert!(text.contains("j/k") && text.contains("Enter/l") && text.contains("Esc/h"));
+    assert!(text.contains("j/k"));
+    assert!(text.contains("Enter"));
+    assert!(text.contains("Esc"));
+    assert!(text.contains(" h "));
+    assert!(text.contains(" l "));
 }

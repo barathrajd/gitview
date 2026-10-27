@@ -229,6 +229,26 @@ fn searches_history_case_insensitively_and_wraps() {
 }
 
 #[test]
+fn search_matches_returns_filtered_commit_rows_in_history_order() {
+    let rows = vec![
+        "* abcdef0 Add search results - Alice\u{1f}abcdef0".to_owned(),
+        "| [history truncated]".to_owned(),
+        "* 1234567 Fix search debounce - Bob\u{1f}1234567".to_owned(),
+        "* 7654321 Other change - Alice\u{1f}7654321".to_owned(),
+    ];
+
+    assert_eq!(
+        gitview::history::search_matches(&rows, "SEARCH"),
+        vec![0, 2]
+    );
+    assert_eq!(gitview::history::search_matches(&rows, "alice"), vec![0, 3]);
+    assert_eq!(
+        gitview::history::search_matches(&rows, "missing"),
+        Vec::<usize>::new()
+    );
+}
+
+#[test]
 fn displays_short_hashes_but_searches_the_full_hash() {
     use gitview::history::{display_row, find_next};
     let root = std::env::temp_dir().join(format!(

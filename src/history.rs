@@ -85,6 +85,17 @@ pub fn find_next(rows: &[String], query: &str, selected: usize) -> Option<usize>
         })
 }
 
+/// Return visible commit rows matching the search query, preserving history order.
+pub fn search_matches(rows: &[String], query: &str) -> Vec<usize> {
+    let query = query.to_lowercase();
+    rows.iter()
+        .enumerate()
+        .filter_map(|(index, row)| {
+            (commit_id(row).is_some() && row.to_lowercase().contains(&query)).then_some(index)
+        })
+        .collect()
+}
+
 /// Hide the full object ID used for searching from the visible graph row.
 pub fn display_row(row: &str) -> &str {
     row.rsplit_once('\u{1f}')

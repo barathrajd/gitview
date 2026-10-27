@@ -74,8 +74,10 @@ fn renders_responsive_repository_cockpit() {
     assert!(wide.contains("WORKTREE"));
     assert!(wide.contains("HISTORY"));
     assert!(wide.contains("INSPECTOR"));
-    assert!(wide.contains("q quit"));
-    assert!(render_cockpit_focused(140, View::WorkingTree).contains("opens diff"));
+    assert!(wide.contains("quit"));
+    let worktree_focused = render_cockpit_focused(140, View::WorkingTree);
+    assert!(worktree_focused.contains("diff"));
+    assert!(!worktree_focused.contains("details"));
 }
 
 #[test]
