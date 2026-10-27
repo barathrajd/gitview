@@ -3,6 +3,11 @@ name = "gitview"
 version = "0.4.1"
 edition = "2024"
 license = "MIT"
+description = "Keyboard-first terminal interface for reviewing Git history and working-tree changes"
+repository = "https://github.com/barathrajd/gitview"
+readme = "README.md"
+keywords = ["git", "tui", "terminal", "cli"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 ratatui = "0.30.2"
