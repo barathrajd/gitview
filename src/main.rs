@@ -154,7 +154,7 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                         let items = commit
                             .files
                             .iter()
-                            .map(|file| ListItem::new(file.as_str()))
+                            .map(|file| ListItem::new(file.to_string_lossy().into_owned()))
                             .collect::<Vec<_>>();
                         let list = List::new(items)
                             .block(Block::bordered().title("Files — up/down select • Enter diff"))

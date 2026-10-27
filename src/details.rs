@@ -1,4 +1,8 @@
-use std::{path::Path, process::Command};
+use std::{
+    ffi::{OsStr, OsString},
+    path::Path,
+    process::Command,
+};
 
 #[derive(Debug)]
 pub struct CommitDetails {
@@ -6,7 +10,7 @@ pub struct CommitDetails {
     pub author: String,
     pub date: String,
     pub subject: String,
-    pub files: Vec<String>,
+    pub files: Vec<OsString>,
 }
 
 pub fn load_commit(root: &Path, revision: &str) -> Result<CommitDetails, String> {
@@ -53,7 +57,7 @@ pub fn load_commit(root: &Path, revision: &str) -> Result<CommitDetails, String>
         files: files
             .split(|byte| *byte == 0)
             .filter(|field| !field.is_empty())
-            .map(|field| String::from_utf8_lossy(field).into_owned())
+            .map(path_from_bytes)
             .collect(),
     })
 }
@@ -73,10 +77,21 @@ fn git(root: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
     Ok(output.stdout)
 }
 
-pub fn load_diff(root: &Path, revision: &str, file: &str) -> Result<String, String> {
-    let output = git(
-        root,
-        &[
+#[cfg(unix)]
+fn path_from_bytes(bytes: &[u8]) -> OsString {
+    use std::os::unix::ffi::OsStringExt;
+    OsString::from_vec(bytes.to_vec())
+}
+
+#[cfg(not(unix))]
+fn path_from_bytes(bytes: &[u8]) -> OsString {
+    OsString::from(String::from_utf8_lossy(bytes).into_owned())
+}
+
+pub fn load_diff(root: &Path, revision: &str, file: impl AsRef<OsStr>) -> Result<String, String> {
+    let output = Command::new("git")
+        .current_dir(root)
+        .args([
             "--literal-pathspecs",
             "show",
             "--format=",
@@ -87,8 +102,15 @@ pub fn load_diff(root: &Path, revision: &str, file: &str) -> Result<String, Stri
             "--end-of-options",
             revision,
             "--",
-            file,
-        ],
-    )?;
-    Ok(String::from_utf8_lossy(&output).into_owned())
+        ])
+        .arg(file)
+        .output()
+        .map_err(|e| format!("Could not run Git: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "Git failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }

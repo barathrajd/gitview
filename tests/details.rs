@@ -161,3 +161,54 @@ fn reports_binary_changes_and_lists_both_sides_of_a_rename() {
     );
     fs::remove_dir_all(path).unwrap();
 }
+
+#[cfg(unix)]
+#[test]
+fn preserves_non_utf8_paths_when_opening_a_diff() {
+    use gitview::details::load_diff;
+    use std::os::unix::ffi::OsStringExt;
+    let path = std::env::temp_dir().join(format!(
+        "gitview-nonutf8-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&path).unwrap();
+    let name = std::ffi::OsString::from_vec(b"file-\xff".to_vec());
+    assert!(
+        Command::new("git")
+            .current_dir(&path)
+            .args(["init", "-q"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    use std::{io::Write, process::Stdio};
+    let mut importer = Command::new("git")
+        .current_dir(&path)
+        .args(["fast-import", "--quiet"])
+        .stdin(Stdio::piped())
+        .spawn()
+        .unwrap();
+    importer.stdin.as_mut().unwrap().write_all(b"commit refs/heads/main\ncommitter Test <test@example.com> 1 +0000\ndata 6\nchange\nM 100644 inline \"file-\\377\"\ndata 15\nunique content\n\n").unwrap();
+    drop(importer.stdin.take());
+    assert!(importer.wait().unwrap().success());
+    assert!(
+        Command::new("git")
+            .current_dir(&path)
+            .args(["symbolic-ref", "HEAD", "refs/heads/main"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let details = load_commit(&path, "HEAD").unwrap();
+    let file = details.files.first().unwrap();
+    assert_eq!(file, &name);
+    assert!(
+        load_diff(&path, "HEAD", file)
+            .unwrap()
+            .contains("+unique content")
+    );
+    fs::remove_dir_all(path).unwrap();
+}
