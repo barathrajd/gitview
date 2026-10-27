@@ -42,3 +42,12 @@ fn help_lists_history_and_working_tree_controls() {
         assert!(text.contains(word), "missing {word}");
     }
 }
+
+#[test]
+fn help_documents_ascii_mode() {
+    let output = Command::new(env!("CARGO_BIN_EXE_gitview"))
+        .arg("--help")
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&output.stdout).contains("--ascii"));
+}

@@ -8,7 +8,7 @@ pub fn load_history(root: &Path) -> Result<Vec<String>, String> {
             "--all",
             "--graph",
             "--decorate=short",
-            "--format=%h %d %s — %an%x1f%H",
+            "--format=%h %d %s - %an%x1f%H",
             "--color=never",
             "-n",
             "200",

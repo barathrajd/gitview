@@ -10,7 +10,7 @@ Install Rust and Git, then from the Gitview source directory run:
 cargo build --release --locked
 ```
 
-From any repository, run the resulting binary by its path, for example `/path/to/gitview/target/release/gitview`. Use `gitview --help` for controls. Development checks are `cargo fmt --check`, `cargo test --locked`, and `cargo clippy --all-targets -- -D warnings`.
+From any repository, run the resulting binary by its path, for example `/path/to/gitview/target/release/gitview`. Use `gitview --help` for controls and `gitview --ascii` for plain terminal borders. Development checks are `cargo fmt --check`, `cargo test --locked`, and `cargo clippy --all-targets -- -D warnings`.
 
 The current build and terminal checks have been performed on macOS with Rust 1.99.1 and Git 2.54. Linux and other Rust versions have not yet been verified.
 

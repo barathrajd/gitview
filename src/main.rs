@@ -11,6 +11,17 @@ use std::{
     process::{Command, ExitCode},
 };
 
+const ASCII_BORDER: ratatui::symbols::border::Set<'static> = ratatui::symbols::border::Set {
+    top_left: "+",
+    top_right: "+",
+    bottom_left: "+",
+    bottom_right: "+",
+    vertical_left: "|",
+    vertical_right: "|",
+    horizontal_top: "-",
+    horizontal_bottom: "-",
+};
+
 const HELP: &str = "Up/Down  Navigate and scroll\nEnter    Open commit or diff\nEsc      Go back\nTab      Switch history / working tree\n/        Search message, author or hash\nn        Next search match\ns        Stage selected file\nu        Unstage selected file\nr        Refresh working tree\n?        Toggle help\nq        Quit";
 
 fn run() -> Result<(), String> {
@@ -18,9 +29,12 @@ fn run() -> Result<(), String> {
         .skip(1)
         .any(|arg| arg == "--help" || arg == "-h")
     {
-        println!("Usage: gitview\n\nOpen the current Git repository.\n\n{HELP}");
+        println!(
+            "Usage: gitview [--ascii]\n\nOpen the current Git repository. Use --ascii for plain terminal borders.\n\n{HELP}"
+        );
         return Ok(());
     }
+    let ascii = env::args().any(|arg| arg == "--ascii");
     let output = Command::new("git")
         .args(["rev-parse", "--show-toplevel"])
         .output()
@@ -31,12 +45,17 @@ fn run() -> Result<(), String> {
     let root = gitview::repository::parse_root(&output.stdout);
     let mut terminal =
         ratatui::try_init().map_err(|e| format!("Could not initialize terminal: {e}"))?;
-    let result = app(&mut terminal, &root);
+    let result = app(&mut terminal, &root, ascii);
     ratatui::restore();
     result.map_err(|e| format!("Terminal error: {e}"))
 }
 
-fn app(terminal: &mut DefaultTerminal, root: &std::path::Path) -> io::Result<()> {
+fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> io::Result<()> {
+    let border = if ascii {
+        ASCII_BORDER
+    } else {
+        ratatui::symbols::border::PLAIN
+    };
     let mut help = false;
     let mut searching = false;
     let mut query = String::new();
@@ -100,12 +119,12 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path) -> io::Result<()>
         terminal.draw(|frame| {
             if help {
                 frame.render_widget(
-                    Paragraph::new(HELP).block(Block::bordered().title("Help")),
+                    Paragraph::new(HELP).block(Block::bordered().border_set(border).title("Help")),
                     frame.area(),
                 );
             } else if let Some((_, value)) = &diff {
                 let message = match value {
-                    None => "Loading diff…",
+                    None => "Loading diff...",
                     Some(Err(error)) => error,
                     Some(Ok(text)) if text.is_empty() => "No textual diff",
                     Some(Ok(text)) => text,
@@ -128,13 +147,17 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path) -> io::Result<()>
                     frame.render_widget(
                         Paragraph::new(Text::from(left))
                             .scroll((diff_scroll, 0))
-                            .block(Block::bordered().title("Before — up/down scroll • Esc back")),
+                            .block(
+                                Block::bordered()
+                                    .border_set(border)
+                                    .title("Before - up/down scroll | Esc back"),
+                            ),
                         panes[0],
                     );
                     frame.render_widget(
                         Paragraph::new(Text::from(right))
                             .scroll((diff_scroll, 0))
-                            .block(Block::bordered().title("After")),
+                            .block(Block::bordered().border_set(border).title("After")),
                         panes[1],
                     );
                 } else {
@@ -142,19 +165,24 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path) -> io::Result<()>
                     frame.render_widget(
                         Paragraph::new(Text::from(lines))
                             .scroll((diff_scroll, 0))
-                            .block(Block::bordered().title("Diff — up/down scroll • Esc back")),
+                            .block(
+                                Block::bordered()
+                                    .border_set(border)
+                                    .title("Diff - up/down scroll | Esc back"),
+                            ),
                         frame.area(),
                     );
                 }
             } else if let Some((_, value)) = &details {
                 match value {
                     None => frame.render_widget(
-                        Paragraph::new("Loading commit…").block(Block::bordered().title("Commit")),
+                        Paragraph::new("Loading commit...")
+                            .block(Block::bordered().border_set(border).title("Commit")),
                         frame.area(),
                     ),
                     Some(Err(error)) => frame.render_widget(
                         Paragraph::new(error.as_str())
-                            .block(Block::bordered().title("Commit error")),
+                            .block(Block::bordered().border_set(border).title("Commit error")),
                         frame.area(),
                     ),
                     Some(Ok(commit)) => {
@@ -166,8 +194,11 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path) -> io::Result<()>
                             commit.subject, commit.author, commit.date, commit.hash
                         );
                         frame.render_widget(
-                            Paragraph::new(meta)
-                                .block(Block::bordered().title("Commit — Esc back")),
+                            Paragraph::new(meta).block(
+                                Block::bordered()
+                                    .border_set(border)
+                                    .title("Commit - Esc back"),
+                            ),
                             sections[0],
                         );
                         let items = commit
@@ -176,14 +207,18 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path) -> io::Result<()>
                             .map(|file| ListItem::new(file.to_string_lossy().into_owned()))
                             .collect::<Vec<_>>();
                         let list = List::new(items)
-                            .block(Block::bordered().title("Files — up/down select • Enter diff"))
+                            .block(
+                                Block::bordered()
+                                    .border_set(border)
+                                    .title("Files - up/down select | Enter diff"),
+                            )
                             .highlight_symbol("> ");
                         frame.render_stateful_widget(list, sections[1], &mut file_selection);
                     }
                 }
             } else if tree_view {
                 let lines: Vec<String> = match &status {
-                    None => vec!["Loading working tree…".to_owned()],
+                    None => vec!["Loading working tree...".to_owned()],
                     Some(Err(error)) => vec![error.clone()],
                     Some(Ok(entries)) if entries.is_empty() => {
                         vec!["Working tree clean".to_owned()]
@@ -198,13 +233,14 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path) -> io::Result<()>
                 let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>())
                     .block(
                         Block::bordered()
-                            .title("Working tree — Enter diff • s stage • u unstage • Tab history"),
+                            .border_set(border)
+                            .title("Working tree - Enter diff | s stage | u unstage | Tab history"),
                     )
                     .highlight_symbol("> ");
                 frame.render_stateful_widget(list, frame.area(), &mut status_selection);
             } else {
                 let lines = match &history {
-                    None => vec!["Loading history…".to_string()],
+                    None => vec!["Loading history...".to_string()],
                     Some(Err(error)) => vec![error.clone()],
                     Some(Ok(rows)) if rows.is_empty() => vec!["No commits yet".to_string()],
                     Some(Ok(rows)) => rows
@@ -214,17 +250,17 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path) -> io::Result<()>
                 };
                 let items = lines.into_iter().map(ListItem::new).collect::<Vec<_>>();
                 let title = if searching {
-                    format!("Search: {query}▏ (Enter find • Esc cancel)")
+                    format!("Search: {query}_ (Enter find | Esc cancel)")
                 } else if !search_message.is_empty() {
                     search_message.clone()
                 } else {
                     format!(
-                        "Gitview — / search • Tab changes • ? help • q quit — {}",
+                        "Gitview - / search | Tab changes | ? help | q quit - {}",
                         root.display()
                     )
                 };
                 let list = List::new(items)
-                    .block(Block::bordered().title(title))
+                    .block(Block::bordered().border_set(border).title(title))
                     .highlight_symbol("> ");
                 frame.render_stateful_widget(list, frame.area(), &mut selection);
             }
@@ -248,7 +284,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path) -> io::Result<()>
                                 selection.selected().unwrap_or(0),
                             ) {
                                 selection.select(Some(index));
-                                search_message = format!("Search: {query} — n next • / new search");
+                                search_message = format!("Search: {query} - n next | / new search");
                             } else {
                                 search_message = format!("No match for: {query}");
                             }
