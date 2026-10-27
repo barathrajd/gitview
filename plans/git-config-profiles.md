@@ -24,6 +24,8 @@ Git commands started by Gitview.
   worktrees consistently, and reports ambiguous or overlapping profile rules.
 - The user can add, edit, disable, and remove named folder profiles without
   Gitview silently rewriting repository remotes or the primary config.
+- Terminal `git` commands use folder profiles only when the user explicitly
+  enables shell integration; without the opt-in, terminal behavior is unchanged.
 - Profiles store identity and Git settings only. Gitview never stores access
   tokens or passwords; Git credential helpers and SSH remain responsible for
   authentication secrets.
@@ -39,6 +41,9 @@ Git commands started by Gitview.
   file permissions and atomic writes.
 - Applying the selected profile to every Git subprocess launched by Gitview,
   including status, commit, fetch, pull, and push.
+- An optional `--shell-integration` setup flow that installs a reversible,
+  user-owned shell hook; the hook selects `GIT_CONFIG_GLOBAL` for terminal Git
+  commands based on the current worktree folder.
 - Identity (`user.name`, `user.email`), signing preferences, credential-helper
   selection, and SSH command settings where the user configures them.
 - A profile selector/editor and visible active-profile state in Gitview.
@@ -49,8 +54,8 @@ Git commands started by Gitview.
 - Storing passwords, access tokens, or private keys in Gitview profile files.
 - Changing the user's primary `~/.gitconfig` or repository `.git/config` as a
   side effect of selecting a profile.
-- Changing the environment for Git commands started outside Gitview. Standard
-  shell `git` commands keep their existing configuration behavior.
+- Changing the environment for Git commands started outside Gitview unless the
+  user explicitly enables the optional shell integration.
 - Automatic account guessing from private repository metadata or remote
   network calls.
 
@@ -69,9 +74,12 @@ secrets; never copy credentials into the profile file.
 A Git-native `includeIf` rule is not the isolation mechanism: it loads the
 normal global config and conditionally adds another file. Gitview's per-process
 `GIT_CONFIG_GLOBAL` override keeps the primary global file out of Gitview's
-commands for matched folders. This does not affect standalone Git commands in a
-terminal; covering those commands would need a separate shell-level approach
-and would not provide the same guarantee with ordinary `includeIf` rules.
+commands for matched folders. The optional shell integration uses a reversible
+shell hook to export the selected profile file before invoking terminal Git;
+it remains disabled until the user opts in and can be removed without changing
+the primary config. Supported shells, installation UX, and safe hook updates
+must be confirmed before implementation. Never claim shell isolation from an
+`includeIf` rule alone.
 
 Sources: Git documents [`GIT_CONFIG_GLOBAL`][global-env], conditional
 [`includeIf`][include-if], configuration precedence and scopes in
@@ -87,16 +95,19 @@ Sources: Git documents [`GIT_CONFIG_GLOBAL`][global-env], conditional
    that chooses the profile and applies `GIT_CONFIG_GLOBAL` consistently.
 3. **Manage and explain profiles in the UI:** Add profile setup, edit, disable,
    and status views; show effective identity and profile source before writes.
-4. **Verify account isolation:** Cover fallback, matching paths, linked
-   worktrees, local overrides, credential-helper delegation, and commit author
-   identity; manually verify GitHub and GitLab authentication using the user's
-   existing credential setup.
+4. **Add optional terminal integration:** Implement `--shell-integration` as
+   an explicit, reversible opt-in and document the supported shells.
+5. **Verify account isolation:** Cover fallback, matching paths, linked
+   worktrees, local overrides, credential-helper delegation, commit author
+   identity, and terminal opt-in/off behavior; manually verify GitHub and
+   GitLab authentication using the user's existing credential setup.
 
 ## Risks & open questions
 
-- **Standalone shell Git commands:** This plan only isolates commands launched
-  by Gitview. If the requirement includes every `git` command launched from a
-  terminal in the folder, that needs a separate shell-level design.
+- **Shell compatibility:** Shell hooks differ and user startup files vary. Keep
+  shell integration opt-in, support a documented shell set, back up managed
+  edits, and provide an uninstall path. Gitview's own subprocess isolation
+  remains available without shell integration.
 - **Local config precedence:** Repository-local values can override the
   selected profile. Gitview must reveal the effective identity and provide a
   clear resolution path without silently editing `.git/config`.
@@ -109,10 +120,11 @@ Sources: Git documents [`GIT_CONFIG_GLOBAL`][global-env], conditional
 ## Boundaries
 
 Keep the primary global config unchanged. Never write tokens or private keys.
-Apply profile selection only to Gitview's Git subprocesses unless a later,
-separately approved shell integration extends the scope. Preserve Git's normal
-system and repository-local configuration, show their effective contribution,
-and do not silently rewrite remotes or repository config.
+Apply profile selection to Gitview's Git subprocesses by default. Apply it to
+terminal Git commands only after the user enables `--shell-integration`.
+Preserve Git's normal system and repository-local configuration, show their
+effective contribution, and do not silently rewrite remotes or repository
+config.
 
 [global-env]: https://git-scm.com/docs/git#Documentation/git.txt-codeGITCONFIGGLOBALcode
 [include-if]: https://git-scm.com/docs/git-config#_conditional_includes
