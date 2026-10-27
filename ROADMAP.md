@@ -2,18 +2,17 @@
 
 ## Now
 
-- No active feature; choose the next item to plan.
+- [Gitview 1.0.0](plans/gitview-1-0-0.md) — build Lazygit v0.66.2 workflow parity with a polished Rust TUI and safe merge previews; defer AI.
 
 ## Next
 
-- Remote operations — add fetch/pull/push with progress and confirmation.
-- Compare and filter — compare arbitrary revisions and improve history navigation.
+- No additional committed feature is queued.
 
 ## Later
 
-- Additional Git workflows — explore stash, tags, worktrees, and commit creation.
-- Advanced editing — consider interactive rebase and conflict resolution after an operation/undo design.
-- Broader compatibility — evaluate Windows and an optional in-process Git adapter based on feedback.
+- AI chat — plan provider and subscription support after Gitview 1.0.0.
+- Windows support — revisit after the macOS and Linux release.
+- New differentiators beyond Lazygit parity — prioritize from user feedback after 1.0.0.
 
 ## Shipped
 
