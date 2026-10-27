@@ -28,7 +28,7 @@ const ASCII_BORDER: ratatui::symbols::border::Set<'static> = ratatui::symbols::b
     horizontal_bottom: "-",
 };
 
-const HELP: &str = "Up/Down  Navigate and scroll\nEnter    Open commit or diff\nEsc      Go back\nTab      Switch history / working tree\nb        Browse local branches\n/        Search message, author or hash\nn        Next search match\ns        Stage selected file\nu        Unstage selected file\nr        Refresh working tree\n?        Toggle help\nq        Quit";
+const HELP: &str = "Up/Down  Navigate and scroll\nEnter    Open commit or diff\nEsc      Go back\nTab      Switch history / working tree\nb        Browse local branches\nc        Create a branch (in branch view)\ny / n    Confirm / cancel branch operation\n/        Search message, author or hash\nn        Next search match\ns        Stage selected file\nu        Unstage selected file\nr        Refresh working tree\n?        Toggle help\nq        Quit";
 
 fn run() -> Result<(), String> {
     if env::args()
@@ -229,10 +229,14 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                         (heading, lines)
                     }
                 };
-                let areas = Layout::vertical([Constraint::Min(3), Constraint::Length(2)]).split(frame.area());
+                let available = frame.area().height.saturating_sub(3);
+                let width = usize::from(frame.area().width.max(1));
+                let feedback_lines = branch_feedback.lines().map(|line| line.chars().count().max(1).div_ceil(width)).sum::<usize>().max(1);
+                let feedback_height = u16::try_from(feedback_lines).unwrap_or(u16::MAX).min(available).min(8);
+                let areas = Layout::vertical([Constraint::Min(3), Constraint::Length(feedback_height)]).split(frame.area());
                 let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>()).block(Block::bordered().border_set(border).title(format!("{heading} | Enter switch | c create | Esc back"))).highlight_symbol("> ");
                 frame.render_stateful_widget(list, areas[0], &mut branch_selection);
-                frame.render_widget(Paragraph::new(branch_feedback.as_str()), areas[1]);
+                frame.render_widget(Paragraph::new(branch_feedback.as_str()).wrap(Wrap { trim: false }), areas[1]);
             } else if let Some((_, value)) = &diff {
                 let message = match value {
                     None => "Loading diff...",
@@ -480,15 +484,14 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                     KeyCode::Enter => {
                         if let (Some(Ok(data)), Some(index)) =
                             (&branches, branch_selection.selected())
+                            && let Some(name) = data.branches.get(index)
                         {
-                            if let Some(name) = data.branches.get(index) {
-                                if matches!(&data.head, gitview::branches::HeadState::Attached(current) if current == name)
-                                {
-                                    branch_feedback = "Already on this branch.".into();
-                                } else {
-                                    branch_confirm = Some(BranchAction::Switch(name.clone()));
-                                    branch_feedback.clear();
-                                }
+                            if matches!(&data.head, gitview::branches::HeadState::Attached(current) if current == name)
+                            {
+                                branch_feedback = "Already on this branch.".into();
+                            } else {
+                                branch_confirm = Some(BranchAction::Switch(name.clone()));
+                                branch_feedback.clear();
                             }
                         }
                     }
@@ -496,13 +499,13 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                     KeyCode::Char('?') => help = true,
                     KeyCode::Esc | KeyCode::Char('b') => branch_view = false,
                     KeyCode::Down => {
-                        if let Some(Ok(data)) = &branches {
-                            if !data.branches.is_empty() {
-                                branch_selection.select(Some(
-                                    (branch_selection.selected().unwrap_or(0) + 1)
-                                        .min(data.branches.len() - 1),
-                                ));
-                            }
+                        if let Some(Ok(data)) = &branches
+                            && !data.branches.is_empty()
+                        {
+                            branch_selection.select(Some(
+                                (branch_selection.selected().unwrap_or(0) + 1)
+                                    .min(data.branches.len() - 1),
+                            ));
                         }
                     }
                     KeyCode::Up => {

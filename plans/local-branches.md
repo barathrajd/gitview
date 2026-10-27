@@ -40,11 +40,11 @@ Execute operations on a worker, serialize mutations, and invalidate outstanding 
 - [x] **1. Browse local branches:** Add the branch view, current/detached/unborn indicators, navigation and loading/error states. Test a repository with multiple branches, detached HEAD and no commits; verify the actual terminal view.
 - [x] **2. Switch safely:** Confirm a selected local branch, execute the switch on a worker, and refresh review state. Test clean, dirty-conflicting, dirty-non-conflicting and other-worktree cases; verify the repository state and terminal feedback.
 - [x] **3. Create and switch:** Add the name prompt and confirmation, validate the name, and create from committed HEAD. Test valid, invalid, duplicate, detached and unborn cases; verify no unintended branch or working-tree changes on failure.
-- [ ] **4. Harden and document:** Test fast navigation and stale results during switching, mutation serialization, help/ASCII mode and existing review workflows. Document controls, Git version requirements and limitations; run the full test suite, format, lint and build checks.
+- [x] **4. Harden and document:** Test fast navigation and stale results during switching, mutation serialization, help/ASCII mode and existing review workflows. Document controls, Git version requirements and limitations; run the full test suite, format, lint and build checks.
 
 ## Risks & open questions
 
-- **Git versions and option parsing:** `git switch` availability and exact `--` behavior must be checked on the minimum supported Git; no minimum is established yet. Fallback: fail with a clear requirement, and document the tested version rather than using a forceful or ambiguous substitute.
+- **Git versions and option parsing:** The selected command forms were tested with Git 2.54; `git switch` exists in Git 2.23, but the minimum supported Git has not been verified. Fallback: fail with a clear requirement, and document the tested version rather than using a forceful or ambiguous substitute.
 - **Concurrent repository changes:** another process may change HEAD or branch refs between selection and execution. Revalidate the selected local ref immediately before switching, let Git arbitrate, and refresh afterward; surface failures.
 - **Hooks and worktrees:** Git hooks may have side effects, and a branch may be checked out elsewhere. Preserve Git's default protections, display errors, and do not bypass hooks or worktree checks.
 - **Unborn HEAD:** branch creation from an unborn branch is deferred; show a first-commit-required message. This is a deliberate fallback until an orphan-branch workflow is planned.

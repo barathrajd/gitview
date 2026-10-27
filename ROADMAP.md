@@ -2,7 +2,7 @@
 
 ## Now
 
-- [Local branches](plans/local-branches.md) — browse, switch, and create local branches safely.
+- No active feature; choose the next item to plan.
 
 ## Next
 
@@ -16,5 +16,7 @@
 - Broader compatibility — evaluate Windows and an optional in-process Git adapter based on feedback.
 
 ## Shipped
+
+- 2026-10-27: [Local branches](plans/local-branches.md) — completed local branch browsing, switching, and creation; not published.
 
 - 2026-10-27: [Git review MVP](plans/git-review-mvp.md) — tagged a locally tested macOS preview as `v0.1.0`.

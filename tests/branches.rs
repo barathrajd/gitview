@@ -209,3 +209,23 @@ fn creates_from_detached_head() {
     );
     fs::remove_dir_all(root).unwrap();
 }
+
+#[cfg(unix)]
+#[test]
+fn reports_a_failed_checkout_hook_even_if_git_changed_head() {
+    use gitview::branches::switch_branch;
+    use std::os::unix::fs::PermissionsExt;
+    let root = fixture();
+    commit(&root);
+    git(&root, &["branch", "topic"]);
+    let hook = root.join(".git/hooks/post-checkout");
+    fs::write(&hook, "#!/bin/sh\necho 'hook refused' >&2\nexit 1\n").unwrap();
+    fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+    let error = switch_branch(&root, std::ffi::OsStr::new("topic")).unwrap_err();
+    assert!(error.contains("hook refused"));
+    assert_eq!(
+        load_branches(&root).unwrap().head,
+        HeadState::Attached("topic".into())
+    );
+    fs::remove_dir_all(root).unwrap();
+}
