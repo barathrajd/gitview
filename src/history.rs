@@ -8,7 +8,7 @@ pub fn load_history(root: &Path) -> Result<Vec<String>, String> {
             "--all",
             "--graph",
             "--decorate=short",
-            "--oneline",
+            "--format=%H %d %s — %an",
             "--color=never",
             "-n",
             "200",
@@ -66,4 +66,17 @@ pub fn commit_id(row: &str) -> Option<&str> {
     } else {
         None
     }
+}
+
+/// Find the next matching commit row after the selected row, wrapping once.
+pub fn find_next(rows: &[String], query: &str, selected: usize) -> Option<usize> {
+    if query.is_empty() || rows.is_empty() {
+        return None;
+    }
+    let query = query.to_lowercase();
+    (1..=rows.len())
+        .map(|offset| (selected + offset) % rows.len())
+        .find(|&index| {
+            commit_id(&rows[index]).is_some() && rows[index].to_lowercase().contains(&query)
+        })
 }

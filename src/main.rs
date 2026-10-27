@@ -36,6 +36,9 @@ fn run() -> Result<(), String> {
 
 fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
     let mut help = false;
+    let mut searching = false;
+    let mut query = String::new();
+    let mut search_message = String::new();
     let (sender, receiver) = std::sync::mpsc::channel();
     let path = std::path::PathBuf::from(root);
     std::thread::spawn(move || {
@@ -96,7 +99,7 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
             if help {
                 frame.render_widget(
                     Paragraph::new(
-                        "Up/Down Navigate   Enter Open   Tab History/working tree   s Stage   u Unstage   r Refresh   Esc Back   q Quit",
+                        "Up/Down Navigate   Enter Open   / Search   n Next   Tab Working tree   s Stage   u Unstage   r Refresh   Esc Back   q Quit",
                     )
                     .block(Block::bordered().title("Help")),
                     frame.area(),
@@ -196,10 +199,9 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                     Some(Ok(rows)) => rows.clone(),
                 };
                 let items = lines.into_iter().map(ListItem::new).collect::<Vec<_>>();
+                let title = if searching { format!("Search: {query}▏ (Enter find • Esc cancel)") } else if !search_message.is_empty() { search_message.clone() } else { format!("Gitview — {root} — / search • ? help • q quit") };
                 let list = List::new(items)
-                    .block(Block::bordered().title(format!(
-                        "Gitview — {root} — up/down navigate • ? help • q quit"
-                    )))
+                    .block(Block::bordered().title(title))
                     .highlight_symbol("> ");
                 frame.render_stateful_widget(list, frame.area(), &mut selection);
             }
@@ -208,9 +210,56 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
             && let Event::Key(key) = event::read()?
         {
             if key.kind == KeyEventKind::Press {
+                if searching {
+                    match key.code {
+                        KeyCode::Esc => searching = false,
+                        KeyCode::Backspace => {
+                            query.pop();
+                        }
+                        KeyCode::Enter => {
+                            searching = false;
+                            if let Some(Ok(rows)) = &history {
+                                if let Some(index) = gitview::history::find_next(
+                                    rows,
+                                    &query,
+                                    selection.selected().unwrap_or(0),
+                                ) {
+                                    selection.select(Some(index));
+                                    search_message =
+                                        format!("Search: {query} — n next • / new search");
+                                } else {
+                                    search_message = format!("No match for: {query}");
+                                }
+                            }
+                        }
+                        KeyCode::Char(c) => query.push(c),
+                        _ => {}
+                    }
+                    continue;
+                }
                 match key.code {
                     KeyCode::Char('q') => return Ok(()),
                     KeyCode::Char('?') => help = !help,
+                    KeyCode::Char('/')
+                        if !help && !tree_view && details.is_none() && diff.is_none() =>
+                    {
+                        searching = true;
+                        query.clear();
+                        search_message.clear();
+                    }
+                    KeyCode::Char('n')
+                        if !help && !tree_view && details.is_none() && diff.is_none() =>
+                    {
+                        if let Some(Ok(rows)) = &history {
+                            if let Some(index) = gitview::history::find_next(
+                                rows,
+                                &query,
+                                selection.selected().unwrap_or(0),
+                            ) {
+                                selection.select(Some(index));
+                            }
+                        }
+                    }
                     KeyCode::Tab if !help && details.is_none() && diff.is_none() => {
                         tree_view = !tree_view;
                         if tree_view {

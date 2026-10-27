@@ -215,3 +215,15 @@ fn displays_merge_lanes_branches_and_tags() {
     );
     fs::remove_dir_all(path).unwrap();
 }
+
+#[test]
+fn searches_history_case_insensitively_and_wraps() {
+    use gitview::history::find_next;
+    let rows = vec![
+        "* abc1234 First change — Alice".to_string(),
+        "* 234abcd Fix issue — Bob".to_string(),
+    ];
+    assert_eq!(find_next(&rows, "ALICE", 1), Some(0));
+    assert_eq!(find_next(&rows, "fix", 0), Some(1));
+    assert_eq!(find_next(&rows, "missing", 0), None);
+}
