@@ -163,3 +163,55 @@ fn reports_when_history_is_truncated() {
     assert!(rows.iter().any(|row| row.contains("history truncated")));
     fs::remove_dir_all(path).unwrap();
 }
+
+#[test]
+fn displays_merge_lanes_branches_and_tags() {
+    use std::{io::Write, process::Stdio};
+    let path = std::env::temp_dir().join(format!(
+        "gitview-merge-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&path).unwrap();
+    assert!(
+        Command::new("git")
+            .current_dir(&path)
+            .args(["init", "-q"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let mut importer = Command::new("git")
+        .current_dir(&path)
+        .args(["fast-import", "--quiet"])
+        .stdin(Stdio::piped())
+        .spawn()
+        .unwrap();
+    write!(importer.stdin.as_mut().unwrap(), "commit refs/heads/main\nmark :1\ncommitter Test <test@example.com> 1 +0000\ndata 4\nbase\n\ncommit refs/heads/side\nmark :2\ncommitter Test <test@example.com> 2 +0000\ndata 4\nside\nfrom :1\n\ncommit refs/heads/main\nmark :3\ncommitter Test <test@example.com> 3 +0000\ndata 4\nmain\nfrom :1\n\ncommit refs/heads/main\nmark :4\ncommitter Test <test@example.com> 4 +0000\ndata 5\nmerge\nfrom :3\nmerge :2\n\n").unwrap();
+    drop(importer.stdin.take());
+    assert!(importer.wait().unwrap().success());
+    assert!(
+        Command::new("git")
+            .current_dir(&path)
+            .args(["tag", "v1", "main"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let rows = load_history(&path).unwrap();
+    assert!(
+        rows.iter()
+            .any(|row| row.contains("tag: v1") && row.contains("merge"))
+    );
+    assert!(
+        rows.iter()
+            .any(|row| row.contains("side") && row.contains("*"))
+    );
+    assert!(
+        rows.iter()
+            .any(|row| row.contains('|') || row.contains('\\'))
+    );
+    fs::remove_dir_all(path).unwrap();
+}
