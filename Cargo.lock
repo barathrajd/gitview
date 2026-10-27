@@ -506,6 +506,7 @@ version = "0.2.0"
 dependencies = [
  "crossterm",
  "crossterm-keybind",
+ "libc",
  "ratatui",
  "serde",
 ]

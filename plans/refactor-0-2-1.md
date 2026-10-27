@@ -115,9 +115,11 @@ workflows available.
   execution. Existing adapter checks already enforce the boundary; regression
   tests now cover removed branches and stale unstage selections. Independent
   Git processes can still race after validation.
-- [ ] **5. Verify lifecycle and supported platforms:** Add a panic-restoration
+- [x] **5. Verify lifecycle and supported platforms:** Add a panic-restoration
   regression check for Ratatui's existing hook; verify path parsing and
   untracked diffs on macOS and Linux; run format, test, lint, and build checks.
+  Full test suites, formatting, clippy, and builds passed on macOS Apple Silicon
+  and Linux x86_64; the PTY panic-restoration test passed on both platforms.
 - [ ] **6. Package 0.2.1:** Update `Cargo.toml`, `Cargo.lock`, CLI version
   expectations, and release documentation; build and inspect the macOS Apple
   Silicon archive; create and push `v0.2.1`; publish the private GitHub release
