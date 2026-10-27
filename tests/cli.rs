@@ -30,3 +30,15 @@ fn missing_git_reports_how_to_fix_it() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("install Git"));
 }
+
+#[test]
+fn help_lists_history_and_working_tree_controls() {
+    let output = Command::new(env!("CARGO_BIN_EXE_gitview"))
+        .arg("--help")
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&output.stdout);
+    for word in ["Search", "Stage", "Unstage", "Refresh"] {
+        assert!(text.contains(word), "missing {word}");
+    }
+}

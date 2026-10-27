@@ -11,12 +11,14 @@ use std::{
     process::{Command, ExitCode},
 };
 
+const HELP: &str = "Up/Down  Navigate and scroll\nEnter    Open commit or diff\nEsc      Go back\nTab      Switch history / working tree\n/        Search message, author or hash\nn        Next search match\ns        Stage selected file\nu        Unstage selected file\nr        Refresh working tree\n?        Toggle help\nq        Quit";
+
 fn run() -> Result<(), String> {
     if env::args()
         .skip(1)
         .any(|arg| arg == "--help" || arg == "-h")
     {
-        println!("Usage: gitview\n\nOpen the current Git repository.\n\nKeys: ? help, q quit");
+        println!("Usage: gitview\n\nOpen the current Git repository.\n\n{HELP}");
         return Ok(());
     }
     let output = Command::new("git")
@@ -98,10 +100,7 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
         terminal.draw(|frame| {
             if help {
                 frame.render_widget(
-                    Paragraph::new(
-                        "Up/Down Navigate   Enter Open   / Search   n Next   Tab Working tree   s Stage   u Unstage   r Refresh   Esc Back   q Quit",
-                    )
-                    .block(Block::bordered().title("Help")),
+                    Paragraph::new(HELP).block(Block::bordered().title("Help")),
                     frame.area(),
                 );
             } else if let Some((_, value)) = &diff {
@@ -186,10 +185,22 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                 let lines: Vec<String> = match &status {
                     None => vec!["Loading working tree…".to_owned()],
                     Some(Err(error)) => vec![error.clone()],
-                    Some(Ok(entries)) if entries.is_empty() => vec!["Working tree clean".to_owned()],
-                    Some(Ok(entries)) => entries.iter().map(|entry| format!("{:?}  {}", entry.section, entry.path.to_string_lossy())).collect(),
+                    Some(Ok(entries)) if entries.is_empty() => {
+                        vec!["Working tree clean".to_owned()]
+                    }
+                    Some(Ok(entries)) => entries
+                        .iter()
+                        .map(|entry| {
+                            format!("{:?}  {}", entry.section, entry.path.to_string_lossy())
+                        })
+                        .collect(),
                 };
-                let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>()).block(Block::bordered().title("Working tree — Enter diff • s stage • u unstage • Tab history")).highlight_symbol("> ");
+                let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>())
+                    .block(
+                        Block::bordered()
+                            .title("Working tree — Enter diff • s stage • u unstage • Tab history"),
+                    )
+                    .highlight_symbol("> ");
                 frame.render_stateful_widget(list, frame.area(), &mut status_selection);
             } else {
                 let lines = match &history {
@@ -199,7 +210,13 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                     Some(Ok(rows)) => rows.clone(),
                 };
                 let items = lines.into_iter().map(ListItem::new).collect::<Vec<_>>();
-                let title = if searching { format!("Search: {query}▏ (Enter find • Esc cancel)") } else if !search_message.is_empty() { search_message.clone() } else { format!("Gitview — {root} — / search • ? help • q quit") };
+                let title = if searching {
+                    format!("Search: {query}▏ (Enter find • Esc cancel)")
+                } else if !search_message.is_empty() {
+                    search_message.clone()
+                } else {
+                    format!("Gitview — {root} — / search • ? help • q quit")
+                };
                 let list = List::new(items)
                     .block(Block::bordered().title(title))
                     .highlight_symbol("> ");
