@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/barathrajd/gitview/compare/v0.3.3...v0.4.0) (2026-10-27)
+
+
+### Features
+
+* **ui:** add grouped worktree staging and page help ([73abbb6](https://github.com/barathrajd/gitview/commit/73abbb648d4fccb53a95e1db3b70285e9179f425))
+* **worktree:** add hunk and bulk staging ([0bb168f](https://github.com/barathrajd/gitview/commit/0bb168f2b94f96a2d4a7189ad5d8f63a9e7e4bbd))
+
 ## [0.3.3](https://github.com/barathrajd/gitview/compare/v0.3.2...v0.3.3) (2026-10-27)
 
 
