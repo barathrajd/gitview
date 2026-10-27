@@ -1,3 +1,4 @@
+pub mod branches;
 pub mod details;
 pub mod diff;
 pub mod history;

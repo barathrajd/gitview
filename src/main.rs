@@ -22,7 +22,7 @@ const ASCII_BORDER: ratatui::symbols::border::Set<'static> = ratatui::symbols::b
     horizontal_bottom: "-",
 };
 
-const HELP: &str = "Up/Down  Navigate and scroll\nEnter    Open commit or diff\nEsc      Go back\nTab      Switch history / working tree\n/        Search message, author or hash\nn        Next search match\ns        Stage selected file\nu        Unstage selected file\nr        Refresh working tree\n?        Toggle help\nq        Quit";
+const HELP: &str = "Up/Down  Navigate and scroll\nEnter    Open commit or diff\nEsc      Go back\nTab      Switch history / working tree\nb        Browse local branches\n/        Search message, author or hash\nn        Next search match\ns        Stage selected file\nu        Unstage selected file\nr        Refresh working tree\n?        Toggle help\nq        Quit";
 
 fn run() -> Result<(), String> {
     if env::args()
@@ -75,6 +75,11 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
     let (diff_sender, diff_receiver) = std::sync::mpsc::channel::<(u64, Result<String, String>)>();
     let mut diff: Option<(u64, Option<Result<String, String>>)> = None;
     let mut diff_scroll = 0u16;
+    let mut branch_view = false;
+    let (branch_sender, branch_receiver) =
+        std::sync::mpsc::channel::<Result<gitview::branches::Branches, String>>();
+    let mut branches: Option<Result<gitview::branches::Branches, String>> = None;
+    let mut branch_selection = ListState::default();
     let mut tree_view = false;
     let (status_sender, status_receiver) =
         std::sync::mpsc::channel::<(u64, Result<Vec<gitview::worktree::Entry>, String>)>();
@@ -116,12 +121,40 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
             }
             status = Some(result);
         }
+        if let Ok(result) = branch_receiver.try_recv() {
+            if result.as_ref().is_ok_and(|data| !data.branches.is_empty()) {
+                branch_selection.select(Some(0));
+            } else {
+                branch_selection.select(None);
+            }
+            branches = Some(result);
+        }
         terminal.draw(|frame| {
             if help {
                 frame.render_widget(
                     Paragraph::new(HELP).block(Block::bordered().border_set(border).title("Help")),
                     frame.area(),
                 );
+            } else if branch_view {
+                use gitview::branches::HeadState;
+                let (heading, lines): (String, Vec<String>) = match &branches {
+                    None => ("Local branches - loading".into(), vec!["Loading branches...".into()]),
+                    Some(Err(error)) => ("Local branches - error".into(), vec![error.clone()]),
+                    Some(Ok(data)) => {
+                        let heading = match &data.head {
+                            HeadState::Attached(name) => format!("Local branches - current: {}", name.to_string_lossy()),
+                            HeadState::Detached => "Local branches - detached HEAD".into(),
+                            HeadState::Unborn(name) => format!("Local branches - unborn: {}", name.to_string_lossy()),
+                        };
+                        let lines = if data.branches.is_empty() { vec!["No local branches".into()] } else { data.branches.iter().map(|name| {
+                            let current = matches!(&data.head, HeadState::Attached(head) if head == name);
+                            format!("{} {}", if current { "*" } else { " " }, name.to_string_lossy())
+                        }).collect() };
+                        (heading, lines)
+                    }
+                };
+                let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>()).block(Block::bordered().border_set(border).title(format!("{heading} | Esc back"))).highlight_symbol("> ");
+                frame.render_stateful_widget(list, frame.area(), &mut branch_selection);
             } else if let Some((_, value)) = &diff {
                 let message = match value {
                     None => "Loading diff...",
@@ -255,7 +288,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                     search_message.clone()
                 } else {
                     format!(
-                        "Gitview - / search | Tab changes | ? help | q quit - {}",
+                        "Gitview - b branches | / search | Tab changes | ? help - {}",
                         root.display()
                     )
                 };
@@ -295,9 +328,42 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 }
                 continue;
             }
+            if branch_view && !help {
+                match key.code {
+                    KeyCode::Char('q') => return Ok(()),
+                    KeyCode::Char('?') => help = true,
+                    KeyCode::Esc | KeyCode::Char('b') => branch_view = false,
+                    KeyCode::Down => {
+                        if let Some(Ok(data)) = &branches {
+                            if !data.branches.is_empty() {
+                                branch_selection.select(Some(
+                                    (branch_selection.selected().unwrap_or(0) + 1)
+                                        .min(data.branches.len() - 1),
+                                ));
+                            }
+                        }
+                    }
+                    KeyCode::Up => {
+                        if let Some(index) = branch_selection.selected() {
+                            branch_selection.select(Some(index.saturating_sub(1)));
+                        }
+                    }
+                    _ => {}
+                }
+                continue;
+            }
             match key.code {
                 KeyCode::Char('q') => return Ok(()),
                 KeyCode::Char('?') => help = !help,
+                KeyCode::Char('b') if !help && details.is_none() && diff.is_none() => {
+                    branch_view = true;
+                    branches = None;
+                    let sender = branch_sender.clone();
+                    let path = root.to_path_buf();
+                    std::thread::spawn(move || {
+                        let _ = sender.send(gitview::branches::load_branches(&path));
+                    });
+                }
                 KeyCode::Char('/')
                     if !help && !tree_view && details.is_none() && diff.is_none() =>
                 {
