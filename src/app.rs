@@ -12,7 +12,6 @@ pub enum AppAction {
     LoadWorkingTree,
     ReturnToHistory,
     StartSearch,
-    NextMatch,
     OpenBranches,
     StageSelected,
     UnstageSelected,
@@ -67,7 +66,6 @@ impl AppState {
         match (self.view, key) {
             (_, KeyCode::Char('b')) => Some(AppAction::OpenBranches),
             (View::History, KeyCode::Char('/')) => Some(AppAction::StartSearch),
-            (View::History, KeyCode::Char('n')) => Some(AppAction::NextMatch),
             (View::History, KeyCode::Up) => Some(AppAction::MoveUp),
             (View::History, KeyCode::Down) => Some(AppAction::MoveDown),
             (View::WorkingTree, KeyCode::Char('s')) => Some(AppAction::StageSelected),

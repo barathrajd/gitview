@@ -25,7 +25,7 @@ pub const ASCII_BORDER: ratatui::symbols::border::Set<'static> = ratatui::symbol
     horizontal_bottom: "-",
 };
 
-pub const HELP: &str = "KEY                 DETAILS                           KEY                 DETAILS\nUp/Down             Move list selection                j/k                 Move list selection\nEnter               Open selected item                 l                   Open selected item\nEsc                 Back or cancel                     h                   Back or cancel\nTab                 Switch history/worktree pane       q                   Quit outside prompts\n?                   Help outside prompts               b                   Browse local branches\n/                   Search commit history               n                   Next matching commit\ns                   Stage selected file                 u                   Unstage selected file\nr                   Refresh worktree                    c                   Create branch in list\ny                   Confirm branch operation           n                   Cancel branch operation\nBackspace           Edit search query                  Enter               Open selected search result\nIn search, Up/Down select matches and Enter opens commit details. Backspace edits; Esc returns.\nWhile typing or confirming, q and ? are unavailable.";
+pub const HELP: &str = "KEY                 DETAILS                           KEY                 DETAILS\nUp/Down             Move list selection                j/k                 Move list selection\nEnter               Open selected item                 l                   Open selected item\nEsc                 Back or cancel                     h                   Back or cancel\nTab                 Switch history/worktree pane       q                   Quit outside prompts\n?                   Help outside prompts               b                   Browse local branches\n/                   Search commit history               s                   Stage selected file\nu                   Unstage selected file               r                   Refresh worktree\nc                   Create branch in list               y                   Confirm branch operation\nn                   Cancel branch operation            Backspace           Edit search query\nIn search, Up/Down select matches and Enter opens commit details. Backspace edits; Esc returns.\nWhile typing or confirming, q and ? are unavailable.";
 
 const HELP_ROWS: &[(&str, &str, &str, &str)] = &[
     (
@@ -38,15 +38,14 @@ const HELP_ROWS: &[(&str, &str, &str, &str)] = &[
     ("Esc", "Back or cancel", "h", "Back or cancel"),
     ("Tab", "Switch pane", "q", "Quit outside prompts"),
     ("?", "Help outside prompts", "b", "Browse local branches"),
-    ("/", "Search history", "n", "Next matching commit"),
-    ("s", "Stage selected file", "u", "Unstage selected file"),
-    ("r", "Refresh worktree", "c", "Create branch in list"),
-    ("y", "Confirm branch", "n", "Cancel confirmation"),
+    ("/", "Search history", "s", "Stage selected file"),
+    ("u", "Unstage selected file", "r", "Refresh worktree"),
+    ("c", "Create branch in list", "y", "Confirm branch"),
     (
+        "n",
+        "Cancel branch operation",
         "Backspace",
         "Edit search query",
-        "Enter",
-        "Open search result",
     ),
 ];
 
@@ -71,7 +70,7 @@ fn hint_row_count(hints: &[(&str, &str)]) -> u16 {
 
 fn render_key_hints(frame: &mut Frame<'_>, area: ratatui::layout::Rect, hints: &[(&str, &str)]) {
     let mut visible = hints.to_vec();
-    let trim_order = ["next match", "branches", "refresh", "move", "pane"];
+    let trim_order = ["branches", "refresh", "move", "pane"];
     while hint_text_width(&visible) > usize::from(area.width) {
         let Some(index) = trim_order
             .iter()
@@ -352,7 +351,6 @@ fn render_cockpit(
             ("Enter/l", "details"),
             ("b", "branches"),
             ("/", "search"),
-            ("n", "next match"),
         ],
         View::WorkingTree => vec![
             ("Tab", "pane"),
@@ -937,7 +935,6 @@ fn render_history(
             ("Enter/l", "details"),
             ("b", "branches"),
             ("/", "search"),
-            ("n", "next match"),
             ("Tab", "working tree"),
             ("q", "quit"),
         ][..]

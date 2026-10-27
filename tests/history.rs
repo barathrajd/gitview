@@ -217,18 +217,6 @@ fn displays_merge_lanes_branches_and_tags() {
 }
 
 #[test]
-fn searches_history_case_insensitively_and_wraps() {
-    use gitview::history::find_next;
-    let rows = vec![
-        "* abc1234 First change — Alice".to_string(),
-        "* 234abcd Fix issue — Bob".to_string(),
-    ];
-    assert_eq!(find_next(&rows, "ALICE", 1), Some(0));
-    assert_eq!(find_next(&rows, "fix", 0), Some(1));
-    assert_eq!(find_next(&rows, "missing", 0), None);
-}
-
-#[test]
 fn search_matches_returns_filtered_commit_rows_in_history_order() {
     let rows = vec![
         "* abcdef0 Add search results - Alice\u{1f}abcdef0".to_owned(),
@@ -250,7 +238,7 @@ fn search_matches_returns_filtered_commit_rows_in_history_order() {
 
 #[test]
 fn displays_short_hashes_but_searches_the_full_hash() {
-    use gitview::history::{display_row, find_next};
+    use gitview::history::display_row;
     let root = std::env::temp_dir().join(format!(
         "gitview-hash-{}",
         SystemTime::now()
@@ -290,6 +278,13 @@ fn displays_short_hashes_but_searches_the_full_hash() {
     let rows = load_history(&root).unwrap();
     let row = rows.iter().find(|row| row.contains("sample")).unwrap();
     assert!(!display_row(row).contains(&full));
-    assert!(find_next(&rows, &full, 0).is_some());
+    let row_index = rows
+        .iter()
+        .position(|candidate| candidate.contains("sample"))
+        .unwrap();
+    assert_eq!(
+        gitview::history::search_matches(&rows, &full),
+        vec![row_index]
+    );
     fs::remove_dir_all(root).unwrap();
 }

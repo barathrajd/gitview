@@ -72,19 +72,6 @@ pub fn commit_id(row: &str) -> Option<&str> {
     }
 }
 
-/// Find the next matching commit row after the selected row, wrapping once.
-pub fn find_next(rows: &[String], query: &str, selected: usize) -> Option<usize> {
-    if query.is_empty() || rows.is_empty() {
-        return None;
-    }
-    let query = query.to_lowercase();
-    (1..=rows.len())
-        .map(|offset| (selected + offset) % rows.len())
-        .find(|&index| {
-            commit_id(&rows[index]).is_some() && rows[index].to_lowercase().contains(&query)
-        })
-}
-
 /// Return visible commit rows matching the search query, preserving history order.
 pub fn search_matches(rows: &[String], query: &str) -> Vec<usize> {
     let query = query.to_lowercase();

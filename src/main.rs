@@ -483,17 +483,6 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                             .select((!search_results.is_empty()).then_some(result_selection));
                         search_debounce = history.is_none().then_some(Instant::now());
                     }
-                    AppAction::NextMatch => {
-                        if let Some(Ok(rows)) = &history
-                            && let Some(index) = gitview::history::find_next(
-                                rows,
-                                &query,
-                                selection.selected().unwrap_or(0),
-                            )
-                        {
-                            selection.select(Some(index));
-                        }
-                    }
                     AppAction::OpenBranches => {
                         branch_view = true;
                         branches = None;
