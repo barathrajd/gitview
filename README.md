@@ -1,46 +1,50 @@
 # Gitview
 
 Gitview is a keyboard-first terminal interface for reviewing Git history and
-working-tree changes. Version 0.3.3 is available as a source release and an
-Apple Silicon macOS archive. See [RELEASE.md](RELEASE.md) for release notes and
+working-tree changes. See [RELEASE.md](RELEASE.md) for release notes and
 history.
 
-## Install the macOS Apple Silicon release
+## Install Gitview
 
-On macOS, GAH needs GNU `find` because the system BSD `find` does not support
-the `-executable` option GAH uses. Install it with Homebrew first:
+Run the installer locally to choose between the prebuilt macOS Apple Silicon
+binary and a source build through Cargo. The prebuilt option verifies the
+release SHA-256 checksum and installs `gitview` into `~/.local/bin`; it doesn't
+require GAH or Homebrew `findutils`.
 
 ```sh
-brew install findutils
+bash ./install.sh v0.4.1
 ```
 
-Then follow these three steps:
+Choose **1** for the prebuilt release or **2** to build and install the crate
+from crates.io with Cargo. The Cargo option requires Rust and becomes available
+after a release is published to crates.io. Cargo builds the executable from
+source, so this option can take longer than downloading the prebuilt binary.
 
-1. Install GAH:
+To install the latest release, omit the tag:
 
-   ```sh
-   curl -fsSL \
-     https://raw.githubusercontent.com/get-gah/gah/v1.13.0/tools/install.sh | bash
-   ```
+```sh
+bash ./install.sh
+```
 
-2. Install Gitview through GAH:
+After the installer is published on `main`, you can run it directly with
+`curl`:
 
-   ```sh
-   PATH="$(brew --prefix findutils)/libexec/gnubin:$PATH" gah install barathrajd/gitview --tag=v0.3.3
-   ```
+```sh
+curl -fsSL https://raw.githubusercontent.com/barathrajd/gitview/main/install.sh \
+  | bash -s -- v0.4.1
+```
 
-3. Launch Gitview:
+After v0.4.1 is published to crates.io, install it directly with Cargo:
 
-   ```sh
-   gitview
-   ```
+```sh
+cargo install gitview --version 0.4.1 --locked
+```
 
-Ensure `~/.local/bin` is on your `PATH`. GAH installs there by default for the
-current user. Its current macOS script can print “Done!” after BSD `find`
-rejects `-executable`, without installing Gitview, so verify that
-`gitview --version` works afterward. Gitview currently publishes a binary for
-macOS Apple Silicon; Linux release packaging remains deferred. You can also
-download the archive from the
+To install the latest published version, run `cargo install gitview --locked`.
+
+Set `GITVIEW_INSTALL_DIR` to install somewhere other than `~/.local/bin`. The
+prebuilt release currently supports macOS Apple Silicon. Linux release
+packaging remains deferred. You can also download the archive from the
 [GitHub releases](https://github.com/barathrajd/gitview/releases).
 
 ## Build and run
@@ -59,7 +63,7 @@ and `gitview --ascii` for plain terminal borders. Development checks are
 The `test-support` feature enables a test-only PTY probe for terminal
 restoration and is excluded from normal builds.
 
-Version 0.3.3 was built by the GitHub Actions release workflow on macOS Apple
+Version 0.4.1 is built by the GitHub Actions release workflow on macOS Apple
 Silicon. Earlier versions were tested on macOS Apple Silicon with Rust 1.99.1.
 Linux x86_64 was verified for version 0.2.1 but has not been rechecked for this
 release. Branch operations require `git switch`, introduced in Git 2.23; the
@@ -114,4 +118,6 @@ Gitview is available under the MIT License. See [LICENSE](LICENSE).
 Release Please opens or updates a release pull request from Conventional
 Commits on `main`. Merging that pull request updates the Rust package version
 and changelog, creates the matching `v` tag and GitHub release, then builds and
-uploads the macOS Apple Silicon archive and SHA-256 checksum.
+uploads the macOS Apple Silicon archive and SHA-256 checksum. The same workflow
+publishes the package to crates.io and requires a repository Actions secret
+named `CARGO_REGISTRY_TOKEN` containing a crates.io API token.

@@ -11,7 +11,32 @@ permissions:
   pull-requests: write
 
 jobs:
+  pre-release-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: Check formatting
+        run: cargo fmt --check
+      - name: Run tests
+        run: cargo test --locked --features test-support
+      - name: Run Clippy
+        run: >-
+          cargo clippy --locked --all-targets --features test-support --
+          -D warnings -A clippy::too_many_arguments
+      - name: Check CLI help
+        run: cargo run --locked --bin gitview -- --help
+      - name: Check installer help
+        run: |
+          bash -n install.sh
+          bash install.sh --help
+      - name: Check crate package
+        run: cargo publish --dry-run --locked --allow-dirty
+
   release-please:
+    needs: pre-release-checks
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
@@ -51,3 +76,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
         run: gh release upload "$TAG_NAME" "$ARCHIVE" "$ARCHIVE.sha256" --clobber
+
+  publish-crate:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Publish package to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --locked

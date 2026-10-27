@@ -4,8 +4,22 @@ This file is the single release plan and release-notes record for Gitview.
 
 ## Upcoming
 
-No release is currently in progress. Release Please will prepare future releases
-from Conventional Commits on `main`.
+### Gitview 0.4.1 — October 28, 2026
+
+Theme: publish Gitview through crates.io and provide a verified installer that
+offers both the macOS binary and Cargo installation paths.
+
+Features:
+
+- SHA-256 verified macOS Apple Silicon installer — in progress.
+- Cargo install path and automated crates.io publishing — in progress.
+- Release preflight checks for formatting, tests, Clippy, CLI help, and package
+  contents — in progress.
+
+Release gate: [definition of done][definition-of-done].
+
+Status: in progress; release automation and end-user installation are awaiting
+verification.
 
 ## Released
 
@@ -164,6 +178,7 @@ Windows support and Linux release packaging remain deferred.
 [release-032]: https://github.com/barathrajd/gitview/releases/tag/v0.3.2
 [release-033]: https://github.com/barathrajd/gitview/releases/tag/v0.3.3
 [release-040]: https://github.com/barathrajd/gitview/releases/tag/v0.4.0
+[release-041]: https://github.com/barathrajd/gitview/releases/tag/v0.4.1
 [release-021]: https://github.com/barathrajd/gitview/releases/tag/v0.2.1
 [definition-of-done]:
   .agents/skills/release-plan/references/definition-of-done.md
