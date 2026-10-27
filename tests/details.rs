@@ -102,3 +102,62 @@ fn loads_the_selected_files_unified_diff() {
     assert!(diff.contains("+new line"));
     fs::remove_dir_all(path).unwrap();
 }
+
+#[test]
+fn reports_binary_changes_and_lists_both_sides_of_a_rename() {
+    use gitview::details::load_diff;
+    let path = std::env::temp_dir().join(format!(
+        "gitview-binary-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&path).unwrap();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .current_dir(&path)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        )
+    };
+    git(&["init", "-q"]);
+    fs::write(path.join("before.bin"), b"before\0binary").unwrap();
+    git(&["add", "--", "before.bin"]);
+    git(&[
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-qm",
+        "add binary",
+    ]);
+    fs::rename(path.join("before.bin"), path.join("after.bin")).unwrap();
+    git(&["add", "-A"]);
+    git(&[
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-qm",
+        "rename binary",
+    ]);
+    let details = load_commit(&path, "HEAD").unwrap();
+    assert!(details.files.iter().any(|file| file == "before.bin"));
+    assert!(details.files.iter().any(|file| file == "after.bin"));
+    assert!(
+        load_diff(&path, "HEAD", "after.bin")
+            .unwrap()
+            .contains("Binary files")
+    );
+    fs::remove_dir_all(path).unwrap();
+}
