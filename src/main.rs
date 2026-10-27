@@ -51,6 +51,12 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
     let (diff_sender, diff_receiver) = std::sync::mpsc::channel::<(u64, Result<String, String>)>();
     let mut diff: Option<(u64, Option<Result<String, String>>)> = None;
     let mut diff_scroll = 0u16;
+    let mut tree_view = false;
+    let (status_sender, status_receiver) =
+        std::sync::mpsc::channel::<(u64, Result<Vec<gitview::worktree::Entry>, String>)>();
+    let mut status: Option<Result<Vec<gitview::worktree::Entry>, String>> = None;
+    let mut status_request = 0u64;
+    let mut status_selection = ListState::default();
     loop {
         if let Ok(result) = receiver.try_recv() {
             if result.as_ref().is_ok_and(|rows| !rows.is_empty()) {
@@ -75,11 +81,22 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                 }
             }
         }
+        while let Ok((id, result)) = status_receiver.try_recv() {
+            if id != status_request {
+                continue;
+            }
+            if result.as_ref().is_ok_and(|entries| !entries.is_empty()) {
+                status_selection.select(Some(0));
+            } else {
+                status_selection.select(None);
+            }
+            status = Some(result);
+        }
         terminal.draw(|frame| {
             if help {
                 frame.render_widget(
                     Paragraph::new(
-                        "Up/Down Navigate   Enter Open commit   Esc Back   ? Close help   q Quit",
+                        "Up/Down Navigate   Enter Open   Tab History/working tree   Esc Back   ? Help   q Quit",
                     )
                     .block(Block::bordered().title("Help")),
                     frame.area(),
@@ -162,6 +179,15 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                         frame.render_stateful_widget(list, sections[1], &mut file_selection);
                     }
                 }
+            } else if tree_view {
+                let lines: Vec<String> = match &status {
+                    None => vec!["Loading working tree…".to_owned()],
+                    Some(Err(error)) => vec![error.clone()],
+                    Some(Ok(entries)) if entries.is_empty() => vec!["Working tree clean".to_owned()],
+                    Some(Ok(entries)) => entries.iter().map(|entry| format!("{:?}  {}", entry.section, entry.path.to_string_lossy())).collect(),
+                };
+                let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>()).block(Block::bordered().title("Working tree — Tab history • r refresh • ? help")).highlight_symbol("> ");
+                frame.render_stateful_widget(list, frame.area(), &mut status_selection);
             } else {
                 let lines = match &history {
                     None => vec!["Loading history…".to_string()],
@@ -185,6 +211,32 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                 match key.code {
                     KeyCode::Char('q') => return Ok(()),
                     KeyCode::Char('?') => help = !help,
+                    KeyCode::Tab if !help && details.is_none() && diff.is_none() => {
+                        tree_view = !tree_view;
+                        if tree_view {
+                            status = None;
+                            status_request += 1;
+                            let current = status_request;
+                            let sender = status_sender.clone();
+                            let path = std::path::PathBuf::from(root);
+                            std::thread::spawn(move || {
+                                let _ =
+                                    sender.send((current, gitview::worktree::load_status(&path)));
+                            });
+                        }
+                    }
+                    KeyCode::Char('r')
+                        if !help && tree_view && details.is_none() && diff.is_none() =>
+                    {
+                        status = None;
+                        status_request += 1;
+                        let current = status_request;
+                        let sender = status_sender.clone();
+                        let path = std::path::PathBuf::from(root);
+                        std::thread::spawn(move || {
+                            let _ = sender.send((current, gitview::worktree::load_status(&path)));
+                        });
+                    }
                     KeyCode::Esc if !help => {
                         if diff.is_some() {
                             diff = None;
@@ -192,7 +244,7 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                             details = None;
                         }
                     }
-                    KeyCode::Enter if !help && details.is_none() => {
+                    KeyCode::Enter if !help && details.is_none() && !tree_view => {
                         if let (Some(Ok(rows)), Some(index)) = (&history, selection.selected()) {
                             if let Some(id) = rows
                                 .get(index)
@@ -252,6 +304,21 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                     KeyCode::Up if !help && details.is_some() => {
                         if let Some(i) = file_selection.selected() {
                             file_selection.select(Some(i.saturating_sub(1)));
+                        }
+                    }
+                    KeyCode::Down if !help && tree_view => {
+                        if let Some(Ok(entries)) = &status {
+                            if !entries.is_empty() {
+                                status_selection.select(Some(
+                                    (status_selection.selected().unwrap_or(0) + 1)
+                                        .min(entries.len() - 1),
+                                ));
+                            }
+                        }
+                    }
+                    KeyCode::Up if !help && tree_view => {
+                        if let Some(i) = status_selection.selected() {
+                            status_selection.select(Some(i.saturating_sub(1)));
                         }
                     }
                     KeyCode::Down if !help && details.is_none() => {
