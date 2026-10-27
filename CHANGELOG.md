@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 — October 27, 2026
+
+### Added
+
+- Added the MIT License.
+- Added GAH instructions for installing Gitview into the current user's local
+  binary directory.
+
 ## 0.3.0 — October 27, 2026
 
 See the [GitHub release][release-030].

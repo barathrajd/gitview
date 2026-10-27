@@ -4,7 +4,21 @@ This file tracks planned releases and records published Gitview releases.
 
 ## Upcoming
 
-No additional release is currently planned.
+### Gitview 0.3.1 — October 27, 2026
+
+Add an explicit MIT license and a no-sudo GAH installation path for macOS
+Apple Silicon users.
+
+- [done] License and user-local installation — [roadmap item](ROADMAP.md#next),
+  [plan](plans/release-installation-0-3-1.md).
+
+Release gate:
+
+- [x] License text and installation instructions are in the repository.
+- [x] Full tests, formatting, Clippy, and release build pass.
+- [x] macOS Apple Silicon archive includes the executable, README, and license.
+- [ ] Publish `v0.3.1` with `gh` and verify the public download.
+- Definition of Done: [release-plan reference][definition-of-done].
 
 ## Released
 

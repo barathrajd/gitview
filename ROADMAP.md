@@ -7,7 +7,8 @@
 
 ## Next
 
-- No additional committed feature is queued.
+- [Gitview 0.3.1: local installation and release automation](plans/release-installation-0-3-1.md)
+  — add the MIT license, GAH installation, and Release Please workflow.
 
 ## Later
 

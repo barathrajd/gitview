@@ -1,20 +1,23 @@
 # Gitview
 
 Gitview is a keyboard-first terminal interface for reviewing Git history and
-working-tree changes. Version 0.3.0 is available as a source release and an
+working-tree changes. Version 0.3.1 is available as a source release and an
 Apple Silicon macOS archive.
 
 ## Install the macOS Apple Silicon release
 
-Download `gitview-v0.3.0-macos-arm64.tar.gz` from the
-[GitHub releases](https://github.com/barathrajd/gitview/releases), extract it,
-and run its `gitview` binary from the Git repository you want to inspect:
+Install GAH and use it to place Gitview in `~/.local/bin`:
 
 ```sh
-tar -xzf gitview-v0.3.0-macos-arm64.tar.gz
-# From a Git repository, use the absolute path to the extracted binary:
-/path/to/extracted/gitview
+curl -fsSL \
+  https://raw.githubusercontent.com/get-gah/gah/v1.13.0/tools/install.sh | bash
+gah install barathrajd/gitview --tag=v0.3.1
 ```
+
+Ensure `~/.local/bin` is on your `PATH`. GAH installs there by default for the
+current user. Gitview currently publishes a binary for macOS Apple Silicon;
+Linux release packaging remains deferred. You can also download the archive
+from the [GitHub releases](https://github.com/barathrajd/gitview/releases).
 
 ## Build and run
 
@@ -32,7 +35,7 @@ and `gitview --ascii` for plain terminal borders. Development checks are
 The `test-support` feature enables a test-only PTY probe for terminal
 restoration and is excluded from normal builds.
 
-Version 0.3.0 was built and tested on macOS Apple Silicon with Rust 1.99.1.
+Version 0.3.1 was built and tested on macOS Apple Silicon with Rust 1.99.1.
 Linux x86_64 was verified for version 0.2.1 but has not been rechecked for this
 release. Branch operations require `git switch`, introduced in Git 2.23; the
 minimum supported Git version has not yet been verified. Windows support
@@ -76,3 +79,7 @@ branch state and displays the error. Submodules, remote operations, commit
 creation, interactive rebase, and conflict resolution are outside the MVP.
 Linux builds and tests were verified for 0.2.1; Linux release packaging is not
 provided.
+
+## License
+
+Gitview is available under the MIT License. See [LICENSE](LICENSE).
