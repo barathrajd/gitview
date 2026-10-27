@@ -26,7 +26,12 @@ fn draw(screen: Screen<'_>, width: u16, height: u16) -> String {
 #[test]
 fn renders_help_and_loading_or_empty_history_states() {
     let help = draw(Screen::Help, 80, 24);
-    assert!(help.contains("Stage selected file"));
+    assert!(help.contains("KEYBOARD SHORTCUTS"));
+    assert!(
+        gitview::ui::HELP.contains("s Stage selected file; u Unstage selected file; r Refresh")
+    );
+    assert!(help.contains("q quit"));
+    assert!(help.contains("Up/Down or j/k"));
 
     let history = None;
     let mut selection = ListState::default();
@@ -140,7 +145,7 @@ fn renders_diff_titles_for_narrow_and_wide_terminals() {
         119,
         24,
     );
-    assert!(narrow.contains("Diff"));
+    assert!(narrow.contains("DIFF"));
     assert!(!narrow.contains("Before"));
 
     let wide = draw(
@@ -151,8 +156,10 @@ fn renders_diff_titles_for_narrow_and_wide_terminals() {
         120,
         24,
     );
-    assert!(wide.contains("Before"));
-    assert!(wide.contains("After"));
+    assert!(wide.contains("BEFORE"));
+    assert!(wide.contains("AFTER"));
+    assert!(wide.contains("Up/Down or j/k"));
+    assert!(wide.contains("Esc/h"));
 }
 
 #[test]
@@ -174,6 +181,8 @@ fn renders_branch_and_commit_details() {
     );
     assert!(branch_list.contains("Local branches"));
     assert!(branch_list.contains("topic"));
+    assert!(branch_list.contains("Enter/l"));
+    assert!(branch_list.contains("q quit"));
 
     let details = (
         1,
@@ -196,4 +205,6 @@ fn renders_branch_and_commit_details() {
     );
     assert!(commit.contains("Add a feature"));
     assert!(commit.contains("src/main.rs"));
+    assert!(commit.contains("j/k"));
+    assert!(commit.contains("Enter diff"));
 }

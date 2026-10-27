@@ -9,6 +9,10 @@ use ratatui::{Terminal, backend::TestBackend, widgets::ListState};
 use std::{ffi::OsString, path::Path};
 
 fn render_cockpit(width: u16) -> String {
+    render_cockpit_focused(width, View::History)
+}
+
+fn render_cockpit_focused(width: u16, focused: View) -> String {
     let backend = TestBackend::new(width, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     let branches = Branches {
@@ -35,7 +39,7 @@ fn render_cockpit(width: u16) -> String {
                     branches: Some(&Ok(branches)),
                     history: Some(&history),
                     status: Some(&status),
-                    focused: View::History,
+                    focused,
                     history_selection: &mut history_selection,
                     working_tree_selection: &mut working_tree_selection,
                 }),
@@ -71,6 +75,7 @@ fn renders_responsive_repository_cockpit() {
     assert!(wide.contains("HISTORY"));
     assert!(wide.contains("INSPECTOR"));
     assert!(wide.contains("q quit"));
+    assert!(render_cockpit_focused(140, View::WorkingTree).contains("opens diff"));
 }
 
 #[test]

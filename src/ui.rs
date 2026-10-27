@@ -25,7 +25,53 @@ pub const ASCII_BORDER: ratatui::symbols::border::Set<'static> = ratatui::symbol
     horizontal_bottom: "-",
 };
 
-pub const HELP: &str = "Up/Down or j/k  Navigate and scroll\nEnter / Esc or h/l  Open / back (l / h)\nTab      Switch history / working tree\nb        Browse local branches\nc        Create a branch (in branch view)\ny / n    Confirm / cancel branch operation\n/        Search message, author or hash\nn        Next search match\ns        Stage selected file\nu        Unstage selected file\nr        Refresh working tree\n?        Toggle help\nq        Quit";
+pub const HELP: &str = "Navigation: Up/Down or j/k move; Enter/l open; Esc/h back\nGlobal: q quit and ? help outside text/confirmation prompts\nCockpit: Tab focus; b branches; / search; n next match in history\nWorking tree: s Stage selected file; u Unstage selected file; r Refresh\nBranches: Enter/l switch; c create; y confirm; n or Esc cancel\nSearch: Enter find; Esc cancel; Backspace edit\nCommit files: Up/Down or j/k select; Enter diff; Esc/h back\nDiff: Up/Down or j/k scroll; Esc/h back";
+
+const ACCENT: Color = Color::Rgb(94, 234, 212);
+const BORDER: Color = Color::Rgb(71, 85, 105);
+const MUTED: Color = Color::Rgb(148, 163, 184);
+
+fn page_block(
+    title: impl Into<Line<'static>>,
+    border: ratatui::symbols::border::Set<'static>,
+) -> Block<'static> {
+    Block::bordered()
+        .border_set(border)
+        .border_style(Style::default().fg(BORDER))
+        .title(title.into().style(Style::default().fg(ACCENT).bold()))
+}
+
+fn render_key_hints(frame: &mut Frame<'_>, area: ratatui::layout::Rect, hints: &[(&str, &str)]) {
+    let mut spans = Vec::with_capacity(hints.len() * 2);
+    for (key, description) in hints {
+        spans.push(Span::styled(
+            format!("{key} "),
+            Style::default().fg(ACCENT).bold(),
+        ));
+        spans.push(Span::styled(
+            format!("{description}  "),
+            Style::default().fg(MUTED),
+        ));
+    }
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
+}
+
+fn render_message_page(
+    frame: &mut Frame<'_>,
+    title: &'static str,
+    message: &str,
+    border: ratatui::symbols::border::Set<'static>,
+    hints: &[(&str, &str)],
+) {
+    let areas = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
+    frame.render_widget(
+        Paragraph::new(message)
+            .wrap(Wrap { trim: true })
+            .block(page_block(title, border)),
+        areas[0],
+    );
+    render_key_hints(frame, areas[1], hints);
+}
 
 pub struct Cockpit<'a> {
     pub repository: &'a Path,
@@ -92,16 +138,22 @@ pub fn render(
     match screen {
         Screen::Cockpit(cockpit) => render_cockpit(frame, cockpit, border),
         Screen::Help => frame.render_widget(
-            Paragraph::new(HELP).block(Block::bordered().border_set(border).title("Help")),
+            Paragraph::new(HELP)
+                .wrap(Wrap { trim: true })
+                .block(page_block("KEYBOARD SHORTCUTS", border)),
             frame.area(),
         ),
         Screen::BranchInput(input) => {
-            let text = format!("New local branch name: {input}_\n\nEnter: continue   Esc: cancel");
+            let text = format!("New local branch name: {input}_");
+            let areas =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
             frame.render_widget(
                 Paragraph::new(text)
-                    .block(Block::bordered().border_set(border).title("Create branch")),
-                frame.area(),
+                    .wrap(Wrap { trim: true })
+                    .block(page_block("CREATE BRANCH", border)),
+                areas[0],
             );
+            render_key_hints(frame, areas[1], &[("Enter", "continue"), ("Esc", "cancel")]);
         }
         Screen::BranchConfirmation { pending, action } => {
             let text = if pending {
@@ -109,22 +161,28 @@ pub fn render(
             } else {
                 match action {
                     Some(BranchAction::Switch(name)) => {
-                        format!("Switch to local branch {name:?}?\n\ny: confirm    n / Esc: cancel")
+                        format!("Switch to local branch {name:?}?")
                     }
-                    Some(BranchAction::Create { name, base }) => format!(
-                        "Create and switch to local branch {name:?} from commit {base}?\n\ny: confirm    n / Esc: cancel"
-                    ),
+                    Some(BranchAction::Create { name, base }) => {
+                        format!("Create and switch to local branch {name:?} from commit {base}?")
+                    }
                     None => "Branch operation unavailable".to_owned(),
                 }
             };
+            let areas =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
             frame.render_widget(
-                Paragraph::new(text).wrap(Wrap { trim: false }).block(
-                    Block::bordered()
-                        .border_set(border)
-                        .title("Confirm branch operation"),
-                ),
-                frame.area(),
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: false })
+                    .block(page_block("CONFIRM BRANCH OPERATION", border)),
+                areas[0],
             );
+            let hints = if pending {
+                &[("Working", "operation in progress")][..]
+            } else {
+                &[("y", "confirm"), ("n/Esc", "cancel")][..]
+            };
+            render_key_hints(frame, areas[1], hints);
         }
         Screen::Branches {
             branches,
@@ -178,7 +236,7 @@ fn render_cockpit(
         Constraint::Length(3),
         Constraint::Min(6),
         Constraint::Length(1),
-        Constraint::Length(1),
+        Constraint::Length(2),
     ])
     .split(frame.area());
 
@@ -196,23 +254,20 @@ fn render_cockpit(
             " GITVIEW ",
             Style::default()
                 .fg(Color::Rgb(12, 24, 30))
-                .bg(Color::Rgb(94, 234, 212))
+                .bg(ACCENT)
                 .bold(),
         ),
         Span::styled(
             format!("  {}  ", repository.display()),
             Style::default().fg(Color::Rgb(226, 232, 240)).bold(),
         ),
-        Span::styled(
-            format!(" branch: {branch}"),
-            Style::default().fg(Color::Rgb(148, 163, 184)),
-        ),
+        Span::styled(format!(" branch: {branch}"), Style::default().fg(MUTED)),
     ]);
     frame.render_widget(
         Paragraph::new(header).block(
             Block::bordered()
                 .border_set(border)
-                .border_style(Style::default().fg(Color::Rgb(71, 85, 105))),
+                .border_style(Style::default().fg(BORDER)),
         ),
         sections[0],
     );
@@ -282,6 +337,7 @@ fn render_cockpit(
                 history,
                 status,
                 selected: history_selection.selected(),
+                focused,
             },
             border,
         );
@@ -302,28 +358,31 @@ fn render_cockpit(
         ])),
         sections[2],
     );
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(
-                " TAB ",
-                Style::default().fg(Color::Rgb(94, 234, 212)).bold(),
-            ),
-            Span::raw("focus  "),
-            Span::styled(
-                "ENTER ",
-                Style::default().fg(Color::Rgb(94, 234, 212)).bold(),
-            ),
-            Span::raw("open  "),
-            Span::styled("B ", Style::default().fg(Color::Rgb(94, 234, 212)).bold()),
-            Span::raw("branches  "),
-            Span::styled("/ ", Style::default().fg(Color::Rgb(94, 234, 212)).bold()),
-            Span::raw("search  "),
-            Span::styled("? ", Style::default().fg(Color::Rgb(94, 234, 212)).bold()),
-            Span::raw("help  "),
-            Span::styled("q ", Style::default().fg(Color::Rgb(94, 234, 212)).bold()),
-            Span::raw("quit"),
-        ])),
-        sections[3],
+    let action_hints = match focused {
+        View::History => &[
+            ("Tab", "pane"),
+            ("Enter", "details"),
+            ("b", "branches"),
+            ("/", "search"),
+            ("n", "next match"),
+        ][..],
+        View::WorkingTree => &[
+            ("Tab", "pane"),
+            ("Enter", "diff"),
+            ("s", "stage"),
+            ("u", "unstage"),
+            ("r", "refresh"),
+        ][..],
+    };
+    render_key_hints(frame, sections[3], action_hints);
+    render_key_hints(
+        frame,
+        ratatui::layout::Rect {
+            y: sections[3].y + 1,
+            height: 1,
+            ..sections[3]
+        },
+        &[("j/k", "move"), ("?", "help"), ("q", "quit")],
     );
 }
 
@@ -383,6 +442,7 @@ struct Inspector<'a> {
     history: Option<&'a Result<Vec<String>, String>>,
     status: Option<&'a Result<Vec<Entry>, String>>,
     selected: Option<usize>,
+    focused: View,
 }
 
 fn render_inspector(
@@ -397,6 +457,7 @@ fn render_inspector(
         history,
         status,
         selected,
+        focused,
     } = inspector;
     let branch = match branches {
         Some(Ok(data)) => match &data.head {
@@ -414,6 +475,11 @@ fn render_inspector(
     let commit = selected_commit
         .map(|row| history::display_row(row))
         .unwrap_or("No commit selected");
+    let enter_hint = if focused == View::History {
+        "details"
+    } else {
+        "diff"
+    };
     let content = vec![
         Line::styled(
             "REPOSITORY",
@@ -441,22 +507,19 @@ fn render_inspector(
         Line::raw(format!("{unstaged} changed")),
         Line::raw(format!("{untracked} untracked")),
         Line::raw(""),
-        Line::styled(
-            "Enter opens details",
-            Style::default().fg(Color::Rgb(148, 163, 184)),
-        ),
-        Line::styled(
-            "Tab changes focus",
-            Style::default().fg(Color::Rgb(148, 163, 184)),
-        ),
+        Line::from(vec![
+            Span::styled("Enter ", Style::default().fg(ACCENT).bold()),
+            Span::styled(format!("opens {enter_hint}"), Style::default().fg(MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("Tab ", Style::default().fg(ACCENT).bold()),
+            Span::styled("changes focus", Style::default().fg(MUTED)),
+        ]),
     ];
     frame.render_widget(
-        Paragraph::new(content).wrap(Wrap { trim: true }).block(
-            Block::bordered()
-                .border_set(border)
-                .title("INSPECTOR")
-                .border_style(Style::default().fg(Color::Rgb(51, 65, 85))),
-        ),
+        Paragraph::new(content)
+            .wrap(Wrap { trim: true })
+            .block(page_block("INSPECTOR", border)),
         area,
     );
 }
@@ -470,11 +533,7 @@ fn render_panel_list(
     focused: bool,
     border: ratatui::symbols::border::Set<'static>,
 ) {
-    let accent = if focused {
-        Color::Rgb(94, 234, 212)
-    } else {
-        Color::Rgb(71, 85, 105)
-    };
+    let accent = if focused { ACCENT } else { BORDER };
     let list = List::new(items)
         .block(
             Block::bordered()
@@ -483,11 +542,7 @@ fn render_panel_list(
                 .title(Span::styled(
                     title,
                     Style::default()
-                        .fg(if focused {
-                            Color::Rgb(94, 234, 212)
-                        } else {
-                            Color::Rgb(148, 163, 184)
-                        })
+                        .fg(if focused { ACCENT } else { MUTED })
                         .bold(),
                 )),
         )
@@ -560,7 +615,7 @@ fn render_branches(
             (heading, lines)
         }
     };
-    let available = frame.area().height.saturating_sub(3);
+    let available = frame.area().height.saturating_sub(4);
     let width = usize::from(frame.area().width.max(1));
     let feedback_lines = feedback
         .lines()
@@ -571,17 +626,37 @@ fn render_branches(
         .unwrap_or(u16::MAX)
         .min(available)
         .min(8);
-    let areas = Layout::vertical([Constraint::Min(3), Constraint::Length(feedback_height)])
-        .split(frame.area());
+    let areas = Layout::vertical([
+        Constraint::Min(3),
+        Constraint::Length(feedback_height),
+        Constraint::Length(1),
+    ])
+    .split(frame.area());
     let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>())
-        .block(Block::bordered().border_set(border).title(format!(
-            "{heading} | Enter/l switch | c create | Esc/h back"
-        )))
-        .highlight_symbol("> ");
+        .block(page_block(heading, border))
+        .highlight_symbol("› ")
+        .highlight_style(
+            Style::default()
+                .bg(Color::Rgb(25, 43, 52))
+                .fg(Color::Rgb(241, 245, 249))
+                .bold(),
+        );
     frame.render_stateful_widget(list, areas[0], selection);
     frame.render_widget(
         Paragraph::new(feedback).wrap(Wrap { trim: false }),
         areas[1],
+    );
+    render_key_hints(
+        frame,
+        areas[2],
+        &[
+            ("j/k", "move"),
+            ("Enter/l", "switch"),
+            ("c", "create"),
+            ("Esc/h", "back"),
+            ("q", "quit"),
+            ("?", "help"),
+        ],
     );
 }
 
@@ -597,9 +672,11 @@ fn render_diff(
         Some(Ok(text)) if text.is_empty() => "No textual diff",
         Some(Ok(text)) => text,
     };
+    let sections =
+        Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
     if frame.area().width >= 120 && matches!(diff.1, Some(Ok(_))) {
         let panes = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(frame.area());
+            .split(sections[0]);
         let rows = crate::diff::side_by_side(message);
         let left: Vec<Line> = rows
             .iter()
@@ -610,30 +687,36 @@ fn render_diff(
             .map(|(_, line)| styled_diff_line(line))
             .collect();
         frame.render_widget(
-            Paragraph::new(Text::from(left)).scroll((scroll, 0)).block(
-                Block::bordered()
-                    .border_set(border)
-                    .title("Before - up/down or j/k scroll | Esc back"),
-            ),
+            Paragraph::new(Text::from(left))
+                .scroll((scroll, 0))
+                .block(page_block("BEFORE", border)),
             panes[0],
         );
         frame.render_widget(
             Paragraph::new(Text::from(right))
                 .scroll((scroll, 0))
-                .block(Block::bordered().border_set(border).title("After")),
+                .block(page_block("AFTER", border)),
             panes[1],
         );
     } else {
         let lines: Vec<Line> = message.lines().map(styled_diff_line).collect();
         frame.render_widget(
-            Paragraph::new(Text::from(lines)).scroll((scroll, 0)).block(
-                Block::bordered()
-                    .border_set(border)
-                    .title("Diff - up/down or j/k scroll | Esc back"),
-            ),
-            frame.area(),
+            Paragraph::new(Text::from(lines))
+                .scroll((scroll, 0))
+                .block(page_block("DIFF", border)),
+            sections[0],
         );
     }
+    render_key_hints(
+        frame,
+        sections[1],
+        &[
+            ("Up/Down or j/k", "scroll"),
+            ("Esc/h", "back"),
+            ("q", "quit"),
+            ("?", "help"),
+        ],
+    );
 }
 
 fn render_commit_details(
@@ -643,29 +726,33 @@ fn render_commit_details(
     border: ratatui::symbols::border::Set<'static>,
 ) {
     match &details.1 {
-        None => frame.render_widget(
-            Paragraph::new("Loading commit...")
-                .block(Block::bordered().border_set(border).title("Commit")),
-            frame.area(),
+        None => render_message_page(
+            frame,
+            "COMMIT",
+            "Loading commit...",
+            border,
+            &[("Esc/h", "back"), ("q", "quit"), ("?", "help")],
         ),
-        Some(Err(error)) => frame.render_widget(
-            Paragraph::new(error.as_str())
-                .block(Block::bordered().border_set(border).title("Commit error")),
-            frame.area(),
+        Some(Err(error)) => render_message_page(
+            frame,
+            "COMMIT ERROR",
+            error,
+            border,
+            &[("Esc/h", "back"), ("q", "quit"), ("?", "help")],
         ),
         Some(Ok(commit)) => {
-            let sections =
-                Layout::vertical([Constraint::Length(6), Constraint::Min(3)]).split(frame.area());
+            let sections = Layout::vertical([
+                Constraint::Length(6),
+                Constraint::Min(3),
+                Constraint::Length(1),
+            ])
+            .split(frame.area());
             let meta = format!(
                 "{}\nAuthor: {}\nDate: {}\nCommit: {}",
                 commit.subject, commit.author, commit.date, commit.hash
             );
             frame.render_widget(
-                Paragraph::new(meta).block(
-                    Block::bordered()
-                        .border_set(border)
-                        .title("Commit - Esc back"),
-                ),
+                Paragraph::new(meta).block(page_block("COMMIT", border)),
                 sections[0],
             );
             let items = commit
@@ -674,13 +761,26 @@ fn render_commit_details(
                 .map(|file| ListItem::new(file.to_string_lossy().into_owned()))
                 .collect::<Vec<_>>();
             let list = List::new(items)
-                .block(
-                    Block::bordered()
-                        .border_set(border)
-                        .title("Files - up/down or j/k select | Enter diff"),
-                )
-                .highlight_symbol("> ");
+                .block(page_block("CHANGED FILES", border))
+                .highlight_symbol("› ")
+                .highlight_style(
+                    Style::default()
+                        .bg(Color::Rgb(25, 43, 52))
+                        .fg(Color::Rgb(241, 245, 249))
+                        .bold(),
+                );
             frame.render_stateful_widget(list, sections[1], selection);
+            render_key_hints(
+                frame,
+                sections[2],
+                &[
+                    ("j/k", "select"),
+                    ("Enter", "diff"),
+                    ("Esc/h", "back"),
+                    ("q", "quit"),
+                    ("?", "help"),
+                ],
+            );
         }
     }
 }
@@ -700,14 +800,31 @@ fn render_working_tree(
             .map(|entry| format!("{:?}  {}", entry.section, entry.path.to_string_lossy()))
             .collect(),
     };
+    let sections =
+        Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
     let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>())
-        .block(
-            Block::bordered()
-                .border_set(border)
-                .title("Working tree - Enter diff | s stage | u unstage | Tab history"),
-        )
-        .highlight_symbol("> ");
-    frame.render_stateful_widget(list, frame.area(), selection);
+        .block(page_block("WORKING TREE", border))
+        .highlight_symbol("› ")
+        .highlight_style(
+            Style::default()
+                .bg(Color::Rgb(25, 43, 52))
+                .fg(Color::Rgb(241, 245, 249))
+                .bold(),
+        );
+    frame.render_stateful_widget(list, sections[0], selection);
+    render_key_hints(
+        frame,
+        sections[1],
+        &[
+            ("j/k", "move"),
+            ("Enter", "diff"),
+            ("s", "stage"),
+            ("u", "unstage"),
+            ("r", "refresh"),
+            ("Tab", "history"),
+            ("q", "quit"),
+        ],
+    );
 }
 
 fn render_history(
@@ -725,20 +842,39 @@ fn render_history(
             .collect(),
     };
     let items = lines.into_iter().map(ListItem::new).collect::<Vec<_>>();
+    let sections =
+        Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
     let title = if screen.searching {
-        format!("Search: {}_ (Enter find | Esc cancel)", screen.query)
+        format!("SEARCH: {}_", screen.query)
     } else if !screen.search_message.is_empty() {
         screen.search_message.to_owned()
     } else {
-        format!(
-            "Gitview - b branches | / search | Tab changes | ? help - {}",
-            screen.root.display()
-        )
+        format!("HISTORY - {}", screen.root.display())
     };
     let list = List::new(items)
-        .block(Block::bordered().border_set(border).title(title))
-        .highlight_symbol("> ");
-    frame.render_stateful_widget(list, frame.area(), screen.selection);
+        .block(page_block(title, border))
+        .highlight_symbol("› ")
+        .highlight_style(
+            Style::default()
+                .bg(Color::Rgb(25, 43, 52))
+                .fg(Color::Rgb(241, 245, 249))
+                .bold(),
+        );
+    frame.render_stateful_widget(list, sections[0], screen.selection);
+    let hints = if screen.searching {
+        &[("Enter", "find"), ("Esc", "cancel"), ("Backspace", "edit")][..]
+    } else {
+        &[
+            ("j/k", "move"),
+            ("Enter", "details"),
+            ("b", "branches"),
+            ("/", "search"),
+            ("n", "next match"),
+            ("Tab", "working tree"),
+            ("q", "quit"),
+        ][..]
+    };
+    render_key_hints(frame, sections[1], hints);
 }
 
 fn styled_diff_line(line: &str) -> Line<'static> {
