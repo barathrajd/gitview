@@ -2,6 +2,8 @@
 
 ## 0.3.0 — October 27, 2026
 
+See the [GitHub release][release-030].
+
 ### Added
 
 - Responsive cockpit with history, working tree, and repository details.
@@ -23,4 +25,7 @@
 ## 0.2.1 — October 27, 2026
 
 Refactored UI state and rendering, hardened mutation boundaries, and added
-regression coverage. See the [v0.2.1 release](https://github.com/barathrajd/gitview/releases/tag/v0.2.1).
+regression coverage. See the [v0.2.1 release][release-021].
+
+[release-030]: https://github.com/barathrajd/gitview/releases/tag/v0.3.0
+[release-021]: https://github.com/barathrajd/gitview/releases/tag/v0.2.1
