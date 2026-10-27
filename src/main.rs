@@ -562,6 +562,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
             }
             match navigation_key(key) {
                 KeyCode::Char('q') if !mutation_pending => return Ok(()),
+                KeyCode::Esc if help => help = false,
                 KeyCode::Char('?') => help = !help,
                 KeyCode::Tab
                 | KeyCode::Char('b')

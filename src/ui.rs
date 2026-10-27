@@ -148,7 +148,7 @@ fn render_help(frame: &mut Frame<'_>, border: ratatui::symbols::border::Set<'sta
     frame.render_widget(table, sections[0]);
     frame.render_widget(
         Paragraph::new(
-            "In search, Up/Down selects matches; Enter opens details. Backspace edits; Esc returns.\nWhile typing or confirming, q and ? are unavailable.",
+            "Esc/? closes help. Search: Up/Down selects; Enter opens; Backspace edits; Esc returns.\nWhile typing or confirming, q and ? are unavailable.",
         )
         .wrap(Wrap { trim: true })
         .style(Style::default().fg(MUTED)),
