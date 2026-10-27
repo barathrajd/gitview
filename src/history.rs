@@ -60,7 +60,11 @@ pub fn commit_id(row: &str) -> Option<&str> {
     {
         return None;
     }
-    let id = suffix.split_whitespace().next()?;
+    let id = suffix.split_whitespace().find(|token| {
+        !token
+            .chars()
+            .all(|c| matches!(c, '|' | '/' | '\\' | '_' | '-' | '.' | '*'))
+    })?;
     if (4..=64).contains(&id.len()) && id.bytes().all(|c| c.is_ascii_hexdigit()) {
         Some(id)
     } else {

@@ -59,6 +59,7 @@ fn extracts_commit_ids_only_from_graph_commit_rows() {
         commit_id("| * abc1234 (HEAD -> main) change"),
         Some("abc1234")
     );
+    assert_eq!(commit_id("* | abc1234 merge lane"), Some("abc1234"));
     assert_eq!(commit_id("| |\\"), None);
     assert_eq!(commit_id("[history truncated to 200 commits]"), None);
 }
