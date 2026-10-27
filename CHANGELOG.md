@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/barathrajd/gitview/compare/v0.3.1...v0.3.2) (2026-10-27)
+
+
+### Bug Fixes
+
+* **release-please:** match existing version tags ([40dee60](https://github.com/barathrajd/gitview/commit/40dee601c49351be7442cfc7a3e05ad43244ea18))
+
 ## 0.3.1 — October 27, 2026
 
 ### Added
