@@ -2,7 +2,7 @@
 
 ## Now
 
-- [Git review MVP](plans/git-review-mvp.md) — deliver a keyboard-first terminal workflow for history, diffs, and working-tree review.
+- No active feature; choose the next item to plan.
 
 ## Next
 
@@ -17,4 +17,4 @@
 
 ## Shipped
 
-- None yet.
+- 2026-10-27: [Git review MVP](plans/git-review-mvp.md) — tagged a locally tested macOS preview as `v0.1.0`.

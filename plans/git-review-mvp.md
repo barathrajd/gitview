@@ -41,7 +41,7 @@ Initial UX decisions: arrow keys navigate, Tab changes pane, Enter selects, `/` 
 - [x] **3. Review commits:** Select a commit and file to view metadata and unified diff; add side-by-side display and narrow-width fallback. Verify renames, binary files and selection changes during loading.
 - [x] **4. Review and stage changes:** Show staged, unstaged and untracked files and their diffs; stage/unstage selected files and refresh. Test filenames with whitespace, leading dashes and unusual characters, including an unborn branch and Git failures.
 - [x] **5. Discover and harden:** Add search, help, feedback and resize handling. Test large histories/diffs, responsiveness, stale results, terminal recovery and plain-text fallback; document any limits.
-- [ ] **6. Preview release:** Run automated checks and manual smoke tests on macOS; build and test Linux if available. Write install, usage, keybindings, limitations and demo instructions, then prepare the tagged preview and artifacts when release is authorized.
+- [x] **6. Local preview:** Verified the macOS build and demo, documented usage and limitations, prepared the Apple Silicon archive, and created the local `v0.1.0` tag. Linux was not verified; the user chose to skip the GitHub prerelease.
 
 ## Risks & open questions
 
