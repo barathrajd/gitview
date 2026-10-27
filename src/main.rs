@@ -4,12 +4,18 @@ use ratatui::{
     layout::{Constraint, Layout},
     style::{Color, Style},
     text::{Line, Text},
-    widgets::{Block, List, ListItem, ListState, Paragraph},
+    widgets::{Block, List, ListItem, ListState, Paragraph, Wrap},
 };
 use std::{
     env, io,
     process::{Command, ExitCode},
 };
+
+#[derive(Clone)]
+enum BranchAction {
+    Switch(std::ffi::OsString),
+    Create { name: String, base: String },
+}
 
 const ASCII_BORDER: ratatui::symbols::border::Set<'static> = ratatui::symbols::border::Set {
     top_left: "+",
@@ -82,8 +88,10 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
     let (branch_sender, branch_receiver) =
         std::sync::mpsc::channel::<(u64, Result<gitview::branches::Branches, String>)>();
     let mut branch_request = 0u64;
-    let (operation_sender, operation_receiver) = std::sync::mpsc::channel::<Result<(), String>>();
-    let mut branch_confirm: Option<std::ffi::OsString> = None;
+    let (operation_sender, operation_receiver) =
+        std::sync::mpsc::channel::<(bool, Result<(), String>)>();
+    let mut branch_confirm: Option<BranchAction> = None;
+    let mut branch_input: Option<String> = None;
     let mut branch_feedback = String::new();
     let mut mutation_pending = false;
     let mut status_mutation: Option<u64> = None;
@@ -148,9 +156,10 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
             }
             branches = Some(result);
         }
-        while let Ok(result) = operation_receiver.try_recv() {
+        while let Ok((created, result)) = operation_receiver.try_recv() {
             mutation_pending = false;
             branch_feedback = match result {
+                Ok(()) if created => "Branch created and switched successfully.".to_owned(),
                 Ok(()) => "Branch switched successfully.".to_owned(),
                 Err(error) => {
                     format!("{error} (branch state refreshed; a hook may have changed HEAD)")
@@ -191,9 +200,17 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                     Paragraph::new(HELP).block(Block::bordered().border_set(border).title("Help")),
                     frame.area(),
                 );
+            } else if branch_view && branch_input.is_some() {
+                let text = format!("New local branch name: {}_\n\nEnter: continue   Esc: cancel", branch_input.as_deref().unwrap_or(""));
+                frame.render_widget(Paragraph::new(text).block(Block::bordered().border_set(border).title("Create branch")), frame.area());
             } else if branch_view && (mutation_pending || branch_confirm.is_some()) {
-                let text = if mutation_pending { "Switching branch...".to_owned() } else { format!("Switch to local branch {:?}?\n\ny: confirm    n / Esc: cancel", branch_confirm.as_ref().unwrap()) };
-                frame.render_widget(Paragraph::new(text).block(Block::bordered().border_set(border).title("Confirm branch switch")), frame.area());
+                let text = if mutation_pending { "Running branch operation...".to_owned() } else {
+                    match branch_confirm.as_ref().unwrap() {
+                        BranchAction::Switch(name) => format!("Switch to local branch {name:?}?\n\ny: confirm    n / Esc: cancel"),
+                        BranchAction::Create { name, base } => format!("Create and switch to local branch {name:?} from commit {base}?\n\ny: confirm    n / Esc: cancel"),
+                    }
+                };
+                frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: false }).block(Block::bordered().border_set(border).title("Confirm branch operation")), frame.area());
             } else if branch_view {
                 use gitview::branches::HeadState;
                 let (heading, lines): (String, Vec<String>) = match &branches {
@@ -213,7 +230,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                     }
                 };
                 let areas = Layout::vertical([Constraint::Min(3), Constraint::Length(2)]).split(frame.area());
-                let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>()).block(Block::bordered().border_set(border).title(format!("{heading} | Enter switch | Esc back"))).highlight_symbol("> ");
+                let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>()).block(Block::bordered().border_set(border).title(format!("{heading} | Enter switch | c create | Esc back"))).highlight_symbol("> ");
                 frame.render_stateful_widget(list, areas[0], &mut branch_selection);
                 frame.render_widget(Paragraph::new(branch_feedback.as_str()), areas[1]);
             } else if let Some((_, value)) = &diff {
@@ -393,15 +410,54 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 if mutation_pending {
                     continue;
                 }
-                if let Some(name) = &branch_confirm {
+                if let Some(input) = &mut branch_input {
+                    match key.code {
+                        KeyCode::Esc => branch_input = None,
+                        KeyCode::Backspace => {
+                            input.pop();
+                        }
+                        KeyCode::Char(ch) if !ch.is_control() => input.push(ch),
+                        KeyCode::Enter => {
+                            let name = input.clone();
+                            branch_input = None;
+                            if let Some(Ok(data)) = &branches {
+                                if let Some(base) = &data.head_commit {
+                                    if name.is_empty() {
+                                        branch_feedback = "Enter a branch name.".into();
+                                    } else {
+                                        branch_confirm = Some(BranchAction::Create {
+                                            name,
+                                            base: base.clone(),
+                                        });
+                                    }
+                                } else {
+                                    branch_feedback =
+                                        "Create the first commit before creating a branch.".into();
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                    continue;
+                }
+                if let Some(action) = &branch_confirm {
                     match key.code {
                         KeyCode::Char('y') => {
                             mutation_pending = true;
-                            let name = name.clone();
+                            let action = action.clone();
                             let path = root.to_path_buf();
                             let sender = operation_sender.clone();
                             std::thread::spawn(move || {
-                                let _ = sender.send(gitview::branches::switch_branch(&path, &name));
+                                let (created, result) = match action {
+                                    BranchAction::Switch(name) => {
+                                        (false, gitview::branches::switch_branch(&path, &name))
+                                    }
+                                    BranchAction::Create { name, base } => (
+                                        true,
+                                        gitview::branches::create_branch(&path, &name, &base),
+                                    ),
+                                };
+                                let _ = sender.send((created, result));
                             });
                         }
                         KeyCode::Char('n') | KeyCode::Esc => branch_confirm = None,
@@ -410,6 +466,17 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                     continue;
                 }
                 match key.code {
+                    KeyCode::Char('c') => {
+                        if let Some(Ok(data)) = &branches {
+                            if data.head_commit.is_some() {
+                                branch_input = Some(String::new());
+                                branch_feedback.clear();
+                            } else {
+                                branch_feedback =
+                                    "Create the first commit before creating a branch.".into();
+                            }
+                        }
+                    }
                     KeyCode::Enter => {
                         if let (Some(Ok(data)), Some(index)) =
                             (&branches, branch_selection.selected())
@@ -419,7 +486,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                                 {
                                     branch_feedback = "Already on this branch.".into();
                                 } else {
-                                    branch_confirm = Some(name.clone());
+                                    branch_confirm = Some(BranchAction::Switch(name.clone()));
                                     branch_feedback.clear();
                                 }
                             }
