@@ -104,10 +104,11 @@ workflows available.
   search, refresh, and stage/unstage input transitions into testable actions;
   preserve current selection rules and stale-result handling. Verify actions
   with integration tests and a PTY staging smoke check.
-- [ ] **3. Extract rendering and add UI tests:** Move frame drawing into a
+- [x] **3. Extract rendering and add UI tests:** Move frame drawing into a
   rendering module; test history, details, working-tree and branch states,
   loading and error messages, help and confirmations, and narrow and wide diff
-  layouts with `TestBackend`.
+  layouts with `TestBackend`. Verify the live help screen and normal terminal
+  restoration in a PTY smoke check.
 - [ ] **4. Harden mutation boundaries:** Revalidate selected paths and branch
   state at the operation boundary, preserve Git's non-forcing safeguards, and
   test stale selections, dirty-worktree failures, and changes detected before

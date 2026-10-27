@@ -21,6 +21,12 @@ pub enum AppAction {
     MoveDown,
 }
 
+#[derive(Clone)]
+pub enum BranchAction {
+    Switch(std::ffi::OsString),
+    Create { name: String, base: String },
+}
+
 #[derive(Debug, Default)]
 pub struct AppState {
     view: View,
