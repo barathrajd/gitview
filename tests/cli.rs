@@ -38,7 +38,7 @@ fn help_lists_history_and_working_tree_controls() {
         .output()
         .unwrap();
     let text = String::from_utf8_lossy(&output.stdout);
-    for word in ["Search", "Stage", "Unstage", "Refresh"] {
+    for word in ["Search", "Stage", "Unstage", "Refresh", "H", "S stages all"] {
         assert!(text.contains(word), "missing {word}");
     }
 }
@@ -62,7 +62,7 @@ fn version_and_help_show_navigation_keys() {
     assert!(version.status.success());
     assert_eq!(
         String::from_utf8_lossy(&version.stdout).trim(),
-        "gitview 0.3.2"
+        concat!("gitview ", env!("CARGO_PKG_VERSION"))
     );
     let help = Command::new(env!("CARGO_BIN_EXE_gitview"))
         .arg("--help")
