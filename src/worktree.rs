@@ -201,10 +201,10 @@ pub fn load_diff(root: &Path, entry: &Entry) -> Result<String, String> {
             command.arg("--cached");
         }
         command.arg("--").arg(&entry.path);
-        if entry.section == Section::Staged {
-            if let Some(original) = &entry.original {
-                command.arg(original);
-            }
+        if entry.section == Section::Staged
+            && let Some(original) = &entry.original
+        {
+            command.arg(original);
         }
     }
     let output = crate::process::limited_output(&mut command, 1_000_000)?;

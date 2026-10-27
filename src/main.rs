@@ -70,20 +70,20 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
             history = Some(result);
         }
         while let Ok((id, result)) = details_receiver.try_recv() {
-            if let Some((active, value)) = &mut details {
-                if *active == id {
-                    if result.as_ref().is_ok_and(|commit| !commit.files.is_empty()) {
-                        file_selection.select(Some(0));
-                    }
-                    *value = Some(result);
+            if let Some((active, value)) = &mut details
+                && *active == id
+            {
+                if result.as_ref().is_ok_and(|commit| !commit.files.is_empty()) {
+                    file_selection.select(Some(0));
                 }
+                *value = Some(result);
             }
         }
         while let Ok((id, result)) = diff_receiver.try_recv() {
-            if let Some((active, value)) = &mut diff {
-                if *active == id {
-                    *value = Some(result);
-                }
+            if let Some((active, value)) = &mut diff
+                && *active == id
+            {
+                *value = Some(result);
             }
         }
         while let Ok((id, result)) = status_receiver.try_recv() {
@@ -225,48 +225,16 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
         })?;
         if event::poll(std::time::Duration::from_millis(100))?
             && let Event::Key(key) = event::read()?
+            && key.kind == KeyEventKind::Press
         {
-            if key.kind == KeyEventKind::Press {
-                if searching {
-                    match key.code {
-                        KeyCode::Esc => searching = false,
-                        KeyCode::Backspace => {
-                            query.pop();
-                        }
-                        KeyCode::Enter => {
-                            searching = false;
-                            if let Some(Ok(rows)) = &history {
-                                if let Some(index) = gitview::history::find_next(
-                                    rows,
-                                    &query,
-                                    selection.selected().unwrap_or(0),
-                                ) {
-                                    selection.select(Some(index));
-                                    search_message =
-                                        format!("Search: {query} — n next • / new search");
-                                } else {
-                                    search_message = format!("No match for: {query}");
-                                }
-                            }
-                        }
-                        KeyCode::Char(c) => query.push(c),
-                        _ => {}
-                    }
-                    continue;
-                }
+            if searching {
                 match key.code {
-                    KeyCode::Char('q') => return Ok(()),
-                    KeyCode::Char('?') => help = !help,
-                    KeyCode::Char('/')
-                        if !help && !tree_view && details.is_none() && diff.is_none() =>
-                    {
-                        searching = true;
-                        query.clear();
-                        search_message.clear();
+                    KeyCode::Esc => searching = false,
+                    KeyCode::Backspace => {
+                        query.pop();
                     }
-                    KeyCode::Char('n')
-                        if !help && !tree_view && details.is_none() && diff.is_none() =>
-                    {
+                    KeyCode::Enter => {
+                        searching = false;
                         if let Some(Ok(rows)) = &history {
                             if let Some(index) = gitview::history::find_next(
                                 rows,
@@ -274,53 +242,43 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                                 selection.selected().unwrap_or(0),
                             ) {
                                 selection.select(Some(index));
+                                search_message = format!("Search: {query} — n next • / new search");
+                            } else {
+                                search_message = format!("No match for: {query}");
                             }
                         }
                     }
-                    KeyCode::Tab if !help && details.is_none() && diff.is_none() => {
-                        tree_view = !tree_view;
-                        if tree_view {
-                            status = None;
-                            status_request += 1;
-                            let current = status_request;
-                            let sender = status_sender.clone();
-                            let path = std::path::PathBuf::from(root);
-                            std::thread::spawn(move || {
-                                let _ =
-                                    sender.send((current, gitview::worktree::load_status(&path)));
-                            });
-                        }
-                    }
-                    KeyCode::Char(action @ ('s' | 'u'))
-                        if !help && tree_view && details.is_none() && diff.is_none() =>
+                    KeyCode::Char(c) => query.push(c),
+                    _ => {}
+                }
+                continue;
+            }
+            match key.code {
+                KeyCode::Char('q') => return Ok(()),
+                KeyCode::Char('?') => help = !help,
+                KeyCode::Char('/')
+                    if !help && !tree_view && details.is_none() && diff.is_none() =>
+                {
+                    searching = true;
+                    query.clear();
+                    search_message.clear();
+                }
+                KeyCode::Char('n')
+                    if !help && !tree_view && details.is_none() && diff.is_none() =>
+                {
+                    if let Some(Ok(rows)) = &history
+                        && let Some(index) = gitview::history::find_next(
+                            rows,
+                            &query,
+                            selection.selected().unwrap_or(0),
+                        )
                     {
-                        if let (Some(Ok(entries)), Some(index)) =
-                            (&status, status_selection.selected())
-                        {
-                            if let Some(entry) = entries.get(index) {
-                                let entry = entry.clone();
-                                status_request += 1;
-                                let current = status_request;
-                                let sender = status_sender.clone();
-                                let path = std::path::PathBuf::from(root);
-                                status = None;
-                                std::thread::spawn(move || {
-                                    let result = if action == 's' {
-                                        gitview::worktree::stage(&path, &entry)
-                                    } else {
-                                        gitview::worktree::unstage(&path, &entry)
-                                    };
-                                    let _ = sender.send((
-                                        current,
-                                        result.and_then(|()| gitview::worktree::load_status(&path)),
-                                    ));
-                                });
-                            }
-                        }
+                        selection.select(Some(index));
                     }
-                    KeyCode::Char('r')
-                        if !help && tree_view && details.is_none() && diff.is_none() =>
-                    {
+                }
+                KeyCode::Tab if !help && details.is_none() && diff.is_none() => {
+                    tree_view = !tree_view;
+                    if tree_view {
                         status = None;
                         status_request += 1;
                         let current = status_request;
@@ -330,127 +288,153 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                             let _ = sender.send((current, gitview::worktree::load_status(&path)));
                         });
                     }
-                    KeyCode::Esc if !help => {
-                        if diff.is_some() {
-                            diff = None;
-                        } else {
-                            details = None;
-                        }
-                    }
-                    KeyCode::Enter if !help && tree_view && diff.is_none() => {
-                        if let (Some(Ok(entries)), Some(index)) =
-                            (&status, status_selection.selected())
-                        {
-                            if let Some(entry) = entries.get(index) {
-                                let entry = entry.clone();
-                                request_id += 1;
-                                let current = request_id;
-                                let sender = diff_sender.clone();
-                                let path = std::path::PathBuf::from(root);
-                                diff = Some((current, None));
-                                diff_scroll = 0;
-                                std::thread::spawn(move || {
-                                    let _ = sender.send((
-                                        current,
-                                        gitview::worktree::load_diff(&path, &entry),
-                                    ));
-                                });
-                            }
-                        }
-                    }
-                    KeyCode::Enter if !help && details.is_none() && !tree_view => {
-                        if let (Some(Ok(rows)), Some(index)) = (&history, selection.selected()) {
-                            if let Some(id) = rows
-                                .get(index)
-                                .and_then(|row| gitview::history::commit_id(row))
-                            {
-                                request_id += 1;
-                                let id = id.to_owned();
-                                let path = std::path::PathBuf::from(root);
-                                let sender = details_sender.clone();
-                                let current = request_id;
-                                details = Some((current, None));
-                                std::thread::spawn(move || {
-                                    let _ = sender
-                                        .send((current, gitview::details::load_commit(&path, &id)));
-                                });
-                            }
-                        }
-                    }
-                    KeyCode::Enter if !help && diff.is_none() => {
-                        if let (Some((_, Some(Ok(commit)))), Some(index)) =
-                            (&details, file_selection.selected())
-                        {
-                            if let Some(file) = commit.files.get(index) {
-                                request_id += 1;
-                                let current = request_id;
-                                let hash = commit.hash.clone();
-                                let file = file.clone();
-                                let path = std::path::PathBuf::from(root);
-                                let sender = diff_sender.clone();
-                                diff = Some((current, None));
-                                diff_scroll = 0;
-                                std::thread::spawn(move || {
-                                    let _ = sender.send((
-                                        current,
-                                        gitview::details::load_diff(&path, &hash, &file),
-                                    ));
-                                });
-                            }
-                        }
-                    }
-                    KeyCode::Down if !help && diff.is_some() => {
-                        diff_scroll = diff_scroll.saturating_add(1);
-                    }
-                    KeyCode::Up if !help && diff.is_some() => {
-                        diff_scroll = diff_scroll.saturating_sub(1);
-                    }
-                    KeyCode::Down if !help && details.is_some() => {
-                        if let Some((_, Some(Ok(commit)))) = &details {
-                            if !commit.files.is_empty() {
-                                file_selection.select(Some(
-                                    (file_selection.selected().unwrap_or(0) + 1)
-                                        .min(commit.files.len() - 1),
-                                ));
-                            }
-                        }
-                    }
-                    KeyCode::Up if !help && details.is_some() => {
-                        if let Some(i) = file_selection.selected() {
-                            file_selection.select(Some(i.saturating_sub(1)));
-                        }
-                    }
-                    KeyCode::Down if !help && tree_view => {
-                        if let Some(Ok(entries)) = &status {
-                            if !entries.is_empty() {
-                                status_selection.select(Some(
-                                    (status_selection.selected().unwrap_or(0) + 1)
-                                        .min(entries.len() - 1),
-                                ));
-                            }
-                        }
-                    }
-                    KeyCode::Up if !help && tree_view => {
-                        if let Some(i) = status_selection.selected() {
-                            status_selection.select(Some(i.saturating_sub(1)));
-                        }
-                    }
-                    KeyCode::Down if !help && details.is_none() => {
-                        if let Some(Ok(rows)) = &history {
-                            if !rows.is_empty() {
-                                selection.select(Some(
-                                    (selection.selected().unwrap_or(0) + 1).min(rows.len() - 1),
-                                ));
-                            }
-                        }
-                    }
-                    KeyCode::Up if !help && details.is_none() => {
-                        if let Some(i) = selection.selected() {
-                            selection.select(Some(i.saturating_sub(1)));
-                        }
-                    }
-                    _ => {}
                 }
+                KeyCode::Char(action @ ('s' | 'u'))
+                    if !help && tree_view && details.is_none() && diff.is_none() =>
+                {
+                    if let (Some(Ok(entries)), Some(index)) = (&status, status_selection.selected())
+                        && let Some(entry) = entries.get(index)
+                    {
+                        let entry = entry.clone();
+                        status_request += 1;
+                        let current = status_request;
+                        let sender = status_sender.clone();
+                        let path = std::path::PathBuf::from(root);
+                        status = None;
+                        std::thread::spawn(move || {
+                            let result = if action == 's' {
+                                gitview::worktree::stage(&path, &entry)
+                            } else {
+                                gitview::worktree::unstage(&path, &entry)
+                            };
+                            let _ = sender.send((
+                                current,
+                                result.and_then(|()| gitview::worktree::load_status(&path)),
+                            ));
+                        });
+                    }
+                }
+                KeyCode::Char('r') if !help && tree_view && details.is_none() && diff.is_none() => {
+                    status = None;
+                    status_request += 1;
+                    let current = status_request;
+                    let sender = status_sender.clone();
+                    let path = std::path::PathBuf::from(root);
+                    std::thread::spawn(move || {
+                        let _ = sender.send((current, gitview::worktree::load_status(&path)));
+                    });
+                }
+                KeyCode::Esc if !help => {
+                    if diff.is_some() {
+                        diff = None;
+                    } else {
+                        details = None;
+                    }
+                }
+                KeyCode::Enter if !help && tree_view && diff.is_none() => {
+                    if let (Some(Ok(entries)), Some(index)) = (&status, status_selection.selected())
+                        && let Some(entry) = entries.get(index)
+                    {
+                        let entry = entry.clone();
+                        request_id += 1;
+                        let current = request_id;
+                        let sender = diff_sender.clone();
+                        let path = std::path::PathBuf::from(root);
+                        diff = Some((current, None));
+                        diff_scroll = 0;
+                        std::thread::spawn(move || {
+                            let _ =
+                                sender.send((current, gitview::worktree::load_diff(&path, &entry)));
+                        });
+                    }
+                }
+                KeyCode::Enter if !help && details.is_none() && !tree_view => {
+                    if let (Some(Ok(rows)), Some(index)) = (&history, selection.selected())
+                        && let Some(id) = rows
+                            .get(index)
+                            .and_then(|row| gitview::history::commit_id(row))
+                    {
+                        request_id += 1;
+                        let id = id.to_owned();
+                        let path = std::path::PathBuf::from(root);
+                        let sender = details_sender.clone();
+                        let current = request_id;
+                        details = Some((current, None));
+                        std::thread::spawn(move || {
+                            let _ =
+                                sender.send((current, gitview::details::load_commit(&path, &id)));
+                        });
+                    }
+                }
+                KeyCode::Enter if !help && diff.is_none() => {
+                    if let (Some((_, Some(Ok(commit)))), Some(index)) =
+                        (&details, file_selection.selected())
+                        && let Some(file) = commit.files.get(index)
+                    {
+                        request_id += 1;
+                        let current = request_id;
+                        let hash = commit.hash.clone();
+                        let file = file.clone();
+                        let path = std::path::PathBuf::from(root);
+                        let sender = diff_sender.clone();
+                        diff = Some((current, None));
+                        diff_scroll = 0;
+                        std::thread::spawn(move || {
+                            let _ = sender
+                                .send((current, gitview::details::load_diff(&path, &hash, &file)));
+                        });
+                    }
+                }
+                KeyCode::Down if !help && diff.is_some() => {
+                    diff_scroll = diff_scroll.saturating_add(1);
+                }
+                KeyCode::Up if !help && diff.is_some() => {
+                    diff_scroll = diff_scroll.saturating_sub(1);
+                }
+                KeyCode::Down if !help && details.is_some() => {
+                    if let Some((_, Some(Ok(commit)))) = &details
+                        && !commit.files.is_empty()
+                    {
+                        file_selection.select(Some(
+                            (file_selection.selected().unwrap_or(0) + 1)
+                                .min(commit.files.len() - 1),
+                        ));
+                    }
+                }
+                KeyCode::Up if !help && details.is_some() => {
+                    if let Some(i) = file_selection.selected() {
+                        file_selection.select(Some(i.saturating_sub(1)));
+                    }
+                }
+                KeyCode::Down if !help && tree_view => {
+                    if let Some(Ok(entries)) = &status
+                        && !entries.is_empty()
+                    {
+                        status_selection.select(Some(
+                            (status_selection.selected().unwrap_or(0) + 1).min(entries.len() - 1),
+                        ));
+                    }
+                }
+                KeyCode::Up if !help && tree_view => {
+                    if let Some(i) = status_selection.selected() {
+                        status_selection.select(Some(i.saturating_sub(1)));
+                    }
+                }
+                KeyCode::Down if !help && details.is_none() => {
+                    if let Some(Ok(rows)) = &history
+                        && !rows.is_empty()
+                    {
+                        selection.select(Some(
+                            (selection.selected().unwrap_or(0) + 1).min(rows.len() - 1),
+                        ));
+                    }
+                }
+                KeyCode::Up if !help && details.is_none() => {
+                    if let Some(i) = selection.selected() {
+                        selection.select(Some(i.saturating_sub(1)));
+                    }
+                }
+                _ => {}
             }
         }
     }

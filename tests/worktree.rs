@@ -237,3 +237,67 @@ fn unstages_both_sides_of_a_selected_rename() {
     );
     fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn stages_and_unstages_a_tracked_deletion() {
+    use gitview::worktree::{stage, unstage};
+    let root = std::env::temp_dir().join(format!(
+        "gitview-delete-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&root).unwrap();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .current_dir(&root)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        )
+    };
+    git(&["init", "-q"]);
+    fs::write(root.join("gone"), "content\n").unwrap();
+    git(&["add", "--", "gone"]);
+    git(&[
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-qm",
+        "base",
+    ]);
+    fs::remove_file(root.join("gone")).unwrap();
+    let entries = load_status(&root).unwrap();
+    stage(
+        &root,
+        entries
+            .iter()
+            .find(|e| e.section == Section::Unstaged)
+            .unwrap(),
+    )
+    .unwrap();
+    let entries = load_status(&root).unwrap();
+    unstage(
+        &root,
+        entries
+            .iter()
+            .find(|e| e.section == Section::Staged)
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        load_status(&root)
+            .unwrap()
+            .iter()
+            .any(|e| e.section == Section::Unstaged && e.path == "gone")
+    );
+    assert!(!root.join("gone").exists());
+    fs::remove_dir_all(root).unwrap();
+}
