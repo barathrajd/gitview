@@ -120,10 +120,11 @@ workflows available.
   untracked diffs on macOS and Linux; run format, test, lint, and build checks.
   Full test suites, formatting, clippy, and builds passed on macOS Apple Silicon
   and Linux x86_64; the PTY panic-restoration test passed on both platforms.
-- [ ] **6. Package 0.2.1:** Update `Cargo.toml`, `Cargo.lock`, CLI version
+- [x] **6. Package 0.2.1:** Update `Cargo.toml`, `Cargo.lock`, CLI version
   expectations, and release documentation; build and inspect the macOS Apple
   Silicon archive; create and push `v0.2.1`; publish the private GitHub release
-  with the archive and verify its tag and assets.
+  with the archive and verify its tag and assets. Published from commit
+  `a17d354`; the uploaded archive is `gitview-v0.2.1-macos-arm64.tar.gz`.
 
 ## Risks & open questions
 
