@@ -129,7 +129,14 @@ checklist.
 2. **Review and shape working-tree changes:** Add file-tree navigation,
    line/hunk selection, stage and unstage, discard confirmations, commit and
    amend flows, stash variants, and external editor/diff-tool handoff. Keep the
-   existing full-file staging behavior available.
+   existing full-file staging behavior available. The first slice adds
+   test-covered hunk staging and unstaging for tracked text changes: use `[` and
+   `]` to select a hunk in a working-tree diff, then `s` or `u` to stage or
+   unstage it; use `S` or `U` to stage or unstage the whole file. Wide diffs
+   wrap long lines side by side, and `H` returns to history from subpages.
+   Existing full-file actions remain available from the worktree list.
+   File-tree navigation, discard, commit, stash, and editor workflows remain
+   to be implemented.
 3. **Manage refs and remote work:** Add local and remote branch workflows,
    fetch, pull, push, tags, worktrees, submodules, comparisons, and visible
    progress/error states. Keep remote access explicit and preserve Git's

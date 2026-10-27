@@ -63,6 +63,62 @@ fn separates_staged_unstaged_and_untracked_changes() {
 }
 
 #[test]
+fn stages_all_tracked_and_untracked_worktree_changes() {
+    let root = std::env::temp_dir().join(format!(
+        "gitview-stage-all-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&root).unwrap();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .current_dir(&root)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        )
+    };
+    git(&["init", "-q"]);
+    fs::write(root.join("modified"), "before\n").unwrap();
+    fs::write(root.join("deleted"), "remove me\n").unwrap();
+    git(&["add", "--", "modified", "deleted"]);
+    git(&[
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-qm",
+        "base",
+    ]);
+    fs::write(root.join("modified"), "after\n").unwrap();
+    fs::remove_file(root.join("deleted")).unwrap();
+    fs::write(root.join("new file"), "new\n").unwrap();
+
+    gitview::worktree::stage_all(&root).unwrap();
+
+    let status = load_status(&root).unwrap();
+    assert_eq!(status.len(), 3);
+    assert!(status.iter().all(|entry| entry.section == Section::Staged));
+    let cached = Command::new("git")
+        .current_dir(&root)
+        .args(["diff", "--cached", "--name-status"])
+        .output()
+        .unwrap();
+    let cached = String::from_utf8_lossy(&cached.stdout);
+    assert!(cached.contains("modified"));
+    assert!(cached.contains("deleted"));
+    assert!(cached.contains("new file"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn stages_and_unstages_only_the_selected_file_on_an_unborn_branch() {
     use gitview::worktree::{stage, unstage};
     let root = std::env::temp_dir().join(format!(
@@ -111,6 +167,145 @@ fn stages_and_unstages_only_the_selected_file_on_an_unborn_branch() {
             .iter()
             .any(|entry| entry.section == Section::Untracked && entry.path == "-one")
     );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn stages_only_the_selected_hunk_of_a_tracked_file() {
+    use gitview::worktree::stage_hunk;
+    let root = std::env::temp_dir().join(format!(
+        "gitview-stage-hunk-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&root).unwrap();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .current_dir(&root)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        )
+    };
+    git(&["init", "-q"]);
+    let base = (1..=20)
+        .map(|line| format!("line {line}\n"))
+        .collect::<String>();
+    fs::write(root.join("tracked"), &base).unwrap();
+    git(&["add", "--", "tracked"]);
+    git(&[
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-qm",
+        "base",
+    ]);
+    let changed = base
+        .replace("line 2\n", "first hunk\n")
+        .replace("line 18\n", "second hunk\n");
+    fs::write(root.join("tracked"), changed).unwrap();
+    let entry = load_status(&root)
+        .unwrap()
+        .into_iter()
+        .find(|entry| entry.section == Section::Unstaged)
+        .unwrap();
+
+    stage_hunk(&root, &entry, 0).unwrap();
+
+    let staged = Command::new("git")
+        .current_dir(&root)
+        .args(["diff", "--cached", "--unified=0", "--", "tracked"])
+        .output()
+        .unwrap();
+    let staged = String::from_utf8_lossy(&staged.stdout);
+    assert!(staged.contains("+first hunk"));
+    assert!(!staged.contains("+second hunk"));
+    let unstaged = Command::new("git")
+        .current_dir(&root)
+        .args(["diff", "--unified=0", "--", "tracked"])
+        .output()
+        .unwrap();
+    let unstaged = String::from_utf8_lossy(&unstaged.stdout);
+    assert!(!unstaged.contains("+first hunk"));
+    assert!(unstaged.contains("+second hunk"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn unstages_only_the_selected_hunk_of_a_tracked_file() {
+    use gitview::worktree::unstage_hunk;
+    let root = std::env::temp_dir().join(format!(
+        "gitview-unstage-hunk-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&root).unwrap();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .current_dir(&root)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        )
+    };
+    git(&["init", "-q"]);
+    let base = (1..=20)
+        .map(|line| format!("line {line}\n"))
+        .collect::<String>();
+    fs::write(root.join("tracked"), &base).unwrap();
+    git(&["add", "--", "tracked"]);
+    git(&[
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-qm",
+        "base",
+    ]);
+    let changed = base
+        .replace("line 2\n", "first hunk\n")
+        .replace("line 18\n", "second hunk\n");
+    fs::write(root.join("tracked"), changed).unwrap();
+    git(&["add", "--", "tracked"]);
+    let entry = load_status(&root)
+        .unwrap()
+        .into_iter()
+        .find(|entry| entry.section == Section::Staged)
+        .unwrap();
+
+    unstage_hunk(&root, &entry, 1).unwrap();
+
+    let staged = Command::new("git")
+        .current_dir(&root)
+        .args(["diff", "--cached", "--unified=0", "--", "tracked"])
+        .output()
+        .unwrap();
+    let staged = String::from_utf8_lossy(&staged.stdout);
+    assert!(staged.contains("+first hunk"));
+    assert!(!staged.contains("+second hunk"));
+    let unstaged = Command::new("git")
+        .current_dir(&root)
+        .args(["diff", "--unified=0", "--", "tracked"])
+        .output()
+        .unwrap();
+    let unstaged = String::from_utf8_lossy(&unstaged.stdout);
+    assert!(!unstaged.contains("+first hunk"));
+    assert!(unstaged.contains("+second hunk"));
     fs::remove_dir_all(root).unwrap();
 }
 
