@@ -24,8 +24,14 @@ Validation:
 - Release workflow preflight passed.
 - Installed from crates.io with Cargo and verified `gitview --version` reports
   `gitview 0.4.1`.
-- The macOS archive build was dispatched through GitHub Actions; its runner is
-  still queued.
+- Installed the GitHub release archive with `install.sh`, verified its SHA-256
+  checksum, and confirmed the installed binary reports `gitview 0.4.1`.
+
+Downloads:
+
+- `gitview-v0.4.1-macos-arm64.tar.gz` contains the macOS Apple Silicon binary.
+- `gitview-v0.4.1-macos-arm64.tar.gz.sha256` contains the archive checksum.
+- GitHub provides source archives for the `v0.4.1` tag.
 
 - Crate: [gitview 0.4.1 on crates.io](https://crates.io/crates/gitview/0.4.1)
 - Release: [GitHub v0.4.1][release-041]
