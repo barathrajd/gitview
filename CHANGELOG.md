@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/barathrajd/gitview/compare/v0.3.2...v0.3.3) (2026-10-27)
+
+
+### Miscellaneous Chores
+
+* **release:** request v0.3.3 ([b71a589](https://github.com/barathrajd/gitview/commit/b71a589c7c42289b5323cf1aa8248083fdc35cdd))
+
 ## 0.3.2 — October 27, 2026
 
 ### Fixed
