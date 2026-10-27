@@ -1,5 +1,6 @@
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use crossterm_keybind::{KeyBind, KeyBindTrait};
+use gitview::app::{AppAction, AppState, View};
 use ratatui::{
     DefaultTerminal,
     layout::{Constraint, Layout},
@@ -119,7 +120,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
     let mut status_mutation: Option<u64> = None;
     let mut branches: Option<Result<gitview::branches::Branches, String>> = None;
     let mut branch_selection = ListState::default();
-    let mut tree_view = false;
+    let mut app_state = AppState::default();
     let (status_sender, status_receiver) =
         std::sync::mpsc::channel::<(u64, Result<Vec<gitview::worktree::Entry>, String>)>();
     let mut status: Option<Result<Vec<gitview::worktree::Entry>, String>> = None;
@@ -353,7 +354,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                         frame.render_stateful_widget(list, sections[1], &mut file_selection);
                     }
                 }
-            } else if tree_view {
+            } else if app_state.view() == View::WorkingTree {
                 let lines: Vec<String> = match &status {
                     None => vec!["Loading working tree...".to_owned()],
                     Some(Err(error)) => vec![error.clone()],
@@ -557,14 +558,20 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                     });
                 }
                 KeyCode::Char('/')
-                    if !help && !tree_view && details.is_none() && diff.is_none() =>
+                    if !help
+                        && app_state.view() == View::History
+                        && details.is_none()
+                        && diff.is_none() =>
                 {
                     searching = true;
                     query.clear();
                     search_message.clear();
                 }
                 KeyCode::Char('n')
-                    if !help && !tree_view && details.is_none() && diff.is_none() =>
+                    if !help
+                        && app_state.view() == View::History
+                        && details.is_none()
+                        && diff.is_none() =>
                 {
                     if let Some(Ok(rows)) = &history
                         && let Some(index) = gitview::history::find_next(
@@ -576,11 +583,9 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                         selection.select(Some(index));
                     }
                 }
-                KeyCode::Tab
-                    if !help && !mutation_pending && details.is_none() && diff.is_none() =>
-                {
-                    tree_view = !tree_view;
-                    if tree_view {
+                KeyCode::Tab => {
+                    let blocked = help || mutation_pending || details.is_some() || diff.is_some();
+                    if app_state.handle_tab(blocked) == Some(AppAction::LoadWorkingTree) {
                         status = None;
                         status_request += 1;
                         let current = status_request;
@@ -594,7 +599,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 KeyCode::Char(action @ ('s' | 'u'))
                     if !help
                         && !mutation_pending
-                        && tree_view
+                        && app_state.view() == View::WorkingTree
                         && details.is_none()
                         && diff.is_none() =>
                 {
@@ -625,7 +630,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 KeyCode::Char('r')
                     if !help
                         && !mutation_pending
-                        && tree_view
+                        && app_state.view() == View::WorkingTree
                         && details.is_none()
                         && diff.is_none() =>
                 {
@@ -645,7 +650,9 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                         details = None;
                     }
                 }
-                KeyCode::Enter if !help && tree_view && diff.is_none() => {
+                KeyCode::Enter
+                    if !help && app_state.view() == View::WorkingTree && diff.is_none() =>
+                {
                     if let (Some(Ok(entries)), Some(index)) = (&status, status_selection.selected())
                         && let Some(entry) = entries.get(index)
                     {
@@ -662,7 +669,9 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                         });
                     }
                 }
-                KeyCode::Enter if !help && details.is_none() && !tree_view => {
+                KeyCode::Enter
+                    if !help && details.is_none() && app_state.view() == View::History =>
+                {
                     if let (Some(Ok(rows)), Some(index)) = (&history, selection.selected())
                         && let Some(id) = rows
                             .get(index)
@@ -720,7 +729,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                         file_selection.select(Some(i.saturating_sub(1)));
                     }
                 }
-                KeyCode::Down if !help && tree_view => {
+                KeyCode::Down if !help && app_state.view() == View::WorkingTree => {
                     if let Some(Ok(entries)) = &status
                         && !entries.is_empty()
                     {
@@ -729,7 +738,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                         ));
                     }
                 }
-                KeyCode::Up if !help && tree_view => {
+                KeyCode::Up if !help && app_state.view() == View::WorkingTree => {
                     if let Some(i) = status_selection.selected() {
                         status_selection.select(Some(i.saturating_sub(1)));
                     }

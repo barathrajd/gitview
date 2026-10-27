@@ -1,3 +1,4 @@
+pub mod app;
 pub mod branches;
 pub mod details;
 pub mod diff;

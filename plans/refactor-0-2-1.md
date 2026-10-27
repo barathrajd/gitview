@@ -95,10 +95,11 @@ then create and publish the annotated tag and release using GitHub CLI's
 Each milestone delivers a reviewable slice while keeping the existing Gitview
 workflows available.
 
-- [ ] **1. Extract workspace state:** Model history/working-tree view changes
+- [x] **1. Extract workspace state:** Model history/working-tree view changes
   and blocked Tab navigation in testable application state; entering the
   working-tree view requests status while returning to history preserves the
-  existing state.
+  existing state. Verify the transition with integration tests and a PTY smoke
+  check.
 - [ ] **2. Extract history and working-tree actions:** Move list navigation,
   search, refresh, and stage/unstage input transitions into testable actions;
   preserve current selection rules and stale-result handling.
