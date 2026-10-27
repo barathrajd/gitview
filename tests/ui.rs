@@ -2,7 +2,7 @@ use gitview::{
     app::BranchAction,
     branches::{Branches, HeadState},
     details::CommitDetails,
-    ui::{Screen, render},
+    ui::{HelpPage, Screen, render, render_help_overlay},
     worktree::{Entry, Section},
 };
 use ratatui::{Terminal, backend::TestBackend, widgets::ListState};
@@ -21,6 +21,47 @@ fn draw(screen: Screen<'_>, width: u16, height: u16) -> String {
         .iter()
         .map(|cell| cell.symbol())
         .collect()
+}
+
+#[test]
+fn contextual_help_opens_as_a_page_specific_overlay() {
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let diff = (1, Some(Ok("@@ -1 +1 @@\n-before\n+after\n".to_owned())));
+    let entry = Entry {
+        section: Section::Unstaged,
+        path: OsString::from("tracked"),
+        original: None,
+    };
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                Screen::Diff {
+                    diff: &diff,
+                    scroll: 0,
+                    selected_hunk: 0,
+                    worktree_entry: Some(&entry),
+                },
+                ratatui::symbols::border::PLAIN,
+            );
+            render_help_overlay(
+                frame,
+                HelpPage::WorktreeDiff,
+                ratatui::symbols::border::PLAIN,
+            );
+        })
+        .unwrap();
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(rendered.contains("HELP · Working tree diff"));
+    assert!(rendered.contains("Stage or unstage selected hunk"));
+    assert!(rendered.contains("Esc or ? closes help"));
 }
 
 #[test]
@@ -156,6 +197,8 @@ fn renders_error_states_for_git_backed_views() {
         Screen::Diff {
             diff: &diff,
             scroll: 0,
+            selected_hunk: 0,
+            worktree_entry: None,
         },
         80,
         24,
@@ -170,6 +213,8 @@ fn renders_diff_titles_for_narrow_and_wide_terminals() {
         Screen::Diff {
             diff: &diff,
             scroll: 0,
+            selected_hunk: 0,
+            worktree_entry: None,
         },
         119,
         24,
@@ -183,6 +228,8 @@ fn renders_diff_titles_for_narrow_and_wide_terminals() {
         Screen::Diff {
             diff: &diff,
             scroll: 0,
+            selected_hunk: 0,
+            worktree_entry: None,
         },
         120,
         24,
@@ -193,6 +240,91 @@ fn renders_diff_titles_for_narrow_and_wide_terminals() {
     assert!(wide.contains("20"));
     assert!(wide.contains("Up/Down or j/k"));
     assert!(wide.contains("Esc/h"));
+}
+
+#[test]
+fn working_tree_diff_shows_hunk_controls_and_selection() {
+    let diff = (
+        1,
+        Some(Ok(
+            "@@ -2 +2 @@\n-old\n+new\n@@ -8 +8 @@\n-old2\n+new2\n".to_owned()
+        )),
+    );
+    let entry = Entry {
+        section: Section::Unstaged,
+        path: OsString::from("tracked"),
+        original: None,
+    };
+    let rendered = draw(
+        Screen::Diff {
+            diff: &diff,
+            scroll: 0,
+            selected_hunk: 1,
+            worktree_entry: Some(&entry),
+        },
+        56,
+        20,
+    );
+    assert!(rendered.contains("HUNK 2/2"));
+    assert!(rendered.contains("stage"));
+    assert!(rendered.contains("unstage"));
+    assert!(rendered.contains("stage all"));
+    assert!(rendered.contains("unstage all"));
+    assert!(!rendered.contains("quit"));
+    assert!(!rendered.contains("help"));
+    assert!(!rendered.contains("history"));
+    assert!(!rendered.contains("scroll"));
+    let cells: Vec<_> = rendered.chars().collect();
+    let rows = cells
+        .chunks(56)
+        .map(|row| row.iter().collect::<String>())
+        .collect::<Vec<_>>();
+    let action_row = rows.iter().find(|row| row.contains("stage all")).unwrap();
+    assert!(action_row.contains("unstage all"));
+    assert!(action_row.contains("unstage"));
+}
+
+#[test]
+fn staged_worktree_diff_shows_unstage_all_controls() {
+    let diff = (1, Some(Ok("@@ -2 +2 @@\n-old\n+new\n".to_owned())));
+    let entry = Entry {
+        section: Section::Staged,
+        path: OsString::from("tracked"),
+        original: None,
+    };
+    let rendered = draw(
+        Screen::Diff {
+            diff: &diff,
+            scroll: 0,
+            selected_hunk: 0,
+            worktree_entry: Some(&entry),
+        },
+        120,
+        20,
+    );
+    assert!(rendered.contains("stage hunk"));
+    assert!(rendered.contains("unstage hunk"));
+    assert!(rendered.contains("stage all"));
+    assert!(rendered.contains("unstage all"));
+}
+
+#[test]
+fn wide_side_by_side_diff_wraps_long_lines() {
+    let long_line = format!("+{}tail-marker", "x".repeat(90));
+    let diff = (1, Some(Ok(format!("@@ -1 +1 @@\n{long_line}\n"))));
+    let rendered = draw(
+        Screen::Diff {
+            diff: &diff,
+            scroll: 0,
+            selected_hunk: 0,
+            worktree_entry: None,
+        },
+        120,
+        24,
+    );
+    assert!(rendered.contains("BEFORE"));
+    assert!(rendered.contains("AFTER"));
+    assert!(rendered.contains("tail-marker"));
 }
 
 #[test]
@@ -215,7 +347,8 @@ fn renders_branch_and_commit_details() {
     assert!(branch_list.contains("Local branches"));
     assert!(branch_list.contains("topic"));
     assert!(branch_list.contains("Enter/l"));
-    assert!(branch_list.contains("quit"));
+    assert!(!branch_list.contains("quit"));
+    assert!(!branch_list.contains("help"));
 
     let details = (
         1,

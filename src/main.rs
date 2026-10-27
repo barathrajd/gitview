@@ -89,6 +89,8 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
     let (diff_sender, diff_receiver) = std::sync::mpsc::channel::<(u64, Result<String, String>)>();
     let mut diff: Option<(u64, Option<Result<String, String>>)> = None;
     let mut diff_scroll = 0u16;
+    let mut diff_entry: Option<gitview::worktree::Entry> = None;
+    let mut selected_hunk = 0usize;
     let mut branch_view = false;
     let (branch_sender, branch_receiver) =
         std::sync::mpsc::channel::<(u64, Result<gitview::branches::Branches, String>)>();
@@ -100,11 +102,15 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
     let mut branch_feedback = String::new();
     let mut mutation_pending = false;
     let mut status_mutation: Option<u64> = None;
+    let mut diff_entry_refresh: Option<(gitview::worktree::Section, gitview::worktree::Section)> =
+        None;
     let mut branches: Option<Result<gitview::branches::Branches, String>> = None;
     let mut branch_selection = ListState::default();
     let mut app_state = AppState::default();
     let (status_sender, status_receiver) =
         std::sync::mpsc::channel::<(u64, Result<Vec<gitview::worktree::Entry>, String>)>();
+    let (status_watch_sender, status_watch_receiver) =
+        std::sync::mpsc::sync_channel::<Vec<gitview::worktree::Entry>>(1);
     let mut status: Option<Result<Vec<gitview::worktree::Entry>, String>> = None;
     let mut status_request = 0u64;
     let mut status_selection = ListState::default();
@@ -113,6 +119,26 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
         let path = root.to_path_buf();
         std::thread::spawn(move || {
             let _ = sender.send((0, gitview::worktree::load_status(&path)));
+        });
+    }
+    {
+        let sender = status_watch_sender;
+        let path = root.to_path_buf();
+        std::thread::spawn(move || {
+            let mut previous = None;
+            loop {
+                std::thread::sleep(Duration::from_millis(750));
+                let Ok(entries) = gitview::worktree::load_status(&path) else {
+                    continue;
+                };
+                if previous.as_ref() != Some(&entries) {
+                    match sender.try_send(entries.clone()) {
+                        Ok(()) => previous = Some(entries),
+                        Err(std::sync::mpsc::TrySendError::Full(_)) => {}
+                        Err(std::sync::mpsc::TrySendError::Disconnected(_)) => return,
+                    }
+                }
+            }
         });
     }
     {
@@ -131,6 +157,35 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
         }
     });
     loop {
+        while let Ok(entries) = status_watch_receiver.try_recv() {
+            if mutation_pending {
+                continue;
+            }
+            let unchanged = status
+                .as_ref()
+                .and_then(|current| current.as_ref().ok())
+                .is_some_and(|current| current == &entries);
+            if unchanged {
+                continue;
+            }
+            let selected_entry = status
+                .as_ref()
+                .and_then(|current| current.as_ref().ok())
+                .and_then(|current| status_selection.selected().and_then(|i| current.get(i)))
+                .cloned();
+            let selected = selected_entry
+                .and_then(|selected| entries.iter().position(|entry| entry == &selected))
+                .or_else(|| {
+                    (!entries.is_empty()).then(|| {
+                        status_selection
+                            .selected()
+                            .unwrap_or(0)
+                            .min(entries.len() - 1)
+                    })
+                });
+            status_selection.select(selected);
+            status = Some(Ok(entries));
+        }
         while let Ok((id, result)) = receiver.try_recv() {
             if id != history_request {
                 continue;
@@ -167,18 +222,100 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 && *active == id
             {
                 *value = Some(result);
+                selected_hunk = 0;
+                diff_scroll = 0;
             }
         }
         while let Ok((id, result)) = status_receiver.try_recv() {
-            if status_mutation == Some(id) {
+            let is_mutation = status_mutation == Some(id);
+            if is_mutation {
                 mutation_pending = false;
                 status_mutation = None;
+                if let (Some(entry), Some((preferred, fallback)), Ok(entries)) =
+                    (&diff_entry, diff_entry_refresh, &result)
+                {
+                    diff_entry = entries
+                        .iter()
+                        .find(|current| {
+                            current.section == preferred
+                                && current.path == entry.path
+                                && current.original == entry.original
+                        })
+                        .or_else(|| {
+                            entries.iter().find(|current| {
+                                current.section == fallback
+                                    && current.path == entry.path
+                                    && current.original == entry.original
+                            })
+                        })
+                        .cloned();
+                }
+                diff_entry_refresh = None;
             }
             if id != status_request {
                 continue;
             }
-            if result.as_ref().is_ok_and(|entries| !entries.is_empty()) {
-                status_selection.select(Some(0));
+            // Keep the last known-good list visible if a Git mutation fails.
+            if is_mutation && result.is_err() {
+                continue;
+            }
+            if let Ok(entries) = &result {
+                let previous_entry = status
+                    .as_ref()
+                    .and_then(|current| current.as_ref().ok())
+                    .and_then(|current| {
+                        status_selection
+                            .selected()
+                            .and_then(|index| current.get(index))
+                    });
+                let prefer_staged = previous_entry
+                    .is_some_and(|previous| previous.section == gitview::worktree::Section::Staged);
+                let preferred_index = entries
+                    .iter()
+                    .position(|entry| {
+                        let in_preferred_section = if prefer_staged {
+                            entry.section == gitview::worktree::Section::Staged
+                        } else {
+                            entry.section != gitview::worktree::Section::Staged
+                        };
+                        in_preferred_section
+                            && previous_entry.is_some_and(|previous| {
+                                entry.path == previous.path && entry.original == previous.original
+                            })
+                    })
+                    .or_else(|| {
+                        entries.iter().position(|entry| {
+                            if prefer_staged {
+                                entry.section == gitview::worktree::Section::Staged
+                            } else {
+                                entry.section != gitview::worktree::Section::Staged
+                            }
+                        })
+                    });
+                let fallback_index = entries.iter().position(|entry| {
+                    if prefer_staged {
+                        entry.section != gitview::worktree::Section::Staged
+                    } else {
+                        entry.section == gitview::worktree::Section::Staged
+                    }
+                });
+                let same_entry = previous_entry.and_then(|previous| {
+                    entries.iter().position(|entry| {
+                        entry.section == previous.section
+                            && entry.path == previous.path
+                            && entry.original == previous.original
+                    })
+                });
+                status_selection.select(if entries.is_empty() {
+                    None
+                } else if is_mutation {
+                    preferred_index
+                        .or(fallback_index)
+                        .or(same_entry)
+                        .or(Some(0))
+                } else {
+                    same_entry.or(Some(0))
+                });
             } else {
                 status_selection.select(None);
             }
@@ -234,9 +371,26 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
             });
         }
         terminal.draw(|frame| {
-            let screen = if help {
-                Screen::Help
-            } else if branch_view && branch_input.is_some() {
+            let help_page = if branch_view && branch_input.is_some() {
+                ui::HelpPage::BranchInput
+            } else if branch_view && branch_confirm.is_some() {
+                ui::HelpPage::BranchConfirmation
+            } else if branch_view {
+                ui::HelpPage::Branches
+            } else if diff_entry.is_some() && diff.is_some() {
+                ui::HelpPage::WorktreeDiff
+            } else if diff.is_some() {
+                ui::HelpPage::CommitDiff
+            } else if details.is_some() {
+                ui::HelpPage::Commit
+            } else if searching {
+                ui::HelpPage::Search
+            } else if app_state.view() == View::WorkingTree {
+                ui::HelpPage::WorkingTree
+            } else {
+                ui::HelpPage::History
+            };
+            let screen = if branch_view && branch_input.is_some() {
                 Screen::BranchInput(branch_input.as_deref().unwrap_or(""))
             } else if branch_view && (mutation_pending || branch_confirm.is_some()) {
                 Screen::BranchConfirmation {
@@ -253,6 +407,8 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 Screen::Diff {
                     diff,
                     scroll: diff_scroll,
+                    selected_hunk,
+                    worktree_entry: diff_entry.as_ref(),
                 }
             } else if let Some(details) = &details {
                 Screen::CommitDetails {
@@ -279,6 +435,9 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 })
             };
             ui::render(frame, screen, border);
+            if help {
+                ui::render_help_overlay(frame, help_page, border);
+            }
         })?;
         let event = match event_receiver.recv_timeout(Duration::from_millis(50)) {
             Ok(event) => event,
@@ -288,12 +447,19 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
         if let Event::Key(key) = event
             && key.kind == KeyEventKind::Press
         {
+            if help {
+                if matches!(key.code, KeyCode::Esc | KeyCode::Char('?')) {
+                    help = false;
+                }
+                continue;
+            }
             if searching {
                 match key.code {
                     KeyCode::Esc => {
                         searching = false;
                         search_debounce = None;
                     }
+                    KeyCode::Char('?') => help = true,
                     KeyCode::Backspace => {
                         if query.pop().is_some() {
                             search_debounce = Some(Instant::now() + Duration::from_millis(180));
@@ -345,12 +511,25 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 }
                 continue;
             }
+            if key.code == KeyCode::Char('W')
+                && !help
+                && !mutation_pending
+                && (!branch_view || (branch_input.is_none() && branch_confirm.is_none()))
+            {
+                let _ = app_state.handle_key(KeyCode::Char('W'), false);
+                branch_view = false;
+                diff = None;
+                diff_entry = None;
+                details = None;
+                continue;
+            }
             if branch_view && !help {
                 if mutation_pending {
                     continue;
                 }
                 if let Some(input) = &mut branch_input {
                     match key.code {
+                        KeyCode::Char('?') => help = true,
                         KeyCode::Esc => branch_input = None,
                         KeyCode::Backspace => {
                             input.pop();
@@ -381,6 +560,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 }
                 if let Some(action) = &branch_confirm {
                     match key.code {
+                        KeyCode::Char('?') => help = true,
                         KeyCode::Char('y') => {
                             mutation_pending = true;
                             let action = action.clone();
@@ -433,6 +613,10 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                     KeyCode::Char('q') => return Ok(()),
                     KeyCode::Char('?') => help = true,
                     KeyCode::Esc | KeyCode::Char('b') => branch_view = false,
+                    KeyCode::Char('H') => {
+                        branch_view = false;
+                        let _ = app_state.handle_key(KeyCode::Char('H'), false);
+                    }
                     KeyCode::Down => {
                         if let Some(Ok(data)) = &branches
                             && !data.branches.is_empty()
@@ -452,18 +636,20 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 }
                 continue;
             }
+            if key.code == KeyCode::Char('H') && !help && !mutation_pending {
+                let _ = app_state.handle_key(KeyCode::Char('H'), false);
+                searching = false;
+                diff = None;
+                diff_entry = None;
+                details = None;
+                continue;
+            }
             let blocked = help || mutation_pending || details.is_some() || diff.is_some();
             if let Some(action) = app_state.handle_key(navigation_key(key), blocked) {
                 match action {
                     AppAction::LoadWorkingTree => {
-                        status = None;
-                        status_request += 1;
-                        let id = status_request;
-                        let sender = status_sender.clone();
-                        let path = root.to_path_buf();
-                        std::thread::spawn(move || {
-                            let _ = sender.send((id, gitview::worktree::load_status(&path)));
-                        });
+                        // Keep the cached working-tree status while switching panes.
+                        // The initial load, mutations, and explicit `r` refresh it.
                     }
                     AppAction::ReturnToHistory => {}
                     AppAction::StartSearch => {
@@ -495,31 +681,67 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                             let _ = sender.send((id, gitview::branches::load_branches(&path)));
                         });
                     }
+                    AppAction::StageAll => {
+                        status_request += 1;
+                        let id = status_request;
+                        let sender = status_sender.clone();
+                        let path = root.to_path_buf();
+                        mutation_pending = true;
+                        status_mutation = Some(id);
+                        std::thread::spawn(move || {
+                            let result = gitview::worktree::stage_all(&path);
+                            let _ = sender.send((
+                                id,
+                                result.and_then(|()| gitview::worktree::load_status(&path)),
+                            ));
+                        });
+                    }
+                    AppAction::UnstageAll => {
+                        status_request += 1;
+                        let id = status_request;
+                        let sender = status_sender.clone();
+                        let path = root.to_path_buf();
+                        mutation_pending = true;
+                        status_mutation = Some(id);
+                        std::thread::spawn(move || {
+                            let result = gitview::worktree::unstage_all(&path);
+                            let _ = sender.send((
+                                id,
+                                result.and_then(|()| gitview::worktree::load_status(&path)),
+                            ));
+                        });
+                    }
                     AppAction::StageSelected | AppAction::UnstageSelected => {
                         if let (Some(Ok(entries)), Some(index)) =
                             (&status, status_selection.selected())
                             && let Some(entry) = entries.get(index)
                         {
                             let entry = entry.clone();
-                            status_request += 1;
-                            let id = status_request;
-                            let sender = status_sender.clone();
-                            let path = root.to_path_buf();
-                            status = None;
-                            mutation_pending = true;
-                            status_mutation = Some(id);
                             let stage = action == AppAction::StageSelected;
-                            std::thread::spawn(move || {
-                                let result = if stage {
-                                    gitview::worktree::stage(&path, &entry)
-                                } else {
-                                    gitview::worktree::unstage(&path, &entry)
-                                };
-                                let _ = sender.send((
-                                    id,
-                                    result.and_then(|()| gitview::worktree::load_status(&path)),
-                                ));
-                            });
+                            let eligible = if stage {
+                                entry.section != gitview::worktree::Section::Staged
+                            } else {
+                                entry.section == gitview::worktree::Section::Staged
+                            };
+                            if eligible {
+                                status_request += 1;
+                                let id = status_request;
+                                let sender = status_sender.clone();
+                                let path = root.to_path_buf();
+                                mutation_pending = true;
+                                status_mutation = Some(id);
+                                std::thread::spawn(move || {
+                                    let result = if stage {
+                                        gitview::worktree::stage(&path, &entry)
+                                    } else {
+                                        gitview::worktree::unstage(&path, &entry)
+                                    };
+                                    let _ = sender.send((
+                                        id,
+                                        result.and_then(|()| gitview::worktree::load_status(&path)),
+                                    ));
+                                });
+                            }
                         }
                     }
                     AppAction::RefreshWorkingTree => {
@@ -568,12 +790,11 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 | KeyCode::Char('b')
                 | KeyCode::Char('/')
                 | KeyCode::Char('n')
-                | KeyCode::Char('s')
-                | KeyCode::Char('u')
                 | KeyCode::Char('r') => {}
                 KeyCode::Esc if !help => {
                     if diff.is_some() {
                         diff = None;
+                        diff_entry = None;
                     } else {
                         details = None;
                     }
@@ -585,12 +806,14 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                         && let Some(entry) = entries.get(index)
                     {
                         let entry = entry.clone();
+                        diff_entry = Some(entry.clone());
                         request_id += 1;
                         let current = request_id;
                         let sender = diff_sender.clone();
                         let path = std::path::PathBuf::from(root);
                         diff = Some((current, None));
                         diff_scroll = 0;
+                        selected_hunk = 0;
                         std::thread::spawn(move || {
                             let _ =
                                 sender.send((current, gitview::worktree::load_diff(&path, &entry)));
@@ -630,6 +853,8 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                         let sender = diff_sender.clone();
                         diff = Some((current, None));
                         diff_scroll = 0;
+                        diff_entry = None;
+                        selected_hunk = 0;
                         std::thread::spawn(move || {
                             let _ = sender
                                 .send((current, gitview::details::load_diff(&path, &hash, &file)));
@@ -641,6 +866,118 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 }
                 KeyCode::Up if !help && diff.is_some() => {
                     diff_scroll = diff_scroll.saturating_sub(1);
+                }
+                KeyCode::Char(']')
+                    if !help
+                        && diff_entry.as_ref().is_some_and(|entry| {
+                            entry.section != gitview::worktree::Section::Untracked
+                        }) =>
+                {
+                    if let Some((_, Some(Ok(text)))) = &diff {
+                        let wide = terminal.size().is_ok_and(|size| size.width >= 120);
+                        let positions = hunk_line_positions(text, wide);
+                        if !positions.is_empty() {
+                            selected_hunk = (selected_hunk + 1).min(positions.len() - 1);
+                            diff_scroll = positions[selected_hunk] as u16;
+                        }
+                    }
+                }
+                KeyCode::Char('[')
+                    if !help
+                        && diff_entry.as_ref().is_some_and(|entry| {
+                            entry.section != gitview::worktree::Section::Untracked
+                        }) =>
+                {
+                    if let Some((_, Some(Ok(text)))) = &diff {
+                        let wide = terminal.size().is_ok_and(|size| size.width >= 120);
+                        let positions = hunk_line_positions(text, wide);
+                        if !positions.is_empty() {
+                            selected_hunk = selected_hunk.saturating_sub(1);
+                            diff_scroll = positions[selected_hunk] as u16;
+                        }
+                    }
+                }
+                KeyCode::Char('s' | 'u' | 'S' | 'U') if !help && !mutation_pending => {
+                    let stage = matches!(key.code, KeyCode::Char('s' | 'S'));
+                    let all_hunks = matches!(key.code, KeyCode::Char('S' | 'U'));
+                    if let (Some(entry), Some((_, Some(Ok(text))))) = (&diff_entry, &diff)
+                        && ((stage
+                            && (entry.section == gitview::worktree::Section::Unstaged
+                                || (all_hunks
+                                    && entry.section == gitview::worktree::Section::Untracked)))
+                            || (!stage && entry.section == gitview::worktree::Section::Staged))
+                        && (all_hunks
+                            || selected_hunk
+                                < hunk_line_positions(
+                                    text,
+                                    terminal.size().is_ok_and(|size| size.width >= 120),
+                                )
+                                .len())
+                    {
+                        let entry = entry.clone();
+                        let hunk = selected_hunk;
+                        let preferred_section = if stage {
+                            if all_hunks {
+                                gitview::worktree::Section::Staged
+                            } else {
+                                gitview::worktree::Section::Unstaged
+                            }
+                        } else if all_hunks {
+                            gitview::worktree::Section::Unstaged
+                        } else {
+                            gitview::worktree::Section::Staged
+                        };
+                        let fallback_section = if stage {
+                            gitview::worktree::Section::Staged
+                        } else {
+                            gitview::worktree::Section::Unstaged
+                        };
+                        diff_entry_refresh = Some((preferred_section, fallback_section));
+                        status_request += 1;
+                        let status_id = status_request;
+                        status_mutation = Some(status_id);
+                        mutation_pending = true;
+                        let diff_id = diff.as_ref().map(|(id, _)| *id).unwrap_or_default();
+                        let status_sender = status_sender.clone();
+                        let diff_sender = diff_sender.clone();
+                        let path = root.to_path_buf();
+                        std::thread::spawn(move || {
+                            let result = if all_hunks && stage {
+                                gitview::worktree::stage(&path, &entry)
+                            } else if all_hunks {
+                                gitview::worktree::unstage(&path, &entry)
+                            } else if stage {
+                                gitview::worktree::stage_hunk(&path, &entry, hunk)
+                            } else {
+                                gitview::worktree::unstage_hunk(&path, &entry, hunk)
+                            };
+                            let status_result =
+                                result.and_then(|()| gitview::worktree::load_status(&path));
+                            let diff_result = match &status_result {
+                                Ok(entries) => entries
+                                    .iter()
+                                    .find(|current| {
+                                        current.section == preferred_section
+                                            && current.path == entry.path
+                                            && current.original == entry.original
+                                    })
+                                    .or_else(|| {
+                                        entries.iter().find(|current| {
+                                            current.section == fallback_section
+                                                && current.path == entry.path
+                                                && current.original == entry.original
+                                        })
+                                    })
+                                    .map_or_else(
+                                        || Ok(String::new()),
+                                        |current| gitview::worktree::load_diff(&path, current),
+                                    ),
+                                Err(error) => Err(error.clone()),
+                            };
+                            let _ = status_sender.send((status_id, status_result));
+                            let _ = diff_sender.send((diff_id, diff_result));
+                        });
+                    }
                 }
                 KeyCode::Down if !help && details.is_some() => {
                     if let Some((_, Some(Ok(commit)))) = &details
@@ -660,6 +997,24 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 _ => {}
             }
         }
+    }
+}
+
+fn hunk_line_positions(diff: &str, side_by_side: bool) -> Vec<usize> {
+    if side_by_side {
+        gitview::diff::numbered_side_by_side(diff)
+            .iter()
+            .enumerate()
+            .filter_map(|(index, row)| {
+                (row.old_text.starts_with("@@ ") || row.new_text.starts_with("@@ "))
+                    .then_some(index)
+            })
+            .collect()
+    } else {
+        diff.lines()
+            .enumerate()
+            .filter_map(|(index, line)| line.starts_with("@@ ").then_some(index))
+            .collect()
     }
 }
 

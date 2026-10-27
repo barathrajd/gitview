@@ -25,7 +25,26 @@ pub const ASCII_BORDER: ratatui::symbols::border::Set<'static> = ratatui::symbol
     horizontal_bottom: "-",
 };
 
-pub const HELP: &str = "KEY                 DETAILS                           KEY                 DETAILS\nUp/Down             Move list selection                j/k                 Move list selection\nEnter               Open selected item                 l                   Open selected item\nEsc                 Back or cancel                     h                   Back or cancel\nTab                 Switch history/worktree pane       q                   Quit outside prompts\n?                   Help outside prompts               b                   Browse local branches\n/                   Search commit history               s                   Stage selected file\nu                   Unstage selected file               r                   Refresh worktree\nc                   Create branch in list               y                   Confirm branch operation\nn                   Cancel branch operation            Backspace           Edit search query\nIn search, Up/Down select matches and Enter opens commit details. Backspace edits; Esc returns.\nWhile typing or confirming, q and ? are unavailable.";
+pub const HELP: &str = concat!(
+    "KEY                 DETAILS                           KEY                 DETAILS\n",
+    "Up/Down             Move list selection                j/k                 Move list selection\n",
+    "Enter               Open selected item                 l                   Open selected item\n",
+    "Esc                 Back or cancel                     h                   Back or cancel\n",
+    "Tab                 Switch history/worktree pane       q                   Quit outside prompts\n",
+    "H                   Open history outside prompts\n",
+    "W                   Open working tree outside prompts\n",
+    "?                   Help outside prompts               b                   Browse local branches\n",
+    "/                   Search commit history               s                   Stage selected file\n",
+    "u                   Unstage selected file               r                   Refresh worktree\n",
+    "S                   Stage all worktree changes\n",
+    "U                   Unstage all staged changes\n",
+    "c                   Create branch in list               y                   Confirm branch operation\n",
+    "n                   Cancel branch operation            Backspace           Edit search query\n",
+    "Diff: [/] selects hunks; s stages an unstaged hunk and u unstages a staged hunk.\n",
+    "S stages all changes in the file; U unstages all staged changes in the file.\n",
+    "In search, Up/Down select matches and Enter opens commit details. Backspace edits; Esc returns.\n",
+    "In input fields, regular letters are text; ? opens page help."
+);
 
 const HELP_ROWS: &[(&str, &str, &str, &str)] = &[
     (
@@ -47,6 +66,19 @@ const HELP_ROWS: &[(&str, &str, &str, &str)] = &[
         "Backspace",
         "Edit search query",
     ),
+    (
+        "[/]",
+        "Select diff hunk",
+        "S/U",
+        "Stage/unstage whole file in diff",
+    ),
+    ("H", "Open history", "W", "Open working tree"),
+    (
+        "S",
+        "Stage all worktree changes",
+        "U",
+        "Unstage all staged changes",
+    ),
 ];
 
 const ACCENT: Color = Color::Rgb(94, 234, 212);
@@ -64,57 +96,75 @@ fn page_block(
         .title(title.into().style(Style::default().fg(ACCENT).bold()))
 }
 
-fn hint_row_count(hints: &[(&str, &str)]) -> u16 {
-    if hints.is_empty() { 0 } else { 1 }
+fn hint_rows<'a>(hints: &'a [(&'a str, &'a str)], width: u16) -> Vec<Vec<(&'a str, &'a str)>> {
+    let compact = width <= 80;
+    let width = usize::from(width.max(1));
+    let mut rows = Vec::new();
+    let mut row = Vec::new();
+    let mut row_width = 0usize;
+    for hint in hints {
+        let hint_width = hint.0.len() + hint.1.len() + if compact { 1 } else { 4 };
+        let separator = usize::from(!row.is_empty()) * 2;
+        if !row.is_empty() && row_width + separator + hint_width > width {
+            rows.push(std::mem::take(&mut row));
+            row_width = 0;
+        }
+        row_width += usize::from(!row.is_empty()) * 2 + hint_width;
+        row.push(*hint);
+    }
+    if !row.is_empty() {
+        rows.push(row);
+    }
+    rows
 }
 
 fn render_key_hints(frame: &mut Frame<'_>, area: ratatui::layout::Rect, hints: &[(&str, &str)]) {
-    let mut visible = hints.to_vec();
-    let trim_order = ["branches", "refresh", "move", "pane"];
-    while hint_text_width(&visible) > usize::from(area.width) {
-        let Some(index) = trim_order
-            .iter()
-            .find_map(|optional| visible.iter().position(|(_, details)| details == optional))
-        else {
-            break;
-        };
-        visible.remove(index);
-    }
-
-    let mut spans = Vec::with_capacity(visible.len() * 3);
-    for (index, (key, details)) in visible.iter().enumerate() {
-        if index > 0 {
-            spans.push(Span::styled(
-                "  ",
-                Style::default().fg(BORDER).bg(BAR_BACKGROUND),
-            ));
-        }
-        spans.push(Span::styled(
-            format!(" {key} "),
-            Style::default()
-                .fg(Color::Rgb(12, 24, 30))
-                .bg(ACCENT)
-                .bold(),
-        ));
-        spans.push(Span::styled(
-            format!(" {details} "),
-            Style::default()
-                .fg(Color::Rgb(226, 232, 240))
-                .bg(BAR_BACKGROUND),
-        ));
-    }
+    let rows = hint_rows(hints, area.width);
+    let compact = area.width <= 80;
+    let lines = rows
+        .iter()
+        .map(|row| {
+            let mut spans = Vec::with_capacity(row.len() * 3);
+            for (index, (key, details)) in row.iter().enumerate() {
+                if index > 0 {
+                    spans.push(Span::styled(
+                        "  ",
+                        Style::default().fg(BORDER).bg(BAR_BACKGROUND),
+                    ));
+                }
+                spans.push(Span::styled(
+                    if compact {
+                        (*key).to_owned()
+                    } else {
+                        format!(" {key} ")
+                    },
+                    Style::default()
+                        .fg(Color::Rgb(12, 24, 30))
+                        .bg(ACCENT)
+                        .bold(),
+                ));
+                spans.push(Span::styled(
+                    if compact {
+                        format!(" {details}")
+                    } else {
+                        format!(" {details} ")
+                    },
+                    Style::default()
+                        .fg(Color::Rgb(226, 232, 240))
+                        .bg(BAR_BACKGROUND),
+                ));
+            }
+            Line::from(spans)
+        })
+        .collect::<Vec<_>>();
     frame.render_widget(
-        Paragraph::new(Line::from(spans)).style(Style::default().bg(BAR_BACKGROUND)),
+        Paragraph::new(Text::from(lines)).style(Style::default().bg(BAR_BACKGROUND)),
         area,
     );
 }
 
-fn hint_text_width(hints: &[(&str, &str)]) -> usize {
-    hints
-        .iter()
-        .map(|(key, details)| key.len() + details.len() + 4)
-        .sum::<usize>()
-        .saturating_add(hints.len().saturating_sub(1) * 2)
+fn hint_row_count(hints: &[(&str, &str)], width: u16) -> u16 {
+    u16::try_from(hint_rows(hints, width).len()).unwrap_or(u16::MAX)
 }
 
 fn render_help(frame: &mut Frame<'_>, border: ratatui::symbols::border::Set<'static>) {
@@ -148,11 +198,140 @@ fn render_help(frame: &mut Frame<'_>, border: ratatui::symbols::border::Set<'sta
     frame.render_widget(table, sections[0]);
     frame.render_widget(
         Paragraph::new(
-            "Esc/? closes help. Search: Up/Down selects; Enter opens; Backspace edits; Esc returns.\nWhile typing or confirming, q and ? are unavailable.",
+            "Esc/? closes help. H opens history outside prompts. Search: Up/Down selects; Enter opens; Backspace edits; Esc returns.\nIn input fields, regular letters are text; ? opens page help.",
         )
         .wrap(Wrap { trim: true })
         .style(Style::default().fg(MUTED)),
         sections[1],
+    );
+}
+
+pub fn render_help_overlay(
+    frame: &mut Frame<'_>,
+    page: HelpPage,
+    border: ratatui::symbols::border::Set<'static>,
+) {
+    const HISTORY: &[(&str, &str)] = &[
+        ("Up/Down, j/k", "Move through commits"),
+        ("Enter, l", "Open selected commit"),
+        ("/", "Search commit history"),
+        ("b", "Browse local branches"),
+        ("Tab", "Open working tree"),
+        ("W", "Open working tree"),
+        ("H", "Return to history"),
+        ("q", "Quit Gitview"),
+    ];
+    const WORKTREE: &[(&str, &str)] = &[
+        ("Up/Down, j/k", "Select a changed file"),
+        ("Enter", "Open file diff"),
+        ("s", "Stage selected file"),
+        ("u", "Unstage selected file"),
+        ("S", "Stage all working tree changes"),
+        ("U", "Unstage all staged changes"),
+        ("r", "Refresh working tree"),
+        ("b", "Browse local branches"),
+        ("Tab, H", "Open history"),
+        ("q", "Quit Gitview"),
+    ];
+    const BRANCHES: &[(&str, &str)] = &[
+        ("Up/Down, j/k", "Select a local branch"),
+        ("Enter, l", "Switch to selected branch"),
+        ("c", "Create a branch"),
+        ("y", "Confirm branch operation"),
+        ("n, Esc", "Cancel branch operation"),
+        ("H", "Open history"),
+        ("W", "Open working tree"),
+        ("q", "Quit Gitview"),
+    ];
+    const BRANCH_INPUT: &[(&str, &str)] = &[
+        ("Type", "Enter a local branch name"),
+        ("Backspace", "Delete a character"),
+        ("Enter", "Continue to confirmation"),
+        ("Esc", "Cancel branch creation"),
+    ];
+    const BRANCH_CONFIRMATION: &[(&str, &str)] =
+        &[("y", "Confirm operation"), ("n, Esc", "Cancel operation")];
+    const COMMIT: &[(&str, &str)] = &[
+        ("Up/Down, j/k", "Select a changed file"),
+        ("Enter, l", "Open selected file diff"),
+        ("Esc, h", "Return to history"),
+        ("H", "Return to history"),
+        ("W", "Open working tree"),
+        ("q", "Quit Gitview"),
+    ];
+    const WORKTREE_DIFF: &[(&str, &str)] = &[
+        ("[, ]", "Select previous or next hunk"),
+        ("s, u", "Stage or unstage selected hunk"),
+        ("S, U", "Stage or unstage all file changes"),
+        ("Up/Down, j/k", "Scroll diff"),
+        ("Esc, h", "Return to working tree"),
+        ("H", "Open history"),
+        ("W", "Open working tree"),
+        ("q", "Quit Gitview"),
+    ];
+    const COMMIT_DIFF: &[(&str, &str)] = &[
+        ("Up/Down, j/k", "Scroll diff"),
+        ("Esc, h", "Return to commit files"),
+        ("H", "Return to history"),
+        ("W", "Open working tree"),
+        ("q", "Quit Gitview"),
+    ];
+    const SEARCH: &[(&str, &str)] = &[
+        ("Type", "Edit search query"),
+        ("Up/Down", "Select a matching commit"),
+        ("Enter", "Open selected commit"),
+        ("Backspace", "Delete a character"),
+        ("Esc", "Return to history"),
+    ];
+    let (title, hints) = match page {
+        HelpPage::History => ("History", HISTORY),
+        HelpPage::WorkingTree => ("Working tree", WORKTREE),
+        HelpPage::Branches => ("Branches", BRANCHES),
+        HelpPage::BranchInput => ("Branch name", BRANCH_INPUT),
+        HelpPage::BranchConfirmation => ("Confirm branch", BRANCH_CONFIRMATION),
+        HelpPage::Commit => ("Commit", COMMIT),
+        HelpPage::WorktreeDiff => ("Working tree diff", WORKTREE_DIFF),
+        HelpPage::CommitDiff => ("Commit diff", COMMIT_DIFF),
+        HelpPage::Search => ("Search", SEARCH),
+    };
+
+    let screen = frame.area();
+    let width = screen.width.clamp(1, 84);
+    let height = screen
+        .height
+        .min(u16::try_from(hints.len() + 5).unwrap_or(u16::MAX))
+        .max(1);
+    let popup = ratatui::layout::Rect::new(
+        screen.x + screen.width.saturating_sub(width) / 2,
+        screen.y + screen.height.saturating_sub(height) / 2,
+        width,
+        height,
+    );
+    let block = page_block(format!("HELP · {title}"), border);
+    let content = block.inner(popup);
+    frame.render_widget(Clear, popup);
+    frame.render_widget(block, popup);
+    let padded = ratatui::layout::Rect::new(
+        content.x.saturating_add(1),
+        content.y.saturating_add(1),
+        content.width.saturating_sub(2),
+        content.height.saturating_sub(2),
+    );
+    let areas = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(padded);
+    let rows = hints
+        .iter()
+        .map(|(key, details)| {
+            Row::new(vec![
+                Cell::from(*key).style(Style::default().fg(ACCENT).bold()),
+                Cell::from(*details).style(Style::default().fg(MUTED)),
+            ])
+        })
+        .collect::<Vec<_>>();
+    let table = Table::new(rows, [Constraint::Length(18), Constraint::Min(12)]).column_spacing(1);
+    frame.render_widget(table, areas[0]);
+    frame.render_widget(
+        Paragraph::new("Esc or ? closes help").style(Style::default().fg(MUTED)),
+        areas[1],
     );
 }
 
@@ -165,7 +344,7 @@ fn render_message_page(
 ) {
     let areas = Layout::vertical([
         Constraint::Min(1),
-        Constraint::Length(hint_row_count(hints)),
+        Constraint::Length(hint_row_count(hints, frame.area().width)),
     ])
     .split(frame.area());
     frame.render_widget(
@@ -203,6 +382,8 @@ pub enum Screen<'a> {
     Diff {
         diff: &'a (u64, Option<Result<String, String>>),
         scroll: u16,
+        selected_hunk: usize,
+        worktree_entry: Option<&'a Entry>,
     },
     CommitDetails {
         details: &'a (u64, Option<Result<CommitDetails, String>>),
@@ -227,6 +408,19 @@ pub enum Screen<'a> {
         pending: bool,
         selection: &'a mut ListState,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HelpPage {
+    History,
+    WorkingTree,
+    Branches,
+    BranchInput,
+    BranchConfirmation,
+    Commit,
+    WorktreeDiff,
+    CommitDiff,
+    Search,
 }
 
 struct HistoryScreen<'a> {
@@ -295,7 +489,12 @@ pub fn render(
             feedback,
             selection,
         } => render_branches(frame, branches, feedback, selection, border),
-        Screen::Diff { diff, scroll } => render_diff(frame, diff, scroll, border),
+        Screen::Diff {
+            diff,
+            scroll,
+            selected_hunk,
+            worktree_entry,
+        } => render_diff(frame, diff, scroll, selected_hunk, worktree_entry, border),
         Screen::CommitDetails { details, selection } => {
             render_commit_details(frame, details, selection, border)
         }
@@ -348,6 +547,7 @@ fn render_cockpit(
     let mut hints = match focused {
         View::History => vec![
             ("Tab", "pane"),
+            ("W", "worktree"),
             ("Enter/l", "details"),
             ("b", "branches"),
             ("/", "search"),
@@ -357,6 +557,8 @@ fn render_cockpit(
             ("Enter", "diff"),
             ("s", "stage"),
             ("u", "unstage"),
+            ("S", "stage all"),
+            ("U", "unstage all"),
             ("r", "refresh"),
         ],
     };
@@ -365,7 +567,7 @@ fn render_cockpit(
         Constraint::Length(3),
         Constraint::Min(6),
         Constraint::Length(1),
-        Constraint::Length(hint_row_count(&hints)),
+        Constraint::Length(hint_row_count(&hints, frame.area().width)),
     ])
     .split(frame.area());
 
@@ -497,26 +699,76 @@ fn render_worktree_panel(
     focused: bool,
     border: ratatui::symbols::border::Set<'static>,
 ) {
-    let items = match status {
-        None => vec![ListItem::new("Loading working tree...")],
-        Some(Err(error)) => vec![ListItem::new(error.as_str())],
-        Some(Ok(entries)) if entries.is_empty() => vec![ListItem::new("Working tree clean")],
-        Some(Ok(entries)) => entries
-            .iter()
-            .map(|entry| {
-                let (label, color) = match entry.section {
-                    Section::Staged => ("STAGED", Color::Rgb(94, 234, 212)),
-                    Section::Unstaged => ("EDITED", Color::Rgb(251, 191, 36)),
-                    Section::Untracked => ("NEW", Color::Rgb(147, 197, 253)),
-                };
-                ListItem::new(Line::from(vec![
-                    Span::styled(format!("{label} "), Style::default().fg(color).bold()),
-                    Span::raw(entry.path.to_string_lossy().into_owned()),
-                ]))
-            })
-            .collect(),
+    let (items, selection_index) = worktree_items(status);
+    let highlight = worktree_selection_style(status, selection.selected());
+    let mut display_selection = ListState::default();
+    display_selection.select(
+        selection
+            .selected()
+            .and_then(|index| selection_index.get(index).copied().flatten()),
+    );
+    render_panel_list(
+        frame,
+        area,
+        "WORKTREE",
+        items,
+        &mut display_selection,
+        focused,
+        border,
+        highlight,
+    );
+}
+
+fn worktree_items(
+    status: Option<&Result<Vec<Entry>, String>>,
+) -> (Vec<ListItem<'static>>, Vec<Option<usize>>) {
+    let entries = match status {
+        None => return (vec![ListItem::new("Loading working tree...")], Vec::new()),
+        Some(Err(error)) => return (vec![ListItem::new(error.clone())], Vec::new()),
+        Some(Ok(entries)) => entries,
     };
-    render_panel_list(frame, area, "WORKTREE", items, selection, focused, border);
+    if entries.is_empty() {
+        return (vec![ListItem::new("Working tree clean")], Vec::new());
+    }
+
+    let mut items = Vec::with_capacity(entries.len() + 2);
+    let mut entry_rows = vec![None; entries.len()];
+    for (title, section, color) in [
+        ("STAGED CHANGES", Section::Staged, ACCENT),
+        ("CHANGES", Section::Unstaged, Color::Rgb(251, 191, 36)),
+    ] {
+        let indices = entries
+            .iter()
+            .enumerate()
+            .filter_map(|(index, entry)| {
+                (entry.section == section
+                    || (section == Section::Unstaged && entry.section == Section::Untracked))
+                    .then_some(index)
+            })
+            .collect::<Vec<_>>();
+        if indices.is_empty() {
+            continue;
+        }
+        items.push(ListItem::new(Line::styled(
+            format!("{title} ({})", indices.len()),
+            Style::default().fg(color).bold(),
+        )));
+        for index in indices {
+            let entry = &entries[index];
+            let (label, color) = match entry.section {
+                Section::Staged => ("STAGED", ACCENT),
+                Section::Unstaged => ("EDITED", Color::Rgb(251, 191, 36)),
+                Section::Untracked => ("NEW", Color::Rgb(147, 197, 253)),
+            };
+            entry_rows[index] = Some(items.len());
+            items.push(ListItem::new(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(format!("{label} "), Style::default().fg(color).bold()),
+                Span::raw(entry.path.to_string_lossy().into_owned()),
+            ])));
+        }
+    }
+    (items, entry_rows)
 }
 
 fn render_history_panel(
@@ -536,7 +788,19 @@ fn render_history_panel(
             .map(|row| ListItem::new(history::display_row(row)))
             .collect(),
     };
-    render_panel_list(frame, area, "HISTORY", items, selection, focused, border);
+    render_panel_list(
+        frame,
+        area,
+        "HISTORY",
+        items,
+        selection,
+        focused,
+        border,
+        Style::default()
+            .bg(Color::Rgb(25, 43, 52))
+            .fg(Color::Rgb(241, 245, 249))
+            .bold(),
+    );
 }
 
 struct Inspector<'a> {
@@ -619,6 +883,7 @@ fn render_panel_list(
     selection: &mut ListState,
     focused: bool,
     border: ratatui::symbols::border::Set<'static>,
+    highlight: Style,
 ) {
     let accent = if focused { ACCENT } else { BORDER };
     let list = List::new(items)
@@ -634,12 +899,7 @@ fn render_panel_list(
                 )),
         )
         .highlight_symbol("› ")
-        .highlight_style(
-            Style::default()
-                .bg(Color::Rgb(25, 43, 52))
-                .fg(Color::Rgb(241, 245, 249))
-                .bold(),
-        );
+        .highlight_style(highlight);
     frame.render_stateful_widget(list, area, selection);
 }
 
@@ -707,10 +967,8 @@ fn render_branches(
         ("Enter/l", "switch"),
         ("c", "create"),
         ("Esc/h", "back"),
-        ("q", "quit"),
-        ("?", "help"),
     ];
-    let hint_height = hint_row_count(&hints);
+    let hint_height = hint_row_count(&hints, frame.area().width);
     let available = frame.area().height.saturating_sub(3 + hint_height + 1);
     let width = usize::from(frame.area().width.max(1));
     let feedback_lines = feedback
@@ -749,6 +1007,8 @@ fn render_diff(
     frame: &mut Frame<'_>,
     diff: &(u64, Option<Result<String, String>>),
     scroll: u16,
+    selected_hunk: usize,
+    worktree_entry: Option<&Entry>,
     border: ratatui::symbols::border::Set<'static>,
 ) {
     let message = match &diff.1 {
@@ -757,15 +1017,32 @@ fn render_diff(
         Some(Ok(text)) if text.is_empty() => "No textual diff",
         Some(Ok(text)) => text,
     };
-    let hints = [
-        ("Up/Down or j/k", "scroll"),
-        ("Esc/h", "back"),
-        ("q", "quit"),
-        ("?", "help"),
-    ];
+    let hunk_count = diff
+        .1
+        .as_ref()
+        .and_then(|result| result.as_ref().ok())
+        .map(|text| text.lines().filter(|line| line.starts_with("@@ ")).count())
+        .unwrap_or(0);
+    let selectable_hunks =
+        worktree_entry.is_some_and(|entry| entry.section != Section::Untracked) && hunk_count > 0;
+    let hints = if worktree_entry.is_some() {
+        let compact = frame.area().width <= 80;
+        let mut hints = vec![
+            ("s", if compact { "stage" } else { "stage hunk" }),
+            ("u", if compact { "unstage" } else { "unstage hunk" }),
+            ("S", "stage all"),
+            ("U", "unstage all"),
+        ];
+        if selectable_hunks {
+            hints.insert(0, ("[/]", "hunk"));
+        }
+        hints
+    } else {
+        vec![("Up/Down or j/k", "scroll"), ("Esc/h", "back")]
+    };
     let sections = Layout::vertical([
         Constraint::Min(1),
-        Constraint::Length(hint_row_count(&hints)),
+        Constraint::Length(hint_row_count(&hints, frame.area().width)),
     ])
     .split(frame.area());
     if frame.area().width >= 120 && matches!(diff.1, Some(Ok(_))) {
@@ -783,13 +1060,37 @@ fn render_diff(
         frame.render_widget(
             Paragraph::new(Text::from(left))
                 .scroll((scroll, 0))
-                .block(page_block("BEFORE", border)),
+                .wrap(Wrap { trim: false })
+                .block(page_block(
+                    if selectable_hunks {
+                        format!(
+                            "BEFORE · HUNK {}/{}",
+                            selected_hunk.saturating_add(1),
+                            hunk_count
+                        )
+                    } else {
+                        "BEFORE".to_owned()
+                    },
+                    border,
+                )),
             panes[0],
         );
         frame.render_widget(
             Paragraph::new(Text::from(right))
                 .scroll((scroll, 0))
-                .block(page_block("AFTER", border)),
+                .wrap(Wrap { trim: false })
+                .block(page_block(
+                    if selectable_hunks {
+                        format!(
+                            "AFTER · HUNK {}/{}",
+                            selected_hunk.saturating_add(1),
+                            hunk_count
+                        )
+                    } else {
+                        "AFTER".to_owned()
+                    },
+                    border,
+                )),
             panes[1],
         );
     } else {
@@ -800,7 +1101,19 @@ fn render_diff(
         frame.render_widget(
             Paragraph::new(Text::from(lines))
                 .scroll((scroll, 0))
-                .block(page_block("DIFF", border)),
+                .wrap(Wrap { trim: false })
+                .block(page_block(
+                    if selectable_hunks {
+                        format!(
+                            "DIFF · HUNK {}/{}",
+                            selected_hunk.saturating_add(1),
+                            hunk_count
+                        )
+                    } else {
+                        "DIFF".to_owned()
+                    },
+                    border,
+                )),
             sections[0],
         );
     }
@@ -819,27 +1132,22 @@ fn render_commit_details(
             "COMMIT",
             "Loading commit...",
             border,
-            &[("Esc/h", "back"), ("q", "quit"), ("?", "help")],
+            &[("Esc/h", "back")],
         ),
-        Some(Err(error)) => render_message_page(
-            frame,
-            "COMMIT ERROR",
-            error,
-            border,
-            &[("Esc/h", "back"), ("q", "quit"), ("?", "help")],
-        ),
+        Some(Err(error)) => {
+            render_message_page(frame, "COMMIT ERROR", error, border, &[("Esc/h", "back")])
+        }
         Some(Ok(commit)) => {
             let hints = [
                 ("j/k", "select"),
                 ("Enter/l", "diff"),
                 ("Esc/h", "back"),
-                ("q", "quit"),
-                ("?", "help"),
+                ("H", "history"),
             ];
             let sections = Layout::vertical([
                 Constraint::Length(6),
                 Constraint::Min(3),
-                Constraint::Length(hint_row_count(&hints)),
+                Constraint::Length(hint_row_count(&hints, frame.area().width)),
             ])
             .split(frame.area());
             let meta = format!(
@@ -876,15 +1184,7 @@ fn render_working_tree(
     selection: &mut ListState,
     border: ratatui::symbols::border::Set<'static>,
 ) {
-    let lines: Vec<String> = match status {
-        None => vec!["Loading working tree...".to_owned()],
-        Some(Err(error)) => vec![error.clone()],
-        Some(Ok(entries)) if entries.is_empty() => vec!["Working tree clean".to_owned()],
-        Some(Ok(entries)) => entries
-            .iter()
-            .map(|entry| format!("{:?}  {}", entry.section, entry.path.to_string_lossy()))
-            .collect(),
-    };
+    let (items, selection_index) = worktree_items(status);
     let hints = [
         ("j/k", "move"),
         ("Enter", "diff"),
@@ -892,24 +1192,47 @@ fn render_working_tree(
         ("u", "unstage"),
         ("r", "refresh"),
         ("Tab", "history"),
-        ("q", "quit"),
+        ("H", "history"),
+        ("S", "stage all"),
+        ("U", "unstage all"),
     ];
     let sections = Layout::vertical([
         Constraint::Min(1),
-        Constraint::Length(hint_row_count(&hints)),
+        Constraint::Length(hint_row_count(&hints, frame.area().width)),
     ])
     .split(frame.area());
-    let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>())
+    let list = List::new(items)
         .block(page_block("WORKING TREE", border))
         .highlight_symbol("› ")
-        .highlight_style(
-            Style::default()
-                .bg(Color::Rgb(25, 43, 52))
-                .fg(Color::Rgb(241, 245, 249))
-                .bold(),
-        );
-    frame.render_stateful_widget(list, sections[0], selection);
+        .highlight_style(worktree_selection_style(status, selection.selected()));
+    let mut display_selection = ListState::default();
+    display_selection.select(
+        selection
+            .selected()
+            .and_then(|index| selection_index.get(index).copied().flatten()),
+    );
+    frame.render_stateful_widget(list, sections[0], &mut display_selection);
     render_key_hints(frame, sections[1], &hints);
+}
+
+fn worktree_selection_style(
+    status: Option<&Result<Vec<Entry>, String>>,
+    selected: Option<usize>,
+) -> Style {
+    let section = status
+        .and_then(|result| result.as_ref().ok())
+        .and_then(|entries| selected.and_then(|index| entries.get(index)))
+        .map(|entry| entry.section);
+    match section {
+        Some(Section::Unstaged | Section::Untracked) => Style::default()
+            .bg(Color::Rgb(74, 55, 20))
+            .fg(Color::Rgb(255, 237, 180))
+            .bold(),
+        _ => Style::default()
+            .bg(Color::Rgb(25, 43, 52))
+            .fg(Color::Rgb(241, 245, 249))
+            .bold(),
+    }
 }
 
 fn render_history(
@@ -936,12 +1259,11 @@ fn render_history(
             ("b", "branches"),
             ("/", "search"),
             ("Tab", "working tree"),
-            ("q", "quit"),
         ][..]
     };
     let sections = Layout::vertical([
         Constraint::Min(1),
-        Constraint::Length(hint_row_count(hints)),
+        Constraint::Length(hint_row_count(hints, frame.area().width)),
     ])
     .split(frame.area());
     let title = if screen.searching {
@@ -999,7 +1321,7 @@ fn render_search(
     ];
     let sections = Layout::vertical([
         Constraint::Min(1),
-        Constraint::Length(hint_row_count(&hints)),
+        Constraint::Length(hint_row_count(&hints, frame.area().width)),
     ])
     .split(frame.area());
     let list = List::new(items)

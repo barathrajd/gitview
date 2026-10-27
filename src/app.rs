@@ -2,8 +2,8 @@ use crossterm::event::KeyCode;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum View {
-    #[default]
     History,
+    #[default]
     WorkingTree,
 }
 
@@ -14,7 +14,9 @@ pub enum AppAction {
     StartSearch,
     OpenBranches,
     StageSelected,
+    StageAll,
     UnstageSelected,
+    UnstageAll,
     RefreshWorkingTree,
     MoveUp,
     MoveDown,
@@ -62,6 +64,14 @@ impl AppState {
         if blocked {
             return None;
         }
+        if key == KeyCode::Char('W') {
+            self.view = View::WorkingTree;
+            return Some(AppAction::LoadWorkingTree);
+        }
+        if key == KeyCode::Char('H') {
+            self.view = View::History;
+            return Some(AppAction::ReturnToHistory);
+        }
 
         match (self.view, key) {
             (_, KeyCode::Char('b')) => Some(AppAction::OpenBranches),
@@ -69,7 +79,9 @@ impl AppState {
             (View::History, KeyCode::Up) => Some(AppAction::MoveUp),
             (View::History, KeyCode::Down) => Some(AppAction::MoveDown),
             (View::WorkingTree, KeyCode::Char('s')) => Some(AppAction::StageSelected),
+            (View::WorkingTree, KeyCode::Char('S')) => Some(AppAction::StageAll),
             (View::WorkingTree, KeyCode::Char('u')) => Some(AppAction::UnstageSelected),
+            (View::WorkingTree, KeyCode::Char('U')) => Some(AppAction::UnstageAll),
             (View::WorkingTree, KeyCode::Char('r')) => Some(AppAction::RefreshWorkingTree),
             (View::WorkingTree, KeyCode::Up) => Some(AppAction::MoveUp),
             (View::WorkingTree, KeyCode::Down) => Some(AppAction::MoveDown),
