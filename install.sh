@@ -108,7 +108,8 @@ done
 
 if [[ "$tag" == "latest" ]]; then
   printf 'Looking up the latest Gitview release...\n'
-  tag="$(curl --fail --silent --show-error --location "$RELEASE_API" \
+  tag="$(curl --fail --silent --show-error --location --connect-timeout 15 \
+    --max-time 180 --retry 2 --retry-delay 2 "$RELEASE_API" \
     | awk -F '"' '/"tag_name"[[:space:]]*:/ { print $4; exit }')"
 fi
 [[ -n "$tag" ]] || fail "could not determine the release tag"
@@ -121,9 +122,11 @@ tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/gitview-install.XXXXXX")"
 trap 'rm -rf "$tmp_dir"' EXIT
 
 printf 'Downloading Gitview %s...\n' "$tag"
-curl --fail --location --show-error --progress-bar \
+curl --fail --location --show-error --progress-bar --connect-timeout 15 \
+  --max-time 180 --retry 2 --retry-delay 2 \
   --output "$tmp_dir/$archive" "$release_url/$archive"
-curl --fail --location --silent --show-error \
+curl --fail --location --silent --show-error --connect-timeout 15 \
+  --max-time 180 --retry 2 --retry-delay 2 \
   --output "$tmp_dir/$archive.sha256" "$release_url/$archive.sha256"
 
 printf 'Verifying SHA-256...\n'
