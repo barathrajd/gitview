@@ -72,3 +72,23 @@ fn git(root: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
     }
     Ok(output.stdout)
 }
+
+pub fn load_diff(root: &Path, revision: &str, file: &str) -> Result<String, String> {
+    let output = git(
+        root,
+        &[
+            "--literal-pathspecs",
+            "show",
+            "--format=",
+            "--first-parent",
+            "--no-ext-diff",
+            "--no-color",
+            "--no-renames",
+            "--end-of-options",
+            revision,
+            "--",
+            file,
+        ],
+    )?;
+    Ok(String::from_utf8_lossy(&output).into_owned())
+}

@@ -1,6 +1,9 @@
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::{
     DefaultTerminal,
+    layout::{Constraint, Layout},
+    style::{Color, Style},
+    text::{Line, Text},
     widgets::{Block, List, ListItem, ListState, Paragraph},
 };
 use std::{
@@ -40,9 +43,14 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
     });
     let mut history: Option<Result<Vec<String>, String>> = None;
     let mut selection = ListState::default();
-    let (details_sender, details_receiver) = std::sync::mpsc::channel();
+    let (details_sender, details_receiver) =
+        std::sync::mpsc::channel::<(u64, Result<gitview::details::CommitDetails, String>)>();
     let mut details: Option<(u64, Option<Result<gitview::details::CommitDetails, String>>)> = None;
     let mut request_id = 0u64;
+    let mut file_selection = ListState::default();
+    let (diff_sender, diff_receiver) = std::sync::mpsc::channel::<(u64, Result<String, String>)>();
+    let mut diff: Option<(u64, Option<Result<String, String>>)> = None;
+    let mut diff_scroll = 0u16;
     loop {
         if let Ok(result) = receiver.try_recv() {
             if result.as_ref().is_ok_and(|rows| !rows.is_empty()) {
@@ -52,6 +60,16 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
         }
         while let Ok((id, result)) = details_receiver.try_recv() {
             if let Some((active, value)) = &mut details {
+                if *active == id {
+                    if result.as_ref().is_ok_and(|commit| !commit.files.is_empty()) {
+                        file_selection.select(Some(0));
+                    }
+                    *value = Some(result);
+                }
+            }
+        }
+        while let Ok((id, result)) = diff_receiver.try_recv() {
+            if let Some((active, value)) = &mut diff {
                 if *active == id {
                     *value = Some(result);
                 }
@@ -66,28 +84,67 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                     .block(Block::bordered().title("Help")),
                     frame.area(),
                 );
-            } else if let Some((_, value)) = &details {
-                let text = match value {
-                    None => "Loading commit…".to_string(),
-                    Some(Err(error)) => error.clone(),
-                    Some(Ok(commit)) => format!(
-                        "{}\nAuthor: {}\nDate: {}\nCommit: {}\n\nChanged files:\n{}",
-                        commit.subject,
-                        commit.author,
-                        commit.date,
-                        commit.hash,
-                        if commit.files.is_empty() {
-                            "(none)".to_string()
-                        } else {
-                            commit.files.join("\n")
-                        }
-                    ),
+            } else if let Some((_, value)) = &diff {
+                let message = match value {
+                    None => "Loading diff…",
+                    Some(Err(error)) => error,
+                    Some(Ok(text)) if text.is_empty() => "No textual diff",
+                    Some(Ok(text)) => text,
                 };
+                let lines: Vec<Line> = message
+                    .lines()
+                    .map(|line| {
+                        let color = if line.starts_with('+') && !line.starts_with("+++") {
+                            Color::Green
+                        } else if line.starts_with('-') && !line.starts_with("---") {
+                            Color::Red
+                        } else {
+                            Color::Reset
+                        };
+                        Line::styled(line.to_owned(), Style::default().fg(color))
+                    })
+                    .collect();
                 frame.render_widget(
-                    Paragraph::new(text)
-                        .block(Block::bordered().title("Commit — Esc back • ? help • q quit")),
+                    Paragraph::new(Text::from(lines))
+                        .scroll((diff_scroll, 0))
+                        .block(Block::bordered().title("Diff — up/down scroll • Esc back")),
                     frame.area(),
                 );
+            } else if let Some((_, value)) = &details {
+                match value {
+                    None => frame.render_widget(
+                        Paragraph::new("Loading commit…").block(Block::bordered().title("Commit")),
+                        frame.area(),
+                    ),
+                    Some(Err(error)) => frame.render_widget(
+                        Paragraph::new(error.as_str())
+                            .block(Block::bordered().title("Commit error")),
+                        frame.area(),
+                    ),
+                    Some(Ok(commit)) => {
+                        let sections =
+                            Layout::vertical([Constraint::Length(6), Constraint::Min(3)])
+                                .split(frame.area());
+                        let meta = format!(
+                            "{}\nAuthor: {}\nDate: {}\nCommit: {}",
+                            commit.subject, commit.author, commit.date, commit.hash
+                        );
+                        frame.render_widget(
+                            Paragraph::new(meta)
+                                .block(Block::bordered().title("Commit — Esc back")),
+                            sections[0],
+                        );
+                        let items = commit
+                            .files
+                            .iter()
+                            .map(|file| ListItem::new(file.as_str()))
+                            .collect::<Vec<_>>();
+                        let list = List::new(items)
+                            .block(Block::bordered().title("Files — up/down select • Enter diff"))
+                            .highlight_symbol("> ");
+                        frame.render_stateful_widget(list, sections[1], &mut file_selection);
+                    }
+                }
             } else {
                 let lines = match &history {
                     None => vec!["Loading history…".to_string()],
@@ -112,7 +169,11 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                     KeyCode::Char('q') => return Ok(()),
                     KeyCode::Char('?') => help = !help,
                     KeyCode::Esc if !help => {
-                        details = None;
+                        if diff.is_some() {
+                            diff = None;
+                        } else {
+                            details = None;
+                        }
                     }
                     KeyCode::Enter if !help && details.is_none() => {
                         if let (Some(Ok(rows)), Some(index)) = (&history, selection.selected()) {
@@ -131,6 +192,49 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                                         .send((current, gitview::details::load_commit(&path, &id)));
                                 });
                             }
+                        }
+                    }
+                    KeyCode::Enter if !help && diff.is_none() => {
+                        if let (Some((_, Some(Ok(commit)))), Some(index)) =
+                            (&details, file_selection.selected())
+                        {
+                            if let Some(file) = commit.files.get(index) {
+                                request_id += 1;
+                                let current = request_id;
+                                let hash = commit.hash.clone();
+                                let file = file.clone();
+                                let path = std::path::PathBuf::from(root);
+                                let sender = diff_sender.clone();
+                                diff = Some((current, None));
+                                diff_scroll = 0;
+                                std::thread::spawn(move || {
+                                    let _ = sender.send((
+                                        current,
+                                        gitview::details::load_diff(&path, &hash, &file),
+                                    ));
+                                });
+                            }
+                        }
+                    }
+                    KeyCode::Down if !help && diff.is_some() => {
+                        diff_scroll = diff_scroll.saturating_add(1);
+                    }
+                    KeyCode::Up if !help && diff.is_some() => {
+                        diff_scroll = diff_scroll.saturating_sub(1);
+                    }
+                    KeyCode::Down if !help && details.is_some() => {
+                        if let Some((_, Some(Ok(commit)))) = &details {
+                            if !commit.files.is_empty() {
+                                file_selection.select(Some(
+                                    (file_selection.selected().unwrap_or(0) + 1)
+                                        .min(commit.files.len() - 1),
+                                ));
+                            }
+                        }
+                    }
+                    KeyCode::Up if !help && details.is_some() => {
+                        if let Some(i) = file_selection.selected() {
+                            file_selection.select(Some(i.saturating_sub(1)));
                         }
                     }
                     KeyCode::Down if !help && details.is_none() => {

@@ -62,3 +62,43 @@ fn extracts_commit_ids_only_from_graph_commit_rows() {
     assert_eq!(commit_id("| |\\"), None);
     assert_eq!(commit_id("[history truncated to 200 commits]"), None);
 }
+
+#[test]
+fn loads_the_selected_files_unified_diff() {
+    use gitview::details::load_diff;
+    let path = std::env::temp_dir().join(format!(
+        "gitview-diff-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&path).unwrap();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .current_dir(&path)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        )
+    };
+    git(&["init", "-q"]);
+    fs::write(path.join("a file.txt"), "new line\n").unwrap();
+    git(&["add", "--", "a file.txt"]);
+    git(&[
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-qm",
+        "add file",
+    ]);
+    let diff = load_diff(&path, "HEAD", "a file.txt").unwrap();
+    assert!(diff.contains("+new line"));
+    fs::remove_dir_all(path).unwrap();
+}
