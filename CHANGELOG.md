@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/barathrajd/gitview/compare/v0.4.0...v0.4.1) (2026-10-27)
+
+
+### Bug Fixes
+
+* **release:** add Cargo publishing and verified installer ([c3cfdc8](https://github.com/barathrajd/gitview/commit/c3cfdc81fd3543921f732140ed393705411a0534))
+* **release:** bound installer download retries ([3608cd0](https://github.com/barathrajd/gitview/commit/3608cd0da358f413957d4eb6153e8565d5e99185))
+
 ## [0.4.0](https://github.com/barathrajd/gitview/compare/v0.3.3...v0.4.0) (2026-10-27)
 
 
