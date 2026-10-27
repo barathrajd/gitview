@@ -227,3 +227,49 @@ fn searches_history_case_insensitively_and_wraps() {
     assert_eq!(find_next(&rows, "fix", 0), Some(1));
     assert_eq!(find_next(&rows, "missing", 0), None);
 }
+
+#[test]
+fn displays_short_hashes_but_searches_the_full_hash() {
+    use gitview::history::{display_row, find_next};
+    let root = std::env::temp_dir().join(format!(
+        "gitview-hash-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&root).unwrap();
+    let git = |args: &[&str]| {
+        Command::new("git")
+            .current_dir(&root)
+            .args(args)
+            .output()
+            .unwrap()
+    };
+    assert!(git(&["init", "-q"]).status.success());
+    assert!(
+        git(&[
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "--allow-empty",
+            "-qm",
+            "sample"
+        ])
+        .status
+        .success()
+    );
+    let full = String::from_utf8(git(&["rev-parse", "HEAD"]).stdout)
+        .unwrap()
+        .trim()
+        .to_owned();
+    let rows = load_history(&root).unwrap();
+    let row = rows.iter().find(|row| row.contains("sample")).unwrap();
+    assert!(!display_row(row).contains(&full));
+    assert!(find_next(&rows, &full, 0).is_some());
+    fs::remove_dir_all(root).unwrap();
+}

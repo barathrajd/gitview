@@ -207,7 +207,10 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                     None => vec!["Loading history…".to_string()],
                     Some(Err(error)) => vec![error.clone()],
                     Some(Ok(rows)) if rows.is_empty() => vec!["No commits yet".to_string()],
-                    Some(Ok(rows)) => rows.clone(),
+                    Some(Ok(rows)) => rows
+                        .iter()
+                        .map(|row| gitview::history::display_row(row).to_owned())
+                        .collect(),
                 };
                 let items = lines.into_iter().map(ListItem::new).collect::<Vec<_>>();
                 let title = if searching {

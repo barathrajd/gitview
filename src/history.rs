@@ -8,7 +8,7 @@ pub fn load_history(root: &Path) -> Result<Vec<String>, String> {
             "--all",
             "--graph",
             "--decorate=short",
-            "--format=%H %d %s — %an",
+            "--format=%h %d %s — %an%x1f%H",
             "--color=never",
             "-n",
             "200",
@@ -79,4 +79,10 @@ pub fn find_next(rows: &[String], query: &str, selected: usize) -> Option<usize>
         .find(|&index| {
             commit_id(&rows[index]).is_some() && rows[index].to_lowercase().contains(&query)
         })
+}
+
+/// Hide the full object ID used for searching from the visible graph row.
+pub fn display_row(row: &str) -> &str {
+    row.rsplit_once('\u{1f}')
+        .map_or(row, |(visible, _)| visible)
 }
