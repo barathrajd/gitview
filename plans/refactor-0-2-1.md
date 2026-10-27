@@ -100,9 +100,10 @@ workflows available.
   working-tree view requests status while returning to history preserves the
   existing state. Verify the transition with integration tests and a PTY smoke
   check.
-- [ ] **2. Extract history and working-tree actions:** Move list navigation,
+- [x] **2. Extract history and working-tree actions:** Move list navigation,
   search, refresh, and stage/unstage input transitions into testable actions;
-  preserve current selection rules and stale-result handling.
+  preserve current selection rules and stale-result handling. Verify actions
+  with integration tests and a PTY staging smoke check.
 - [ ] **3. Extract rendering and add UI tests:** Move frame drawing into a
   rendering module; test history, details, working-tree and branch states,
   loading and error messages, help and confirmations, and narrow and wide diff

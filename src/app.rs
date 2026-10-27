@@ -1,3 +1,5 @@
+use crossterm::event::KeyCode;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum View {
     #[default]
@@ -9,6 +11,14 @@ pub enum View {
 pub enum AppAction {
     LoadWorkingTree,
     ReturnToHistory,
+    StartSearch,
+    NextMatch,
+    OpenBranches,
+    StageSelected,
+    UnstageSelected,
+    RefreshWorkingTree,
+    MoveUp,
+    MoveDown,
 }
 
 #[derive(Debug, Default)]
@@ -38,4 +48,35 @@ impl AppState {
             }
         }
     }
+
+    /// Translate a key in the active workspace into an app action.
+    pub fn handle_key(&mut self, key: KeyCode, blocked: bool) -> Option<AppAction> {
+        if key == KeyCode::Tab {
+            return self.handle_tab(blocked);
+        }
+        if blocked {
+            return None;
+        }
+
+        match (self.view, key) {
+            (_, KeyCode::Char('b')) => Some(AppAction::OpenBranches),
+            (View::History, KeyCode::Char('/')) => Some(AppAction::StartSearch),
+            (View::History, KeyCode::Char('n')) => Some(AppAction::NextMatch),
+            (View::History, KeyCode::Up) => Some(AppAction::MoveUp),
+            (View::History, KeyCode::Down) => Some(AppAction::MoveDown),
+            (View::WorkingTree, KeyCode::Char('s')) => Some(AppAction::StageSelected),
+            (View::WorkingTree, KeyCode::Char('u')) => Some(AppAction::UnstageSelected),
+            (View::WorkingTree, KeyCode::Char('r')) => Some(AppAction::RefreshWorkingTree),
+            (View::WorkingTree, KeyCode::Up) => Some(AppAction::MoveUp),
+            (View::WorkingTree, KeyCode::Down) => Some(AppAction::MoveDown),
+            _ => None,
+        }
+    }
+}
+pub fn move_down(selected: Option<usize>, len: usize) -> Option<usize> {
+    (len > 0).then(|| (selected.unwrap_or(0) + 1).min(len - 1))
+}
+
+pub fn move_up(selected: Option<usize>) -> Option<usize> {
+    selected.map(|index| index.saturating_sub(1))
 }
