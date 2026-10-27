@@ -2,28 +2,41 @@
 
 This file is the single release plan and release-notes record for Gitview.
 
-## Upcoming
+## Released
 
 ### Gitview 0.5.0 — October 28, 2026
 
-Theme: choose isolated Git configuration by repository folder while keeping
-the primary account as the default.
+Gitview 0.5.0 adds folder-scoped Git configuration profiles so repositories
+can use separate author identities and Git settings while the primary account
+remains the default.
 
-Features:
+Highlights:
 
-- Folder-scoped Git config profiles for Gitview subprocesses, with nearest
-  folder matching and primary-config fallback — in progress.
-- Profile visibility and editing from Gitview, plus an opt-in zsh integration
-  for terminal Git commands — in progress.
-- Updated worktree selection colors and keyboard documentation — done.
+- Applied the most specific matching profile to Gitview's Git subprocesses;
+  unmatched repositories continue to use the normal global config.
+- Added a profile view, registry editor and reload actions, and active-account
+  display in the repository header.
+- Added an opt-in zsh integration snippet for terminal Git commands.
+- Updated worktree selection colors and documented current staging shortcuts.
 
-Plan: [Git config profiles by repository folder](plans/git-config-profiles.md).
-Release gate: [definition of done][definition-of-done].
+Validation:
 
-Status: in progress; automated release checks and Release Please version
-calculation are pending.
+- GitHub Actions passed formatting, tests, Clippy, CLI help, installer help,
+  and crate packaging checks.
+- Installed `gitview 0.5.0` from crates.io with Cargo and from the macOS
+  Apple Silicon release archive; the installer verified the archive checksum.
 
-## Released
+Downloads:
+
+- `gitview-v0.5.0-macos-arm64.tar.gz` contains the macOS Apple Silicon binary.
+- `gitview-v0.5.0-macos-arm64.tar.gz.sha256` contains the archive checksum.
+- GitHub provides source archives for the `v0.5.0` tag.
+
+- Crate: [gitview 0.5.0 on crates.io](https://crates.io/crates/gitview/0.5.0)
+- Release: [GitHub v0.5.0][release-050]
+- Tag: `v0.5.0`
+- Release PR: [#7](https://github.com/barathrajd/gitview/pull/7)
+- Plan: [Git config profiles by repository folder](plans/git-config-profiles.md)
 
 ### Gitview 0.4.1 — October 28, 2026
 
@@ -215,6 +228,7 @@ Windows support and Linux release packaging remain deferred.
 [release-033]: https://github.com/barathrajd/gitview/releases/tag/v0.3.3
 [release-040]: https://github.com/barathrajd/gitview/releases/tag/v0.4.0
 [release-041]: https://github.com/barathrajd/gitview/releases/tag/v0.4.1
+[release-050]: https://github.com/barathrajd/gitview/releases/tag/v0.5.0
 [release-021]: https://github.com/barathrajd/gitview/releases/tag/v0.2.1
 [definition-of-done]:
   .agents/skills/release-plan/references/definition-of-done.md
