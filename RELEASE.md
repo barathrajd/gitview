@@ -2,26 +2,35 @@
 
 This file is the single release plan and release-notes record for Gitview.
 
-## Upcoming
+## Released
 
 ### Gitview 0.4.1 — October 28, 2026
 
-Theme: publish Gitview through crates.io and provide a verified installer that
-offers both the macOS binary and Cargo installation paths.
+Gitview 0.4.1 adds crates.io installation and a verified installer for the
+macOS Apple Silicon binary.
 
-Features:
+Highlights:
 
-- SHA-256 verified macOS Apple Silicon installer — in progress.
-- Cargo install path and automated crates.io publishing — in progress.
-- Release preflight checks for formatting, tests, Clippy, CLI help, and package
-  contents — in progress.
+- Published the `gitview` crate to crates.io with package metadata.
+- Added `cargo install gitview --version 0.4.1 --locked` as an installation
+  path and updated `install.sh` with the Cargo option.
+- Added release preflight checks for formatting, tests, Clippy, CLI help,
+  installer help, and crate packaging.
+- Added manual GitHub Actions recovery paths for publishing the crate and
+  building the macOS release archive.
 
-Release gate: [definition of done][definition-of-done].
+Validation:
 
-Status: in progress; release automation and end-user installation are awaiting
-verification.
+- Release workflow preflight passed.
+- Installed from crates.io with Cargo and verified `gitview --version` reports
+  `gitview 0.4.1`.
+- The macOS archive build was dispatched through GitHub Actions; its runner is
+  still queued.
 
-## Released
+- Crate: [gitview 0.4.1 on crates.io](https://crates.io/crates/gitview/0.4.1)
+- Release: [GitHub v0.4.1][release-041]
+- Tag: `v0.4.1`
+- Release PR: [#6](https://github.com/barathrajd/gitview/pull/6)
 
 ### Gitview 0.4.0 — October 27, 2026
 
