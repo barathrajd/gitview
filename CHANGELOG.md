@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/barathrajd/gitview/compare/v0.4.1...v0.5.0) (2026-10-27)
+
+
+### Features
+
+* add folder-scoped Git config profiles ([ce2a5d2](https://github.com/barathrajd/gitview/commit/ce2a5d2094bc7055354470bc55099b0e6cda1c46))
+
 ## [0.4.1](https://github.com/barathrajd/gitview/compare/v0.4.0...v0.4.1) (2026-10-27)
 
 
