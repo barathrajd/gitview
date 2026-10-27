@@ -28,8 +28,12 @@ their local executable directory without requiring `sudo`.
 - [x] Release Please configuration and GitHub Actions workflow are published.
 - [x] The v0.3.1 GitHub release has the matching title/tag, archive, and
   checksum.
+- [x] The v0.3.1 release archive contains only the Gitview executable.
+- [x] GAH installation from the single-executable archive was verified by the
+  user on macOS Apple Silicon.
 
 ## Release boundary
 
-Ship GitHub source archives and the macOS Apple Silicon archive. Linux release
-packaging and Windows support remain deferred.
+Ship GitHub source archives and a macOS Apple Silicon archive containing only
+the executable, plus its checksum. Linux release packaging and Windows support
+remain deferred.

@@ -1,26 +1,46 @@
 # Gitview
 
 Gitview is a keyboard-first terminal interface for reviewing Git history and
-working-tree changes. Version 0.3.1 is available as a source release and an
-Apple Silicon macOS archive.
+working-tree changes. Version 0.3.2 is available as a source release and an
+Apple Silicon macOS archive. See [RELEASE.md](RELEASE.md) for release notes and
+history.
 
 ## Install the macOS Apple Silicon release
 
-Install GAH and use it to place Gitview in `~/.local/bin`:
+On macOS, GAH needs GNU `find` because the system BSD `find` does not support
+the `-executable` option GAH uses. Install it with Homebrew first:
 
 ```sh
-curl -fsSL \
-  https://raw.githubusercontent.com/get-gah/gah/v1.13.0/tools/install.sh | bash
 brew install findutils
-PATH="$(brew --prefix findutils)/libexec/gnubin:$PATH" \
-  gah install barathrajd/gitview --tag=v0.3.1
 ```
 
+Then follow these three steps:
+
+1. Install GAH:
+
+   ```sh
+   curl -fsSL \
+     https://raw.githubusercontent.com/get-gah/gah/v1.13.0/tools/install.sh | bash
+   ```
+
+2. Install Gitview through GAH:
+
+   ```sh
+   PATH="$(brew --prefix findutils)/libexec/gnubin:$PATH" gah install barathrajd/gitview --tag=v0.3.2
+   ```
+
+3. Launch Gitview:
+
+   ```sh
+   gitview
+   ```
+
 Ensure `~/.local/bin` is on your `PATH`. GAH installs there by default for the
-current user. On macOS, GAH needs GNU `find` from Homebrew's `findutils` because
-the system `find` does not support the option GAH uses. Gitview currently
-publishes a binary for macOS Apple Silicon; Linux release packaging remains
-deferred. You can also download the archive from the
+current user. Its current macOS script can print “Done!” after BSD `find`
+rejects `-executable`, without installing Gitview, so verify that
+`gitview --version` works afterward. Gitview currently publishes a binary for
+macOS Apple Silicon; Linux release packaging remains deferred. You can also
+download the archive from the
 [GitHub releases](https://github.com/barathrajd/gitview/releases).
 
 ## Build and run
@@ -39,7 +59,7 @@ and `gitview --ascii` for plain terminal borders. Development checks are
 The `test-support` feature enables a test-only PTY probe for terminal
 restoration and is excluded from normal builds.
 
-Version 0.3.1 was built and tested on macOS Apple Silicon with Rust 1.99.1.
+Version 0.3.2 was built and tested on macOS Apple Silicon with Rust 1.99.1.
 Linux x86_64 was verified for version 0.2.1 but has not been rechecked for this
 release. Branch operations require `git switch`, introduced in Git 2.23; the
 minimum supported Git version has not yet been verified. Windows support

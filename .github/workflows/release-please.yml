@@ -42,8 +42,8 @@ jobs:
           cargo build --release --locked
           archive="gitview-${TAG_NAME}-macos-arm64.tar.gz"
           staging_dir="$(mktemp -d)"
-          cp target/release/gitview README.md LICENSE "$staging_dir/"
-          tar -czf "$archive" -C "$staging_dir" gitview README.md LICENSE
+          cp target/release/gitview "$staging_dir/"
+          tar -czf "$archive" -C "$staging_dir" gitview
           shasum -a 256 "$archive" > "$archive.sha256"
           echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
       - name: Upload release assets

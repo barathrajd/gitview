@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2 — October 27, 2026
+
+### Fixed
+
+- Package only the Gitview executable in the macOS archive so GAH can install
+  the matching binary without encountering extra executable files.
+- Document the macOS GNU `find` requirement for GAH and verify installation.
+
 ## 0.3.1 — October 27, 2026
 
 ### Added
