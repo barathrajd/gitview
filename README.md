@@ -1,7 +1,7 @@
 # Gitview
 
 Gitview is a keyboard-first terminal interface for reviewing Git history and
-working-tree changes. Version 0.3.2 is available as a source release and an
+working-tree changes. Version 0.3.3 is available as a source release and an
 Apple Silicon macOS archive. See [RELEASE.md](RELEASE.md) for release notes and
 history.
 
@@ -26,7 +26,7 @@ Then follow these three steps:
 2. Install Gitview through GAH:
 
    ```sh
-   PATH="$(brew --prefix findutils)/libexec/gnubin:$PATH" gah install barathrajd/gitview --tag=v0.3.2
+   PATH="$(brew --prefix findutils)/libexec/gnubin:$PATH" gah install barathrajd/gitview --tag=v0.3.3
    ```
 
 3. Launch Gitview:
@@ -59,7 +59,8 @@ and `gitview --ascii` for plain terminal borders. Development checks are
 The `test-support` feature enables a test-only PTY probe for terminal
 restoration and is excluded from normal builds.
 
-Version 0.3.2 was built and tested on macOS Apple Silicon with Rust 1.99.1.
+Version 0.3.3 was built by the GitHub Actions release workflow on macOS Apple
+Silicon. Earlier versions were tested on macOS Apple Silicon with Rust 1.99.1.
 Linux x86_64 was verified for version 0.2.1 but has not been rechecked for this
 release. Branch operations require `git switch`, introduced in Git 2.23; the
 minimum supported Git version has not yet been verified. Windows support

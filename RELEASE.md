@@ -9,6 +9,16 @@ from Conventional Commits on `main`.
 
 ## Released
 
+### Gitview 0.3.3 — October 27, 2026
+
+Published by the Release Please GitHub Action. The action created the matching
+tag and release, built the macOS Apple Silicon binary, and uploaded a
+single-executable archive and checksum.
+
+- Release: [GitHub v0.3.3][release-033]
+- Tag: `v0.3.3`
+- Release PR: [#4](https://github.com/barathrajd/gitview/pull/4)
+
 ### Gitview 0.3.2 — October 27, 2026
 
 Gitview 0.3.2 publishes a macOS archive containing only the executable and
@@ -126,6 +136,7 @@ Windows support and Linux release packaging remain deferred.
 [release-030]: https://github.com/barathrajd/gitview/releases/tag/v0.3.0
 [release-031]: https://github.com/barathrajd/gitview/releases/tag/v0.3.1
 [release-032]: https://github.com/barathrajd/gitview/releases/tag/v0.3.2
+[release-033]: https://github.com/barathrajd/gitview/releases/tag/v0.3.3
 [release-021]: https://github.com/barathrajd/gitview/releases/tag/v0.2.1
 [definition-of-done]:
   .agents/skills/release-plan/references/definition-of-done.md
