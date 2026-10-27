@@ -8,6 +8,8 @@ use ratatui::{DefaultTerminal, widgets::ListState};
 use std::{
     env, io,
     process::{Command, ExitCode},
+    sync::mpsc,
+    time::Duration,
 };
 
 #[derive(KeyBind)]
@@ -104,6 +106,28 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
     let mut status: Option<Result<Vec<gitview::worktree::Entry>, String>> = None;
     let mut status_request = 0u64;
     let mut status_selection = ListState::default();
+    {
+        let sender = status_sender.clone();
+        let path = root.to_path_buf();
+        std::thread::spawn(move || {
+            let _ = sender.send((0, gitview::worktree::load_status(&path)));
+        });
+    }
+    {
+        let sender = branch_sender.clone();
+        let path = root.to_path_buf();
+        std::thread::spawn(move || {
+            let _ = sender.send((0, gitview::branches::load_branches(&path)));
+        });
+    }
+    let (event_sender, event_receiver) = mpsc::channel();
+    std::thread::spawn(move || {
+        while let Ok(event) = event::read() {
+            if event_sender.send(event).is_err() {
+                break;
+            }
+        }
+    });
     loop {
         while let Ok((id, result)) = receiver.try_recv() {
             if id != history_request {
@@ -221,12 +245,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                     details,
                     selection: &mut file_selection,
                 }
-            } else if app_state.view() == View::WorkingTree {
-                Screen::WorkingTree {
-                    status: status.as_ref(),
-                    selection: &mut status_selection,
-                }
-            } else {
+            } else if searching {
                 Screen::History {
                     history: history.as_ref(),
                     searching,
@@ -235,11 +254,25 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                     root,
                     selection: &mut selection,
                 }
+            } else {
+                Screen::Cockpit(ui::Cockpit {
+                    repository: root,
+                    branches: branches.as_ref(),
+                    history: history.as_ref(),
+                    status: status.as_ref(),
+                    focused: app_state.view(),
+                    history_selection: &mut selection,
+                    working_tree_selection: &mut status_selection,
+                })
             };
             ui::render(frame, screen, border);
         })?;
-        if event::poll(std::time::Duration::from_millis(100))?
-            && let Event::Key(key) = event::read()?
+        let event = match event_receiver.recv_timeout(Duration::from_millis(50)) {
+            Ok(event) => event,
+            Err(mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
+        };
+        if let Event::Key(key) = event
             && key.kind == KeyEventKind::Press
         {
             if searching {

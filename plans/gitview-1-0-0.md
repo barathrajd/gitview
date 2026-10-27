@@ -120,10 +120,12 @@ during this research.
 Each milestone delivers an end-to-end workflow and adds it to the parity
 checklist.
 
-1. **Design the Gitview cockpit:** Define the visual system, pane layout,
+1. **[x] Design the Gitview cockpit:** Define the visual system, pane layout,
    keyboard discovery, terminal-size behavior, and Lazygit v0.66.2 parity
    checklist. Refine app state and background-task coordination enough to add
-   new workflows without blocking rendering.
+   new workflows without blocking rendering. Delivered the responsive cockpit,
+   pinned parity checklist, and startup refresh regression coverage; formatting,
+   full tests, Clippy, and release build pass.
 2. **Review and shape working-tree changes:** Add file-tree navigation,
    line/hunk selection, stage and unstage, discard confirmations, commit and
    amend flows, stash variants, and external editor/diff-tool handoff. Keep the

@@ -1,15 +1,15 @@
 use crate::{
-    app::BranchAction,
+    app::{BranchAction, View},
     branches::{Branches, HeadState},
     details::CommitDetails,
     history,
-    worktree::Entry,
+    worktree::{Entry, Section},
 };
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
     style::{Color, Style},
-    text::{Line, Text},
+    text::{Line, Span, Text},
     widgets::{Block, List, ListItem, ListState, Paragraph, Wrap},
 };
 use std::path::Path;
@@ -27,7 +27,18 @@ pub const ASCII_BORDER: ratatui::symbols::border::Set<'static> = ratatui::symbol
 
 pub const HELP: &str = "Up/Down or j/k  Navigate and scroll\nEnter / Esc or h/l  Open / back (l / h)\nTab      Switch history / working tree\nb        Browse local branches\nc        Create a branch (in branch view)\ny / n    Confirm / cancel branch operation\n/        Search message, author or hash\nn        Next search match\ns        Stage selected file\nu        Unstage selected file\nr        Refresh working tree\n?        Toggle help\nq        Quit";
 
+pub struct Cockpit<'a> {
+    pub repository: &'a Path,
+    pub branches: Option<&'a Result<Branches, String>>,
+    pub history: Option<&'a Result<Vec<String>, String>>,
+    pub status: Option<&'a Result<Vec<Entry>, String>>,
+    pub focused: View,
+    pub history_selection: &'a mut ListState,
+    pub working_tree_selection: &'a mut ListState,
+}
+
 pub enum Screen<'a> {
+    Cockpit(Cockpit<'a>),
     Help,
     BranchInput(&'a str),
     BranchConfirmation {
@@ -76,6 +87,7 @@ pub fn render(
     border: ratatui::symbols::border::Set<'static>,
 ) {
     match screen {
+        Screen::Cockpit(cockpit) => render_cockpit(frame, cockpit, border),
         Screen::Help => frame.render_widget(
             Paragraph::new(HELP).block(Block::bordered().border_set(border).title("Help")),
             frame.area(),
@@ -143,6 +155,362 @@ pub fn render(
             border,
         ),
     }
+}
+
+fn render_cockpit(
+    frame: &mut Frame<'_>,
+    cockpit: Cockpit<'_>,
+    border: ratatui::symbols::border::Set<'static>,
+) {
+    let Cockpit {
+        repository,
+        branches,
+        history,
+        status,
+        focused,
+        history_selection,
+        working_tree_selection,
+    } = cockpit;
+    let sections = Layout::vertical([
+        Constraint::Length(3),
+        Constraint::Min(6),
+        Constraint::Length(1),
+        Constraint::Length(1),
+    ])
+    .split(frame.area());
+
+    let branch = match branches {
+        Some(Ok(data)) => match &data.head {
+            HeadState::Attached(name) => name.to_string_lossy().into_owned(),
+            HeadState::Detached => "detached HEAD".to_owned(),
+            HeadState::Unborn(name) => format!("{} (unborn)", name.to_string_lossy()),
+        },
+        Some(Err(_)) => "branch unavailable".to_owned(),
+        None => "loading branch".to_owned(),
+    };
+    let header = Line::from(vec![
+        Span::styled(
+            " GITVIEW ",
+            Style::default()
+                .fg(Color::Rgb(12, 24, 30))
+                .bg(Color::Rgb(94, 234, 212))
+                .bold(),
+        ),
+        Span::styled(
+            format!("  {}  ", repository.display()),
+            Style::default().fg(Color::Rgb(226, 232, 240)).bold(),
+        ),
+        Span::styled(
+            format!(" branch: {branch}"),
+            Style::default().fg(Color::Rgb(148, 163, 184)),
+        ),
+    ]);
+    frame.render_widget(
+        Paragraph::new(header).block(
+            Block::bordered()
+                .border_set(border)
+                .border_style(Style::default().fg(Color::Rgb(71, 85, 105))),
+        ),
+        sections[0],
+    );
+
+    if frame.area().width < 88 {
+        match focused {
+            View::History => {
+                render_history_panel(frame, sections[1], history, history_selection, true, border)
+            }
+            View::WorkingTree => render_worktree_panel(
+                frame,
+                sections[1],
+                status,
+                working_tree_selection,
+                true,
+                border,
+            ),
+        }
+    } else if frame.area().width < 128 {
+        let panes = Layout::horizontal([Constraint::Percentage(36), Constraint::Percentage(64)])
+            .split(sections[1]);
+        render_worktree_panel(
+            frame,
+            panes[0],
+            status,
+            working_tree_selection,
+            focused == View::WorkingTree,
+            border,
+        );
+        render_history_panel(
+            frame,
+            panes[1],
+            history,
+            history_selection,
+            focused == View::History,
+            border,
+        );
+    } else {
+        let panes = Layout::horizontal([
+            Constraint::Percentage(29),
+            Constraint::Percentage(43),
+            Constraint::Percentage(28),
+        ])
+        .split(sections[1]);
+        render_worktree_panel(
+            frame,
+            panes[0],
+            status,
+            working_tree_selection,
+            focused == View::WorkingTree,
+            border,
+        );
+        render_history_panel(
+            frame,
+            panes[1],
+            history,
+            history_selection,
+            focused == View::History,
+            border,
+        );
+        render_inspector(
+            frame,
+            panes[2],
+            Inspector {
+                repository,
+                branches,
+                history,
+                status,
+                selected: history_selection.selected(),
+            },
+            border,
+        );
+    }
+
+    let (staged, unstaged, untracked) = status_counts(status);
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(" STAGED ", Style::default().fg(Color::Rgb(94, 234, 212))),
+            Span::raw(staged.to_string()),
+            Span::styled("   CHANGES ", Style::default().fg(Color::Rgb(251, 191, 36))),
+            Span::raw(unstaged.to_string()),
+            Span::styled(
+                "   UNTRACKED ",
+                Style::default().fg(Color::Rgb(148, 163, 184)),
+            ),
+            Span::raw(untracked.to_string()),
+        ])),
+        sections[2],
+    );
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(
+                " TAB ",
+                Style::default().fg(Color::Rgb(94, 234, 212)).bold(),
+            ),
+            Span::raw("focus  "),
+            Span::styled(
+                "ENTER ",
+                Style::default().fg(Color::Rgb(94, 234, 212)).bold(),
+            ),
+            Span::raw("open  "),
+            Span::styled("B ", Style::default().fg(Color::Rgb(94, 234, 212)).bold()),
+            Span::raw("branches  "),
+            Span::styled("/ ", Style::default().fg(Color::Rgb(94, 234, 212)).bold()),
+            Span::raw("search  "),
+            Span::styled("? ", Style::default().fg(Color::Rgb(94, 234, 212)).bold()),
+            Span::raw("help  "),
+            Span::styled("Q ", Style::default().fg(Color::Rgb(94, 234, 212)).bold()),
+            Span::raw("quit"),
+        ])),
+        sections[3],
+    );
+}
+
+fn render_worktree_panel(
+    frame: &mut Frame<'_>,
+    area: ratatui::layout::Rect,
+    status: Option<&Result<Vec<Entry>, String>>,
+    selection: &mut ListState,
+    focused: bool,
+    border: ratatui::symbols::border::Set<'static>,
+) {
+    let items = match status {
+        None => vec![ListItem::new("Loading working tree...")],
+        Some(Err(error)) => vec![ListItem::new(error.as_str())],
+        Some(Ok(entries)) if entries.is_empty() => vec![ListItem::new("Working tree clean")],
+        Some(Ok(entries)) => entries
+            .iter()
+            .map(|entry| {
+                let (label, color) = match entry.section {
+                    Section::Staged => ("STAGED", Color::Rgb(94, 234, 212)),
+                    Section::Unstaged => ("EDITED", Color::Rgb(251, 191, 36)),
+                    Section::Untracked => ("NEW", Color::Rgb(147, 197, 253)),
+                };
+                ListItem::new(Line::from(vec![
+                    Span::styled(format!("{label} "), Style::default().fg(color).bold()),
+                    Span::raw(entry.path.to_string_lossy().into_owned()),
+                ]))
+            })
+            .collect(),
+    };
+    render_panel_list(frame, area, "WORKTREE", items, selection, focused, border);
+}
+
+fn render_history_panel(
+    frame: &mut Frame<'_>,
+    area: ratatui::layout::Rect,
+    history: Option<&Result<Vec<String>, String>>,
+    selection: &mut ListState,
+    focused: bool,
+    border: ratatui::symbols::border::Set<'static>,
+) {
+    let items = match history {
+        None => vec![ListItem::new("Loading history...")],
+        Some(Err(error)) => vec![ListItem::new(error.as_str())],
+        Some(Ok(rows)) if rows.is_empty() => vec![ListItem::new("No commits yet")],
+        Some(Ok(rows)) => rows
+            .iter()
+            .map(|row| ListItem::new(history::display_row(row)))
+            .collect(),
+    };
+    render_panel_list(frame, area, "HISTORY", items, selection, focused, border);
+}
+
+struct Inspector<'a> {
+    repository: &'a Path,
+    branches: Option<&'a Result<Branches, String>>,
+    history: Option<&'a Result<Vec<String>, String>>,
+    status: Option<&'a Result<Vec<Entry>, String>>,
+    selected: Option<usize>,
+}
+
+fn render_inspector(
+    frame: &mut Frame<'_>,
+    area: ratatui::layout::Rect,
+    inspector: Inspector<'_>,
+    border: ratatui::symbols::border::Set<'static>,
+) {
+    let Inspector {
+        repository,
+        branches,
+        history,
+        status,
+        selected,
+    } = inspector;
+    let branch = match branches {
+        Some(Ok(data)) => match &data.head {
+            HeadState::Attached(name) => name.to_string_lossy().into_owned(),
+            HeadState::Detached => "detached HEAD".to_owned(),
+            HeadState::Unborn(name) => format!("{} (unborn)", name.to_string_lossy()),
+        },
+        Some(Err(_)) => "Unavailable".to_owned(),
+        None => "Loading...".to_owned(),
+    };
+    let (staged, unstaged, untracked) = status_counts(status);
+    let selected_commit = history
+        .and_then(|rows| rows.as_ref().ok())
+        .and_then(|rows| selected.and_then(|index| rows.get(index)));
+    let commit = selected_commit
+        .map(|row| history::display_row(row))
+        .unwrap_or("No commit selected");
+    let content = vec![
+        Line::styled(
+            "REPOSITORY",
+            Style::default().fg(Color::Rgb(94, 234, 212)).bold(),
+        ),
+        Line::raw(repository.display().to_string()),
+        Line::raw(""),
+        Line::styled(
+            "BRANCH",
+            Style::default().fg(Color::Rgb(94, 234, 212)).bold(),
+        ),
+        Line::raw(branch),
+        Line::raw(""),
+        Line::styled(
+            "SELECTED COMMIT",
+            Style::default().fg(Color::Rgb(94, 234, 212)).bold(),
+        ),
+        Line::raw(commit),
+        Line::raw(""),
+        Line::styled(
+            "WORKTREE SUMMARY",
+            Style::default().fg(Color::Rgb(94, 234, 212)).bold(),
+        ),
+        Line::raw(format!("{staged} staged")),
+        Line::raw(format!("{unstaged} changed")),
+        Line::raw(format!("{untracked} untracked")),
+        Line::raw(""),
+        Line::styled(
+            "Enter opens details",
+            Style::default().fg(Color::Rgb(148, 163, 184)),
+        ),
+        Line::styled(
+            "Tab changes focus",
+            Style::default().fg(Color::Rgb(148, 163, 184)),
+        ),
+    ];
+    frame.render_widget(
+        Paragraph::new(content).wrap(Wrap { trim: true }).block(
+            Block::bordered()
+                .border_set(border)
+                .title("INSPECTOR")
+                .border_style(Style::default().fg(Color::Rgb(51, 65, 85))),
+        ),
+        area,
+    );
+}
+
+fn render_panel_list(
+    frame: &mut Frame<'_>,
+    area: ratatui::layout::Rect,
+    title: &'static str,
+    items: Vec<ListItem<'_>>,
+    selection: &mut ListState,
+    focused: bool,
+    border: ratatui::symbols::border::Set<'static>,
+) {
+    let accent = if focused {
+        Color::Rgb(94, 234, 212)
+    } else {
+        Color::Rgb(71, 85, 105)
+    };
+    let list = List::new(items)
+        .block(
+            Block::bordered()
+                .border_set(border)
+                .border_style(Style::default().fg(accent))
+                .title(Span::styled(
+                    title,
+                    Style::default()
+                        .fg(if focused {
+                            Color::Rgb(94, 234, 212)
+                        } else {
+                            Color::Rgb(148, 163, 184)
+                        })
+                        .bold(),
+                )),
+        )
+        .highlight_symbol("› ")
+        .highlight_style(
+            Style::default()
+                .bg(Color::Rgb(25, 43, 52))
+                .fg(Color::Rgb(241, 245, 249))
+                .bold(),
+        );
+    frame.render_stateful_widget(list, area, selection);
+}
+
+fn status_counts(status: Option<&Result<Vec<Entry>, String>>) -> (usize, usize, usize) {
+    status
+        .and_then(|result| result.as_ref().ok())
+        .map_or((0, 0, 0), |entries| {
+            entries.iter().fold((0, 0, 0), |mut counts, entry| {
+                match entry.section {
+                    Section::Staged => counts.0 += 1,
+                    Section::Unstaged => counts.1 += 1,
+                    Section::Untracked => counts.2 += 1,
+                }
+                counts
+            })
+        })
 }
 
 fn render_branches(
