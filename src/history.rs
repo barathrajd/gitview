@@ -1,7 +1,9 @@
-use std::{path::Path, process::Command};
+use std::path::Path;
+
+use crate::process;
 
 pub fn load_history(root: &Path) -> Result<Vec<String>, String> {
-    let output = Command::new("git")
+    let output = process::git_command()
         .current_dir(root)
         .args([
             "log",
@@ -16,7 +18,7 @@ pub fn load_history(root: &Path) -> Result<Vec<String>, String> {
         .output()
         .map_err(|error| format!("Unable to load history: {error}"))?;
     if !output.status.success() {
-        let empty = Command::new("git")
+        let empty = process::git_command()
             .current_dir(root)
             .args(["rev-parse", "--verify", "HEAD"])
             .output()
@@ -34,7 +36,7 @@ pub fn load_history(root: &Path) -> Result<Vec<String>, String> {
         .map(str::to_owned)
         .collect();
     if !rows.is_empty() {
-        let remaining = Command::new("git")
+        let remaining = process::git_command()
             .current_dir(root)
             .args(["rev-list", "--all", "--skip=200", "--max-count=1"])
             .output()

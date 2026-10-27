@@ -9,10 +9,10 @@ use ratatui::{Terminal, backend::TestBackend, widgets::ListState};
 use std::{ffi::OsString, path::Path};
 
 fn render_cockpit(width: u16) -> String {
-    render_cockpit_focused(width, View::History)
+    render_cockpit_focused(width, View::History, "office")
 }
 
-fn render_cockpit_focused(width: u16, focused: View) -> String {
+fn render_cockpit_focused(width: u16, focused: View, profile: &str) -> String {
     let backend = TestBackend::new(width, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     let branches = Branches {
@@ -36,6 +36,7 @@ fn render_cockpit_focused(width: u16, focused: View) -> String {
                 frame,
                 Screen::Cockpit(Cockpit {
                     repository: Path::new("/work/gitview"),
+                    profile,
                     branches: Some(&Ok(branches)),
                     history: Some(&history),
                     status: Some(&status),
@@ -51,9 +52,10 @@ fn render_cockpit_focused(width: u16, focused: View) -> String {
         .backend()
         .buffer()
         .content()
-        .iter()
-        .map(|cell| cell.symbol())
-        .collect()
+        .chunks(usize::from(width))
+        .map(|row| row.iter().map(|cell| cell.symbol()).collect::<String>())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[test]
@@ -61,11 +63,17 @@ fn renders_responsive_repository_cockpit() {
     let narrow = render_cockpit(80);
     assert!(narrow.contains("GITVIEW"));
     assert!(narrow.contains("main"));
+    assert!(narrow.contains("account: office"));
     assert!(narrow.contains("HISTORY"));
     assert!(narrow.contains("Ship the cockpit"));
     assert!(narrow.contains("Enter/l"));
-    assert!(narrow.contains("help"));
-    assert!(narrow.contains("quit"));
+    assert_eq!(
+        narrow
+            .lines()
+            .filter(|line| line.contains("pane") || line.contains("help") || line.contains("quit"))
+            .count(),
+        1
+    );
     assert!(!narrow.contains("DETAILS"));
     assert!(!narrow.contains("WORKTREE"));
 
@@ -78,8 +86,13 @@ fn renders_responsive_repository_cockpit() {
     assert!(wide.contains("WORKTREE"));
     assert!(wide.contains("HISTORY"));
     assert!(wide.contains("INSPECTOR"));
-    assert!(wide.contains("quit"));
-    let worktree_focused = render_cockpit_focused(140, View::WorkingTree);
+    assert_eq!(
+        wide.lines()
+            .filter(|line| line.contains("pane") || line.contains("help") || line.contains("quit"))
+            .count(),
+        1
+    );
+    let worktree_focused = render_cockpit_focused(140, View::WorkingTree, "Primary");
     assert!(worktree_focused.contains("diff"));
     assert!(!worktree_focused.contains("details"));
 }
@@ -104,6 +117,7 @@ fn replacing_the_cockpit_with_commit_details_clears_old_panes() {
                 frame,
                 Screen::Cockpit(Cockpit {
                     repository: Path::new("/work/gitview"),
+                    profile: "Primary",
                     branches: Some(&Ok(branches)),
                     history: Some(&history),
                     status: Some(&status),

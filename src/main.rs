@@ -25,26 +25,53 @@ enum Navigation {
 }
 
 fn run() -> Result<(), String> {
-    if env::args()
-        .skip(1)
-        .any(|arg| arg == "--help" || arg == "-h")
-    {
+    let args: Vec<_> = env::args_os().skip(1).collect();
+    if args.iter().any(|arg| arg == "--shell-integration") {
+        print_shell_integration();
+        return Ok(());
+    }
+    if let Some(index) = args.iter().position(|arg| arg == "--profile-config-for") {
+        let folder = args
+            .get(index + 1)
+            .ok_or("--profile-config-for requires a folder path")?;
+        let config_dir = gitview::config::config_dir()?;
+        if let Some(profile) =
+            gitview::config::profile_for_worktree(std::path::Path::new(folder), &config_dir)?
+        {
+            println!("{}", profile.config_path.display());
+        }
+        return Ok(());
+    }
+    if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "Usage: gitview [--ascii] [--version]\n\nOpen the current Git repository. Use --ascii for plain terminal borders.\n\n{HELP}"
+            "Usage: gitview [--ascii] [--version]\n       gitview --shell-integration\n\nOpen the current Git repository. Use --ascii for plain terminal borders.\nFolder-specific Git config profiles are loaded automatically. Run --shell-integration for the optional zsh hook.\n\n{HELP}"
         );
         return Ok(());
     }
-    if env::args()
-        .skip(1)
-        .any(|arg| arg == "--version" || arg == "-V")
-    {
+    if args.iter().any(|arg| arg == "--version" || arg == "-V") {
         println!("gitview {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
     Navigation::init_and_load_file(None)
         .map_err(|e| format!("Could not initialize keybindings: {e}"))?;
-    let ascii = env::args().any(|arg| arg == "--ascii");
-    let output = Command::new("git")
+    let ascii = args.iter().any(|arg| arg == "--ascii");
+    let cwd =
+        env::current_dir().map_err(|error| format!("Could not read current folder: {error}"))?;
+    let config_dir = gitview::config::config_dir()?;
+    let selected_profile = gitview::config::profile_for_worktree(&cwd, &config_dir)?;
+    let (profile_label, config_context) = match selected_profile {
+        Some(profile) => (
+            profile.name.clone(),
+            gitview::config::GitConfigContext::for_profile(profile.name, profile.config_path),
+        ),
+        None => (
+            "Primary".to_owned(),
+            gitview::config::GitConfigContext::new(None),
+        ),
+    };
+    let mut profiles = gitview::config::load_profiles(&config_dir)?;
+    gitview::process::install_git_config_context(config_context)?;
+    let output = gitview::process::git_command()
         .args(["rev-parse", "--show-toplevel"])
         .output()
         .map_err(|e| format!("Could not run Git; install Git and ensure it is in PATH: {e}"))?;
@@ -54,12 +81,111 @@ fn run() -> Result<(), String> {
     let root = gitview::repository::parse_root(&output.stdout);
     let mut terminal =
         ratatui::try_init().map_err(|e| format!("Could not initialize terminal: {e}"))?;
-    let result = app(&mut terminal, &root, ascii);
+    let result = app(
+        &mut terminal,
+        &root,
+        ascii,
+        profile_label,
+        &config_dir,
+        &mut profiles,
+    );
     ratatui::restore();
     result.map_err(|e| format!("Terminal error: {e}"))
 }
 
-fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> io::Result<()> {
+fn print_shell_integration() {
+    print!(
+        r#"# Optional Gitview zsh integration. Add this output to ~/.zshrc to enable; remove it to disable.
+git() {{
+  local profile_config
+  profile_config="$(command gitview --profile-config-for "$PWD")" || return $?
+  if [[ -n "$profile_config" ]]; then
+    GIT_CONFIG_GLOBAL="$profile_config" command git "$@"
+  else
+    command git "$@"
+  fi
+}}
+"#
+    );
+}
+
+fn reload_profile_context(
+    root: &std::path::Path,
+    config_dir: &std::path::Path,
+    profiles: &mut Vec<gitview::config::FolderProfile>,
+    profile_label: &mut String,
+) -> Result<(), String> {
+    let updated_profiles = gitview::config::load_profiles(config_dir)?;
+    let selected = gitview::config::profile_for_worktree(root, config_dir)?;
+    let (label, context) = match selected {
+        Some(profile) => (
+            profile.name.clone(),
+            gitview::config::GitConfigContext::for_profile(profile.name, profile.config_path),
+        ),
+        None => (
+            "Primary".to_owned(),
+            gitview::config::GitConfigContext::new(None),
+        ),
+    };
+    gitview::process::update_git_config_context(context)?;
+    *profiles = updated_profiles;
+    *profile_label = label;
+    Ok(())
+}
+
+fn edit_profile_registry(
+    terminal: &mut DefaultTerminal,
+    root: &std::path::Path,
+    config_dir: &std::path::Path,
+    profiles: &mut Vec<gitview::config::FolderProfile>,
+    profile_label: &mut String,
+    feedback: &mut String,
+) -> io::Result<()> {
+    let registry_path = config_dir.join("profiles.json");
+    if !registry_path.exists()
+        && let Err(error) = gitview::config::save_profiles(config_dir, profiles)
+    {
+        *feedback = error;
+        return Ok(());
+    }
+    let editor = env::var_os("VISUAL").or_else(|| env::var_os("EDITOR"));
+    let Some(editor) = editor else {
+        *feedback = "Set VISUAL or EDITOR to edit profiles.json.".into();
+        return Ok(());
+    };
+
+    ratatui::restore();
+    let editor_result = Command::new(editor).arg(&registry_path).status();
+    match ratatui::try_init() {
+        Ok(restored) => *terminal = restored,
+        Err(error) => {
+            return Err(io::Error::other(format!(
+                "Could not restore terminal: {error}"
+            )));
+        }
+    }
+
+    match editor_result {
+        Ok(status) if status.success() => {
+            match reload_profile_context(root, config_dir, profiles, profile_label) {
+                Ok(()) => *feedback = "Git config profiles reloaded.".into(),
+                Err(error) => *feedback = error,
+            }
+        }
+        Ok(status) => *feedback = format!("Profile editor exited with {status}."),
+        Err(error) => *feedback = format!("Could not open profile editor: {error}"),
+    }
+    Ok(())
+}
+
+fn app(
+    terminal: &mut DefaultTerminal,
+    root: &std::path::Path,
+    ascii: bool,
+    mut profile_label: String,
+    config_dir: &std::path::Path,
+    profiles: &mut Vec<gitview::config::FolderProfile>,
+) -> io::Result<()> {
     let border = if ascii {
         ASCII_BORDER
     } else {
@@ -92,6 +218,10 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
     let mut diff_entry: Option<gitview::worktree::Entry> = None;
     let mut selected_hunk = 0usize;
     let mut branch_view = false;
+    let mut profiles_view = false;
+    let mut profile_selection = ListState::default();
+    let mut profile_feedback = String::new();
+    let profile_registry_path = config_dir.join("profiles.json");
     let (branch_sender, branch_receiver) =
         std::sync::mpsc::channel::<(u64, Result<gitview::branches::Branches, String>)>();
     let mut branch_request = 0u64;
@@ -371,7 +501,9 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
             });
         }
         terminal.draw(|frame| {
-            let help_page = if branch_view && branch_input.is_some() {
+            let help_page = if profiles_view {
+                ui::HelpPage::Profiles
+            } else if branch_view && branch_input.is_some() {
                 ui::HelpPage::BranchInput
             } else if branch_view && branch_confirm.is_some() {
                 ui::HelpPage::BranchConfirmation
@@ -390,7 +522,15 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
             } else {
                 ui::HelpPage::History
             };
-            let screen = if branch_view && branch_input.is_some() {
+            let screen = if profiles_view {
+                Screen::Profiles {
+                    profiles,
+                    selected: profile_selection.selected(),
+                    active_profile: &profile_label,
+                    registry_path: &profile_registry_path,
+                    feedback: &profile_feedback,
+                }
+            } else if branch_view && branch_input.is_some() {
                 Screen::BranchInput(branch_input.as_deref().unwrap_or(""))
             } else if branch_view && (mutation_pending || branch_confirm.is_some()) {
                 Screen::BranchConfirmation {
@@ -426,6 +566,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
             } else {
                 Screen::Cockpit(ui::Cockpit {
                     repository: root,
+                    profile: &profile_label,
                     branches: branches.as_ref(),
                     history: history.as_ref(),
                     status: status.as_ref(),
@@ -450,6 +591,40 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
             if help {
                 if matches!(key.code, KeyCode::Esc | KeyCode::Char('?')) {
                     help = false;
+                }
+                continue;
+            }
+            if profiles_view {
+                match key.code {
+                    KeyCode::Esc | KeyCode::Char('h') => profiles_view = false,
+                    KeyCode::Char('?') => help = true,
+                    KeyCode::Char('q') => return Ok(()),
+                    KeyCode::Char('e') => edit_profile_registry(
+                        terminal,
+                        root,
+                        config_dir,
+                        profiles,
+                        &mut profile_label,
+                        &mut profile_feedback,
+                    )?,
+                    KeyCode::Char('r') => {
+                        match reload_profile_context(root, config_dir, profiles, &mut profile_label)
+                        {
+                            Ok(()) => profile_feedback = "Git config profiles reloaded.".into(),
+                            Err(error) => profile_feedback = error,
+                        }
+                    }
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        profile_selection
+                            .select(gitview::app::move_up(profile_selection.selected()));
+                    }
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        profile_selection.select(gitview::app::move_down(
+                            profile_selection.selected(),
+                            profiles.len(),
+                        ));
+                    }
+                    _ => {}
                 }
                 continue;
             }
@@ -642,6 +817,21 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 diff = None;
                 diff_entry = None;
                 details = None;
+                continue;
+            }
+            if key.code == KeyCode::Char('p')
+                && !mutation_pending
+                && details.is_none()
+                && diff.is_none()
+                && !branch_view
+            {
+                profile_selection.select(
+                    profiles
+                        .iter()
+                        .position(|profile| profile.name == profile_label),
+                );
+                profile_feedback.clear();
+                profiles_view = true;
                 continue;
             }
             let blocked = help || mutation_pending || details.is_some() || diff.is_some();

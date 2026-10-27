@@ -71,6 +71,14 @@ then inspect effective values so Gitview can show when a repository-local
 setting overrides the selected profile. Use credential helpers or SSH for
 secrets; never copy credentials into the profile file.
 
+The profile registry is `profiles.json` under `$XDG_CONFIG_HOME/gitview`, or
+`~/.config/gitview` when `XDG_CONFIG_HOME` is unset. Each entry names a folder
+and a Git config file. A repository uses the matching profile with the deepest
+canonical folder path; duplicate matching rules are an error. Gitview checks
+the folder containing the repository before running Git, so the selected
+profile also applies to linked worktrees and commands started in a repository
+subfolder.
+
 A Git-native `includeIf` rule is not the isolation mechanism: it loads the
 normal global config and conditionally adds another file. Gitview's per-process
 `GIT_CONFIG_GLOBAL` override keeps the primary global file out of Gitview's
@@ -88,11 +96,14 @@ Sources: Git documents [`GIT_CONFIG_GLOBAL`][global-env], conditional
 
 ## Milestones
 
-1. **Define profile matching and precedence:** Specify canonical worktree path
-   matching, nested-profile precedence, linked-worktree behavior, and what
-   happens when local config overrides the selected identity.
-2. **Load profiles for Gitview commands:** Add a central Git command context
-   that chooses the profile and applies `GIT_CONFIG_GLOBAL` consistently.
+1. **[x] Define profile matching and precedence:** Match canonical folder paths,
+   prefer the deepest match, reject duplicate rules, and detect repository-local
+   `user.name`, `user.email`, and `user.signingkey` overrides without changing
+   repository config.
+2. **[x] Load profiles for Gitview commands:** Read the profile registry and
+   apply `GIT_CONFIG_GLOBAL` through a shared Git command factory; fail closed
+   when a matching profile is invalid and retain the primary global config when
+   no folder rule matches.
 3. **Manage and explain profiles in the UI:** Add profile setup, edit, disable,
    and status views; show effective identity and profile source before writes.
 4. **Add optional terminal integration:** Implement `--shell-integration` as

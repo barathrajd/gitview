@@ -1,8 +1,9 @@
 use std::{
     ffi::{OsStr, OsString},
     path::Path,
-    process::Command,
 };
+
+use crate::process;
 
 #[derive(Debug)]
 pub struct CommitDetails {
@@ -63,7 +64,7 @@ pub fn load_commit(root: &Path, revision: &str) -> Result<CommitDetails, String>
 }
 
 fn git(root: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
-    let output = Command::new("git")
+    let output = process::git_command()
         .current_dir(root)
         .args(args)
         .output()
@@ -89,7 +90,7 @@ fn path_from_bytes(bytes: &[u8]) -> OsString {
 }
 
 pub fn load_diff(root: &Path, revision: &str, file: impl AsRef<OsStr>) -> Result<String, String> {
-    let mut command = Command::new("git");
+    let mut command = process::git_command();
     command
         .current_dir(root)
         .args([

@@ -1,8 +1,6 @@
-use std::{
-    ffi::OsString,
-    path::Path,
-    process::{Command, Output},
-};
+use std::{ffi::OsString, path::Path, process::Output};
+
+use crate::process;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum HeadState {
@@ -18,7 +16,7 @@ pub struct Branches {
 }
 
 fn git(root: &Path, args: &[&str]) -> Result<Output, String> {
-    Command::new("git")
+    process::git_command()
         .current_dir(root)
         .args(args)
         .output()
@@ -106,7 +104,7 @@ pub fn switch_branch(root: &Path, name: &std::ffi::OsStr) -> Result<(), String> 
     if !data.branches.iter().any(|branch| branch == name) {
         return Err("The selected local branch no longer exists; refresh and try again".into());
     }
-    let output = Command::new("git")
+    let output = process::git_command()
         .current_dir(root)
         .args(["switch", "--no-guess", "--no-recurse-submodules", "--"])
         .arg(name)

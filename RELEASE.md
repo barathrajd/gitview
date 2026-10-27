@@ -2,6 +2,27 @@
 
 This file is the single release plan and release-notes record for Gitview.
 
+## Upcoming
+
+### Gitview 0.5.0 — October 28, 2026
+
+Theme: choose isolated Git configuration by repository folder while keeping
+the primary account as the default.
+
+Features:
+
+- Folder-scoped Git config profiles for Gitview subprocesses, with nearest
+  folder matching and primary-config fallback — in progress.
+- Profile visibility and editing from Gitview, plus an opt-in zsh integration
+  for terminal Git commands — in progress.
+- Updated worktree selection colors and keyboard documentation — done.
+
+Plan: [Git config profiles by repository folder](plans/git-config-profiles.md).
+Release gate: [definition of done][definition-of-done].
+
+Status: in progress; automated release checks and Release Please version
+calculation are pending.
+
 ## Released
 
 ### Gitview 0.4.1 — October 28, 2026

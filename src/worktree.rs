@@ -1,9 +1,6 @@
-use std::{
-    ffi::OsString,
-    io::Write,
-    path::Path,
-    process::{Command, Stdio},
-};
+use std::{ffi::OsString, io::Write, path::Path, process::Stdio};
+
+use crate::process;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Section {
@@ -20,7 +17,7 @@ pub struct Entry {
 }
 
 pub fn load_status(root: &Path) -> Result<Vec<Entry>, String> {
-    let output = Command::new("git")
+    let output = process::git_command()
         .current_dir(root)
         .args(["status", "--porcelain=v2", "-z", "--untracked-files=all"])
         .output()
@@ -111,7 +108,7 @@ fn run_action(
     path: &std::ffi::OsStr,
     original: Option<&std::ffi::OsStr>,
 ) -> Result<(), String> {
-    let mut command = Command::new("git");
+    let mut command = process::git_command();
     command
         .current_dir(root)
         .arg("--literal-pathspecs")
@@ -147,7 +144,7 @@ pub fn stage(root: &Path, entry: &Entry) -> Result<(), String> {
 }
 
 pub fn stage_all(root: &Path) -> Result<(), String> {
-    let output = Command::new("git")
+    let output = process::git_command()
         .current_dir(root)
         .args(["add", "-A"])
         .output()
@@ -163,18 +160,18 @@ pub fn stage_all(root: &Path) -> Result<(), String> {
 }
 
 pub fn unstage_all(root: &Path) -> Result<(), String> {
-    let head = Command::new("git")
+    let head = process::git_command()
         .current_dir(root)
         .args(["rev-parse", "--verify", "--quiet", "HEAD"])
         .output()
         .map_err(|error| format!("Could not check HEAD: {error}"))?;
     let output = if head.status.success() {
-        Command::new("git")
+        process::git_command()
             .current_dir(root)
             .args(["reset", "HEAD", "--", "."])
             .output()
     } else {
-        Command::new("git")
+        process::git_command()
             .current_dir(root)
             .args(["rm", "--cached", "--ignore-unmatch", "-r", "--", "."])
             .output()
@@ -199,7 +196,7 @@ pub fn unstage(root: &Path, entry: &Entry) -> Result<(), String> {
     }) {
         return Err("File status changed; refresh and try again".into());
     }
-    let head = Command::new("git")
+    let head = process::git_command()
         .current_dir(root)
         .args(["rev-parse", "--verify", "--quiet", "HEAD"])
         .output()
@@ -212,7 +209,7 @@ pub fn unstage(root: &Path, entry: &Entry) -> Result<(), String> {
             entry.original.as_deref(),
         );
     }
-    let symbolic = Command::new("git")
+    let symbolic = process::git_command()
         .current_dir(root)
         .args(["symbolic-ref", "-q", "HEAD"])
         .output()
@@ -264,7 +261,7 @@ fn selected_hunk_patch(
     staged: bool,
     hunk_index: usize,
 ) -> Result<Vec<u8>, String> {
-    let mut command = Command::new("git");
+    let mut command = process::git_command();
     command.current_dir(root).arg("--literal-pathspecs").args([
         "diff",
         "--no-ext-diff",
@@ -315,7 +312,7 @@ fn extract_hunk(diff: &[u8], hunk_index: usize) -> Result<Vec<u8>, String> {
 }
 
 fn apply_hunk_patch(root: &Path, patch: &[u8], reverse: bool) -> Result<(), String> {
-    let mut command = Command::new("git");
+    let mut command = process::git_command();
     command
         .current_dir(root)
         .args(["apply", "--cached", "--unidiff-zero"]);
@@ -349,7 +346,7 @@ fn apply_hunk_patch(root: &Path, patch: &[u8], reverse: bool) -> Result<(), Stri
 }
 
 pub fn load_diff(root: &Path, entry: &Entry) -> Result<String, String> {
-    let mut command = Command::new("git");
+    let mut command = process::git_command();
     command
         .current_dir(root)
         .arg("--literal-pathspecs")

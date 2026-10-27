@@ -12,13 +12,13 @@ release SHA-256 checksum and installs `gitview` into `~/.local/bin`; it doesn't
 require GAH or Homebrew `findutils`.
 
 ```sh
-bash ./install.sh v0.4.1
+bash ./install.sh
 ```
 
-Choose **1** for the prebuilt release or **2** to build and install the crate
-from crates.io with Cargo. The Cargo option requires Rust and becomes available
-after a release is published to crates.io. Cargo builds the executable from
-source, so this option can take longer than downloading the prebuilt binary.
+Choose **1** for the prebuilt release or **2** to build and install the latest
+crate from crates.io with Cargo. The Cargo option requires Rust and builds the
+executable from source, so it can take longer than downloading the prebuilt
+binary.
 
 To install the latest release, omit the tag:
 
@@ -31,16 +31,14 @@ After the installer is published on `main`, you can run it directly with
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/barathrajd/gitview/main/install.sh \
-  | bash -s -- v0.4.1
+  | bash
 ```
 
-After v0.4.1 is published to crates.io, install it directly with Cargo:
+To install directly with Cargo:
 
 ```sh
-cargo install gitview --version 0.4.1 --locked
+cargo install gitview --locked
 ```
-
-To install the latest published version, run `cargo install gitview --locked`.
 
 Set `GITVIEW_INSTALL_DIR` to install somewhere other than `~/.local/bin`. The
 prebuilt release currently supports macOS Apple Silicon. Linux release
@@ -63,8 +61,8 @@ and `gitview --ascii` for plain terminal borders. Development checks are
 The `test-support` feature enables a test-only PTY probe for terminal
 restoration and is excluded from normal builds.
 
-Version 0.4.1 is built by the GitHub Actions release workflow on macOS Apple
-Silicon. Earlier versions were tested on macOS Apple Silicon with Rust 1.99.1.
+GitHub Actions builds the macOS Apple Silicon release archive. Earlier
+versions were tested on macOS Apple Silicon with Rust 1.99.1.
 Linux x86_64 was verified for version 0.2.1 but has not been rechecked for this
 release. Branch operations require `git switch`, introduced in Git 2.23; the
 minimum supported Git version has not yet been verified. Windows support
@@ -79,12 +77,52 @@ remains deferred.
   history search. **Up/Down** selects a result, **Enter** opens its details,
   **Backspace** edits the query, and **Esc** returns to history.
 - In the working-tree view, **s** stages the selected file, **u** unstages it,
-  and **r** refreshes status.
+  **S** stages all changes, **U** unstages all staged changes, and **r**
+  refreshes status. Open a file diff with **Enter** to select hunks with **[**
+  and **]**; **s/u** stage or unstage the selected hunk, and **S/U** act on the
+  whole file.
 - Press **b** to browse local branches. Select one and press **Enter**, or press
   **c** to create a branch from the current commit. Confirm with **y** or cancel
   with **n** or **Esc**.
-- **?** opens help and **Esc** closes it; **q** quits. Staging and unstaging
-  apply to the whole selected file, not individual hunks.
+- **?** opens help and **Esc** closes it; **q** quits. Each page shows its
+  available actions in the footer and help panel.
+
+## Git config profiles
+
+Gitview uses your normal global Git configuration by default. You can map
+folder trees to separate Git config files so repositories under a client or
+office folder use that account. Gitview applies the matching config to its own
+Git commands; without a match, it leaves Git's normal global configuration in
+place.
+
+The profile registry is `profiles.json` under `$XDG_CONFIG_HOME/gitview`, or
+`~/.config/gitview` when `XDG_CONFIG_HOME` is unset. A registry entry looks
+like this:
+
+```json
+{
+  "profiles": [
+    {
+      "name": "client",
+      "worktree_root": "/Users/you/Developer/Client",
+      "config_path": "profiles/client.gitconfig",
+      "enabled": true
+    }
+  ]
+}
+```
+
+Use an absolute folder path for `worktree_root`. `config_path` can be absolute
+or relative to Gitview's config directory. The deepest matching folder wins;
+`enabled` defaults to `true`. Keep credentials in Git credential helpers or
+SSH, not in profile files.
+
+Press **p** in Gitview to view profiles. Press **e** to open the registry in
+`$VISUAL` or `$EDITOR`, then **r** to reload it. The header shows the active
+profile. To make terminal `git` commands use the same folder mapping, run
+`gitview --shell-integration`, review the zsh function it prints, and add it to
+`~/.zshrc`. This shell integration is optional; remove the function from
+`~/.zshrc` to disable it.
 
 ## Try a demo
 

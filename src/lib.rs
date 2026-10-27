@@ -1,5 +1,6 @@
 pub mod app;
 pub mod branches;
+pub mod config;
 pub mod details;
 pub mod diff;
 pub mod history;

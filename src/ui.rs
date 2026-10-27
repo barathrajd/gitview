@@ -1,6 +1,7 @@
 use crate::{
     app::{BranchAction, View},
     branches::{Branches, HeadState},
+    config::FolderProfile,
     details::CommitDetails,
     history,
     worktree::{Entry, Section},
@@ -38,6 +39,7 @@ pub const HELP: &str = concat!(
     "u                   Unstage selected file               r                   Refresh worktree\n",
     "S                   Stage all worktree changes\n",
     "U                   Unstage all staged changes\n",
+    "p                   Git config profiles\n",
     "c                   Create branch in list               y                   Confirm branch operation\n",
     "n                   Cancel branch operation            Backspace           Edit search query\n",
     "Diff: [/] selects hunks; s stages an unstaged hunk and u unstages a staged hunk.\n",
@@ -57,6 +59,7 @@ const HELP_ROWS: &[(&str, &str, &str, &str)] = &[
     ("Esc", "Back or cancel", "h", "Back or cancel"),
     ("Tab", "Switch pane", "q", "Quit outside prompts"),
     ("?", "Help outside prompts", "b", "Browse local branches"),
+    ("p", "Git config profiles", "H", "Open history"),
     ("/", "Search history", "s", "Stage selected file"),
     ("u", "Unstage selected file", "r", "Refresh worktree"),
     ("c", "Create branch in list", "y", "Confirm branch"),
@@ -96,8 +99,11 @@ fn page_block(
         .title(title.into().style(Style::default().fg(ACCENT).bold()))
 }
 
-fn hint_rows<'a>(hints: &'a [(&'a str, &'a str)], width: u16) -> Vec<Vec<(&'a str, &'a str)>> {
-    let compact = width <= 80;
+fn hint_rows<'a>(
+    hints: &'a [(&'a str, &'a str)],
+    width: u16,
+    compact: bool,
+) -> Vec<Vec<(&'a str, &'a str)>> {
     let width = usize::from(width.max(1));
     let mut rows = Vec::new();
     let mut row = Vec::new();
@@ -119,8 +125,24 @@ fn hint_rows<'a>(hints: &'a [(&'a str, &'a str)], width: u16) -> Vec<Vec<(&'a st
 }
 
 fn render_key_hints(frame: &mut Frame<'_>, area: ratatui::layout::Rect, hints: &[(&str, &str)]) {
-    let rows = hint_rows(hints, area.width);
-    let compact = area.width <= 80;
+    render_key_hints_with_spacing(frame, area, hints, area.width <= 80);
+}
+
+fn render_key_hints_padded(
+    frame: &mut Frame<'_>,
+    area: ratatui::layout::Rect,
+    hints: &[(&str, &str)],
+) {
+    render_key_hints_with_spacing(frame, area, hints, false);
+}
+
+fn render_key_hints_with_spacing(
+    frame: &mut Frame<'_>,
+    area: ratatui::layout::Rect,
+    hints: &[(&str, &str)],
+    compact: bool,
+) {
+    let rows = hint_rows(hints, area.width, compact);
     let lines = rows
         .iter()
         .map(|row| {
@@ -164,7 +186,7 @@ fn render_key_hints(frame: &mut Frame<'_>, area: ratatui::layout::Rect, hints: &
 }
 
 fn hint_row_count(hints: &[(&str, &str)], width: u16) -> u16 {
-    u16::try_from(hint_rows(hints, width).len()).unwrap_or(u16::MAX)
+    u16::try_from(hint_rows(hints, width, width <= 80).len()).unwrap_or(u16::MAX)
 }
 
 fn render_help(frame: &mut Frame<'_>, border: ratatui::symbols::border::Set<'static>) {
@@ -283,6 +305,13 @@ pub fn render_help_overlay(
         ("Backspace", "Delete a character"),
         ("Esc", "Return to history"),
     ];
+    const PROFILES: &[(&str, &str)] = &[
+        ("e", "Edit the profile registry in your editor"),
+        ("r", "Reload and validate profile mappings"),
+        ("Esc, h", "Return to the repository"),
+        ("?", "Close this help panel"),
+        ("q", "Quit Gitview"),
+    ];
     let (title, hints) = match page {
         HelpPage::History => ("History", HISTORY),
         HelpPage::WorkingTree => ("Working tree", WORKTREE),
@@ -293,6 +322,7 @@ pub fn render_help_overlay(
         HelpPage::WorktreeDiff => ("Working tree diff", WORKTREE_DIFF),
         HelpPage::CommitDiff => ("Commit diff", COMMIT_DIFF),
         HelpPage::Search => ("Search", SEARCH),
+        HelpPage::Profiles => ("Git config profiles", PROFILES),
     };
 
     let screen = frame.area();
@@ -358,6 +388,7 @@ fn render_message_page(
 
 pub struct Cockpit<'a> {
     pub repository: &'a Path,
+    pub profile: &'a str,
     pub branches: Option<&'a Result<Branches, String>>,
     pub history: Option<&'a Result<Vec<String>, String>>,
     pub status: Option<&'a Result<Vec<Entry>, String>>,
@@ -408,6 +439,13 @@ pub enum Screen<'a> {
         pending: bool,
         selection: &'a mut ListState,
     },
+    Profiles {
+        profiles: &'a [FolderProfile],
+        selected: Option<usize>,
+        active_profile: &'a str,
+        registry_path: &'a Path,
+        feedback: &'a str,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -421,6 +459,7 @@ pub enum HelpPage {
     WorktreeDiff,
     CommitDiff,
     Search,
+    Profiles,
 }
 
 struct HistoryScreen<'a> {
@@ -527,7 +566,97 @@ pub fn render(
             pending,
             selection,
         } => render_search(frame, history, matches, query, pending, selection, border),
+        Screen::Profiles {
+            profiles,
+            selected,
+            active_profile,
+            registry_path,
+            feedback,
+        } => render_profiles(
+            frame,
+            profiles,
+            selected,
+            active_profile,
+            registry_path,
+            feedback,
+            border,
+        ),
     }
+}
+
+fn render_profiles(
+    frame: &mut Frame<'_>,
+    profiles: &[FolderProfile],
+    selected: Option<usize>,
+    active_profile: &str,
+    registry_path: &Path,
+    feedback: &str,
+    border: ratatui::symbols::border::Set<'static>,
+) {
+    let mut lines = vec![Line::from(Span::styled(
+        format!("Active account: {active_profile}"),
+        Style::default().fg(ACCENT).bold(),
+    ))];
+    if profiles.is_empty() {
+        lines.push(Line::from("No folder profiles configured."));
+    } else {
+        for (index, profile) in profiles.iter().enumerate() {
+            let marker = if Some(index) == selected { ">" } else { " " };
+            let state = if !profile.enabled {
+                "DISABLED"
+            } else if profile.name == active_profile {
+                "ACTIVE"
+            } else {
+                "ENABLED"
+            };
+            let style = if Some(index) == selected {
+                Style::default()
+                    .fg(Color::Rgb(226, 232, 240))
+                    .bg(BAR_BACKGROUND)
+            } else {
+                Style::default().fg(MUTED)
+            };
+            lines.push(Line::from(Span::styled(
+                format!("{marker} {}  [{state}]", profile.name),
+                style,
+            )));
+            if Some(index) == selected {
+                lines.push(Line::from(format!(
+                    "  Folder: {}",
+                    profile.worktree_root.display()
+                )));
+                lines.push(Line::from(format!(
+                    "  Config: {}",
+                    profile.config_path.display()
+                )));
+            }
+        }
+    }
+    if !feedback.is_empty() {
+        lines.push(Line::from(Span::styled(
+            feedback,
+            Style::default().fg(ACCENT),
+        )));
+    }
+    lines.push(Line::from(format!("Registry: {}", registry_path.display())));
+    let areas = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
+    frame.render_widget(
+        Paragraph::new(Text::from(lines))
+            .wrap(Wrap { trim: true })
+            .block(page_block("GIT CONFIG PROFILES", border)),
+        areas[0],
+    );
+    render_key_hints(
+        frame,
+        areas[1],
+        &[
+            ("e", "edit registry"),
+            ("r", "reload"),
+            ("Esc/h", "back"),
+            ("?", "help"),
+            ("q", "quit"),
+        ],
+    );
 }
 
 fn render_cockpit(
@@ -537,6 +666,7 @@ fn render_cockpit(
 ) {
     let Cockpit {
         repository,
+        profile,
         branches,
         history,
         status,
@@ -550,6 +680,7 @@ fn render_cockpit(
             ("W", "worktree"),
             ("Enter/l", "details"),
             ("b", "branches"),
+            ("p", "profiles"),
             ("/", "search"),
         ],
         View::WorkingTree => vec![
@@ -560,6 +691,7 @@ fn render_cockpit(
             ("S", "stage all"),
             ("U", "unstage all"),
             ("r", "refresh"),
+            ("p", "profiles"),
         ],
     };
     hints.extend([("j/k", "move"), ("?", "help"), ("q", "quit")]);
@@ -567,7 +699,7 @@ fn render_cockpit(
         Constraint::Length(3),
         Constraint::Min(6),
         Constraint::Length(1),
-        Constraint::Length(hint_row_count(&hints, frame.area().width)),
+        Constraint::Length(1),
     ])
     .split(frame.area());
 
@@ -593,6 +725,7 @@ fn render_cockpit(
             Style::default().fg(Color::Rgb(226, 232, 240)).bold(),
         ),
         Span::styled(format!(" branch: {branch}"), Style::default().fg(MUTED)),
+        Span::styled(format!("  account: {profile}"), Style::default().fg(MUTED)),
     ]);
     frame.render_widget(
         Paragraph::new(header).block(
@@ -688,7 +821,7 @@ fn render_cockpit(
         ])),
         sections[2],
     );
-    render_key_hints(frame, sections[3], &hints);
+    render_key_hints_padded(frame, sections[3], &hints);
 }
 
 fn render_worktree_panel(
@@ -1223,16 +1356,13 @@ fn worktree_selection_style(
         .and_then(|result| result.as_ref().ok())
         .and_then(|entries| selected.and_then(|index| entries.get(index)))
         .map(|entry| entry.section);
-    match section {
-        Some(Section::Unstaged | Section::Untracked) => Style::default()
-            .bg(Color::Rgb(74, 55, 20))
-            .fg(Color::Rgb(255, 237, 180))
-            .bold(),
-        _ => Style::default()
-            .bg(Color::Rgb(25, 43, 52))
-            .fg(Color::Rgb(241, 245, 249))
-            .bold(),
-    }
+    let background = match section {
+        Some(Section::Staged) => Color::Rgb(20, 65, 63),
+        Some(Section::Unstaged) => Color::Rgb(74, 55, 20),
+        Some(Section::Untracked) => Color::Rgb(30, 58, 88),
+        None => Color::Rgb(30, 41, 59),
+    };
+    Style::default().bg(background).bold()
 }
 
 fn render_history(

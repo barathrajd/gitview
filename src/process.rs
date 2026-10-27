@@ -1,7 +1,40 @@
 use std::{
     io::Read,
     process::{Command, ExitStatus, Stdio},
+    sync::{OnceLock, RwLock},
 };
+
+use crate::config::GitConfigContext;
+
+static GIT_CONFIG_CONTEXT: OnceLock<RwLock<GitConfigContext>> = OnceLock::new();
+
+/// Install the repository-specific config context before starting Git workers.
+pub fn install_git_config_context(context: GitConfigContext) -> Result<(), String> {
+    GIT_CONFIG_CONTEXT
+        .set(RwLock::new(context))
+        .map_err(|_| "Git config context was already initialized".to_string())
+}
+
+/// Replace the active account config after profile settings change.
+pub fn update_git_config_context(context: GitConfigContext) -> Result<(), String> {
+    let lock = GIT_CONFIG_CONTEXT
+        .get()
+        .ok_or_else(|| "Git config context was not initialized".to_string())?;
+    *lock
+        .write()
+        .map_err(|_| "Git config context lock is unavailable".to_string())? = context;
+    Ok(())
+}
+
+/// Create every Git subprocess with the selected account config applied.
+pub fn git_command() -> Command {
+    let mut command = Command::new("git");
+    if let Some(context) = GIT_CONFIG_CONTEXT.get() {
+        let context = context.read().unwrap_or_else(|error| error.into_inner());
+        context.apply(&mut command);
+    }
+    command
+}
 
 pub struct LimitedOutput {
     pub stdout: Vec<u8>,

@@ -1,6 +1,7 @@
 use gitview::{
     app::BranchAction,
     branches::{Branches, HeadState},
+    config::FolderProfile,
     details::CommitDetails,
     ui::{HelpPage, Screen, render, render_help_overlay},
     worktree::{Entry, Section},
@@ -109,6 +110,42 @@ fn renders_help_and_loading_or_empty_history_states() {
 }
 
 #[test]
+fn profile_page_shows_active_and_disabled_folder_mappings() {
+    let profiles = vec![
+        FolderProfile {
+            name: "client-office".into(),
+            worktree_root: Path::new("/work/clients/office").to_path_buf(),
+            config_path: Path::new("/home/user/.config/gitview/office.gitconfig").to_path_buf(),
+            enabled: true,
+        },
+        FolderProfile {
+            name: "old-contract".into(),
+            worktree_root: Path::new("/work/contracts/old").to_path_buf(),
+            config_path: Path::new("/home/user/.config/gitview/old.gitconfig").to_path_buf(),
+            enabled: false,
+        },
+    ];
+    let rendered = draw(
+        Screen::Profiles {
+            profiles: &profiles,
+            selected: Some(0),
+            active_profile: "client-office",
+            registry_path: Path::new("/home/user/.config/gitview/profiles.json"),
+            feedback: "",
+        },
+        100,
+        24,
+    );
+
+    assert!(rendered.contains("GIT CONFIG PROFILES"));
+    assert!(rendered.contains("client-office"));
+    assert!(rendered.contains("ACTIVE"));
+    assert!(rendered.contains("DISABLED"));
+    assert!(rendered.contains("profiles.json"));
+    assert!(rendered.contains("edit registry"));
+}
+
+#[test]
 fn renders_debounced_search_result_list() {
     let history = Ok(vec![
         "* abcdef0 Unrelated change - Alex\u{1f}abcdef0".to_owned(),
@@ -164,6 +201,58 @@ fn renders_working_tree_files_and_branch_confirmation() {
     );
     assert!(confirmation.contains("Switch to local branch"));
     assert!(confirmation.contains("topic"));
+}
+
+#[test]
+fn selected_worktree_rows_use_status_specific_highlight_colors() {
+    let cases = [
+        (
+            Section::Staged,
+            "S",
+            ratatui::style::Color::Rgb(94, 234, 212),
+            ratatui::style::Color::Rgb(20, 65, 63),
+        ),
+        (
+            Section::Unstaged,
+            "E",
+            ratatui::style::Color::Rgb(251, 191, 36),
+            ratatui::style::Color::Rgb(74, 55, 20),
+        ),
+        (
+            Section::Untracked,
+            "N",
+            ratatui::style::Color::Rgb(147, 197, 253),
+            ratatui::style::Color::Rgb(30, 58, 88),
+        ),
+    ];
+
+    for (section, label, foreground, background) in cases {
+        let status = Ok(vec![Entry {
+            section,
+            path: OsString::from("file"),
+            original: None,
+        }]);
+        let mut selection = ListState::default();
+        selection.select(Some(0));
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    Screen::WorkingTree {
+                        status: Some(&status),
+                        selection: &mut selection,
+                    },
+                    ratatui::symbols::border::PLAIN,
+                )
+            })
+            .unwrap();
+
+        assert!(terminal.backend().buffer().content().iter().any(|cell| {
+            cell.symbol() == label && cell.fg == foreground && cell.bg == background
+        }));
+    }
 }
 
 #[test]

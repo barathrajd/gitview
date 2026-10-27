@@ -509,6 +509,7 @@ dependencies = [
  "libc",
  "ratatui",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
