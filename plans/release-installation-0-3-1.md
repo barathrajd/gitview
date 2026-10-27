@@ -1,4 +1,4 @@
-# License and local installation for 0.3.1
+# License, local installation, and release automation for 0.3.1
 
 This patch release adds explicit MIT licensing and a simple current-user
 installation route for Gitview's macOS Apple Silicon release.
@@ -14,14 +14,20 @@ their local executable directory without requiring `sudo`.
 - Document the upstream GAH installer and the command to install Gitview from
   its GitHub release into `~/.local/bin`.
 - Update package and release metadata to version 0.3.1.
+- Set up Release Please to open release pull requests from Conventional
+  Commits, and upload the macOS Apple Silicon archive after a release is
+  created.
 
 ## Acceptance criteria
 
 - [x] The repository contains the standard MIT license text.
 - [x] The README documents installing GAH and Gitview for the current user.
 - [x] Cargo metadata, CLI output, and release archive report `0.3.1`.
-- [ ] GAH installs the released binary into `~/.local/bin` on macOS Apple
-  Silicon.
+- [x] GAH installs the released binary into `~/.local/bin` on macOS Apple
+  Silicon (using GNU `find` from Homebrew `findutils`).
+- [x] Release Please configuration and GitHub Actions workflow are published.
+- [x] The v0.3.1 GitHub release has the matching title/tag, archive, and
+  checksum.
 
 ## Release boundary
 

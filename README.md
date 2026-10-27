@@ -11,13 +11,17 @@ Install GAH and use it to place Gitview in `~/.local/bin`:
 ```sh
 curl -fsSL \
   https://raw.githubusercontent.com/get-gah/gah/v1.13.0/tools/install.sh | bash
-gah install barathrajd/gitview --tag=v0.3.1
+brew install findutils
+PATH="$(brew --prefix findutils)/libexec/gnubin:$PATH" \
+  gah install barathrajd/gitview --tag=v0.3.1
 ```
 
 Ensure `~/.local/bin` is on your `PATH`. GAH installs there by default for the
-current user. Gitview currently publishes a binary for macOS Apple Silicon;
-Linux release packaging remains deferred. You can also download the archive
-from the [GitHub releases](https://github.com/barathrajd/gitview/releases).
+current user. On macOS, GAH needs GNU `find` from Homebrew's `findutils` because
+the system `find` does not support the option GAH uses. Gitview currently
+publishes a binary for macOS Apple Silicon; Linux release packaging remains
+deferred. You can also download the archive from the
+[GitHub releases](https://github.com/barathrajd/gitview/releases).
 
 ## Build and run
 
@@ -83,3 +87,10 @@ provided.
 ## License
 
 Gitview is available under the MIT License. See [LICENSE](LICENSE).
+
+## Release automation
+
+Release Please opens or updates a release pull request from Conventional
+Commits on `main`. Merging that pull request updates the Rust package version
+and changelog, creates the matching `v` tag and GitHub release, then builds and
+uploads the macOS Apple Silicon archive and SHA-256 checksum.
