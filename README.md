@@ -2,6 +2,16 @@
 
 Gitview is a keyboard-first terminal interface for reviewing Git history and working-tree changes. This is an **MVP in development**, not a published release.
 
+## Install a preview archive
+
+On Apple Silicon macOS, extract the preview archive and run its `gitview` binary from the Git repository you want to inspect:
+
+```sh
+tar -xzf gitview-v0.1.0-preview-macos-arm64.tar.gz
+# From a Git repository, use the absolute path to the extracted binary:
+/path/to/extracted/gitview
+```
+
 ## Build and run
 
 Install Rust and Git, then from the Gitview source directory run:
