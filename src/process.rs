@@ -30,13 +30,30 @@ pub fn limited_output(command: &mut Command, limit: usize) -> Result<LimitedOutp
         saved
     });
     let mut stdout = Vec::new();
-    let read_result = child
-        .stdout
-        .take()
-        .ok_or("Missing Git stdout")?
-        .take(limit as u64 + 1)
-        .read_to_end(&mut stdout);
-    let truncated = stdout.len() > limit;
+    let mut pipe = child.stdout.take().ok_or("Missing Git stdout")?;
+    let mut buffer = [0u8; 8192];
+    let mut lines = 0usize;
+    let mut truncated = false;
+    let read_result: std::io::Result<()> = (|| {
+        loop {
+            let count = pipe.read(&mut buffer)?;
+            if count == 0 {
+                break;
+            }
+            for byte in &buffer[..count] {
+                if stdout.len() == limit || lines == 5000 {
+                    truncated = true;
+                    return Ok(());
+                }
+                stdout.push(*byte);
+                if *byte == b'\n' {
+                    lines += 1;
+                }
+            }
+        }
+        Ok(())
+    })();
+    drop(pipe);
     if truncated || read_result.is_err() {
         let _ = child.kill();
     }

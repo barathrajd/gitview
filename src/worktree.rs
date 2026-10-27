@@ -219,7 +219,7 @@ pub fn load_diff(root: &Path, entry: &Entry) -> Result<String, String> {
     }
     let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
     if output.truncated {
-        text.insert_str(0, "[diff truncated after 1 MB]\n");
+        text.insert_str(0, "[diff truncated at 1 MB or 5000 lines]\n");
     }
     Ok(text)
 }

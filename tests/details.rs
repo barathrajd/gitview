@@ -250,5 +250,6 @@ fn limits_large_diff_output_and_reports_truncation() {
     ]);
     let diff = load_diff(&path, "HEAD", "large.txt").unwrap();
     assert!(diff.len() < 1_100_000 && diff.contains("diff truncated"));
+    assert!(diff.lines().count() <= 5001);
     fs::remove_dir_all(path).unwrap();
 }
