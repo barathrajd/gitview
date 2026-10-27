@@ -51,3 +51,23 @@ fn help_documents_ascii_mode() {
         .unwrap();
     assert!(String::from_utf8_lossy(&output.stdout).contains("--ascii"));
 }
+
+#[test]
+fn version_and_help_show_navigation_keys() {
+    let version = Command::new(env!("CARGO_BIN_EXE_gitview"))
+        .arg("--version")
+        .current_dir(std::env::temp_dir())
+        .output()
+        .unwrap();
+    assert!(version.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&version.stdout).trim(),
+        "gitview 0.2.0"
+    );
+    let help = Command::new(env!("CARGO_BIN_EXE_gitview"))
+        .arg("--help")
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&help.stdout);
+    assert!(text.contains("j/k") && text.contains("h/l"));
+}

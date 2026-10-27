@@ -1,4 +1,5 @@
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm_keybind::{KeyBind, KeyBindTrait};
 use ratatui::{
     DefaultTerminal,
     layout::{Constraint, Layout},
@@ -10,6 +11,18 @@ use std::{
     env, io,
     process::{Command, ExitCode},
 };
+
+#[derive(KeyBind)]
+enum Navigation {
+    #[keybindings["j"]]
+    Down,
+    #[keybindings["k"]]
+    Up,
+    #[keybindings["h"]]
+    Back,
+    #[keybindings["l"]]
+    Open,
+}
 
 #[derive(Clone)]
 enum BranchAction {
@@ -28,7 +41,7 @@ const ASCII_BORDER: ratatui::symbols::border::Set<'static> = ratatui::symbols::b
     horizontal_bottom: "-",
 };
 
-const HELP: &str = "Up/Down  Navigate and scroll\nEnter    Open commit or diff\nEsc      Go back\nTab      Switch history / working tree\nb        Browse local branches\nc        Create a branch (in branch view)\ny / n    Confirm / cancel branch operation\n/        Search message, author or hash\nn        Next search match\ns        Stage selected file\nu        Unstage selected file\nr        Refresh working tree\n?        Toggle help\nq        Quit";
+const HELP: &str = "Up/Down or j/k  Navigate and scroll\nEnter / Esc or h/l  Open / back (l / h)\nTab      Switch history / working tree\nb        Browse local branches\nc        Create a branch (in branch view)\ny / n    Confirm / cancel branch operation\n/        Search message, author or hash\nn        Next search match\ns        Stage selected file\nu        Unstage selected file\nr        Refresh working tree\n?        Toggle help\nq        Quit";
 
 fn run() -> Result<(), String> {
     if env::args()
@@ -36,10 +49,19 @@ fn run() -> Result<(), String> {
         .any(|arg| arg == "--help" || arg == "-h")
     {
         println!(
-            "Usage: gitview [--ascii]\n\nOpen the current Git repository. Use --ascii for plain terminal borders.\n\n{HELP}"
+            "Usage: gitview [--ascii] [--version]\n\nOpen the current Git repository. Use --ascii for plain terminal borders.\n\n{HELP}"
         );
         return Ok(());
     }
+    if env::args()
+        .skip(1)
+        .any(|arg| arg == "--version" || arg == "-V")
+    {
+        println!("gitview {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+    Navigation::init_and_load_file(None)
+        .map_err(|e| format!("Could not initialize keybindings: {e}"))?;
     let ascii = env::args().any(|arg| arg == "--ascii");
     let output = Command::new("git")
         .args(["rev-parse", "--show-toplevel"])
@@ -234,7 +256,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 let feedback_lines = branch_feedback.lines().map(|line| line.chars().count().max(1).div_ceil(width)).sum::<usize>().max(1);
                 let feedback_height = u16::try_from(feedback_lines).unwrap_or(u16::MAX).min(available).min(8);
                 let areas = Layout::vertical([Constraint::Min(3), Constraint::Length(feedback_height)]).split(frame.area());
-                let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>()).block(Block::bordered().border_set(border).title(format!("{heading} | Enter switch | c create | Esc back"))).highlight_symbol("> ");
+                let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>()).block(Block::bordered().border_set(border).title(format!("{heading} | Enter/l switch | c create | Esc/h back"))).highlight_symbol("> ");
                 frame.render_stateful_widget(list, areas[0], &mut branch_selection);
                 frame.render_widget(Paragraph::new(branch_feedback.as_str()).wrap(Wrap { trim: false }), areas[1]);
             } else if let Some((_, value)) = &diff {
@@ -265,7 +287,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                             .block(
                                 Block::bordered()
                                     .border_set(border)
-                                    .title("Before - up/down scroll | Esc back"),
+                                    .title("Before - up/down or j/k scroll | Esc back"),
                             ),
                         panes[0],
                     );
@@ -283,7 +305,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                             .block(
                                 Block::bordered()
                                     .border_set(border)
-                                    .title("Diff - up/down scroll | Esc back"),
+                                    .title("Diff - up/down or j/k scroll | Esc back"),
                             ),
                         frame.area(),
                     );
@@ -325,7 +347,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                             .block(
                                 Block::bordered()
                                     .border_set(border)
-                                    .title("Files - up/down select | Enter diff"),
+                                    .title("Files - up/down or j/k select | Enter diff"),
                             )
                             .highlight_symbol("> ");
                         frame.render_stateful_widget(list, sections[1], &mut file_selection);
@@ -469,7 +491,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                     }
                     continue;
                 }
-                match key.code {
+                match navigation_key(key) {
                     KeyCode::Char('c') => {
                         if let Some(Ok(data)) = &branches {
                             if data.head_commit.is_some() {
@@ -517,7 +539,7 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
                 }
                 continue;
             }
-            match key.code {
+            match navigation_key(key) {
                 KeyCode::Char('q') if !mutation_pending => return Ok(()),
                 KeyCode::Char('?') => help = !help,
                 KeyCode::Char('b')
@@ -732,6 +754,16 @@ fn app(terminal: &mut DefaultTerminal, root: &std::path::Path, ascii: bool) -> i
     }
 }
 
+fn navigation_key(key: KeyEvent) -> KeyCode {
+    match Navigation::dispatch(&key).first() {
+        Some(Navigation::Down) => KeyCode::Down,
+        Some(Navigation::Up) => KeyCode::Up,
+        Some(Navigation::Back) => KeyCode::Esc,
+        Some(Navigation::Open) => KeyCode::Enter,
+        None => key.code,
+    }
+}
+
 fn styled_diff_line(line: &str) -> Line<'static> {
     let color = if line.starts_with('+') && !line.starts_with("+++") {
         Color::Green
@@ -750,5 +782,35 @@ fn main() -> ExitCode {
             eprintln!("{error}");
             ExitCode::FAILURE
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crossterm::event::KeyModifiers;
+
+    #[test]
+    fn keybinding_library_maps_vim_navigation_without_capturing_modifiers() {
+        Navigation::init_and_load_file(None).unwrap();
+        for (letter, expected) in [
+            ('j', KeyCode::Down),
+            ('k', KeyCode::Up),
+            ('h', KeyCode::Esc),
+            ('l', KeyCode::Enter),
+        ] {
+            assert_eq!(
+                navigation_key(KeyEvent::new(KeyCode::Char(letter), KeyModifiers::NONE)),
+                expected
+            );
+            assert_eq!(
+                navigation_key(KeyEvent::new(KeyCode::Char(letter), KeyModifiers::CONTROL)),
+                KeyCode::Char(letter)
+            );
+        }
+        assert_eq!(
+            navigation_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+            KeyCode::Down
+        );
     }
 }

@@ -26,7 +26,7 @@ The current build and terminal checks have been performed on macOS with Rust 1.9
 
 ## Controls
 
-- **Up/Down** navigate lists or scroll a diff; **Enter** opens a commit or file; **Esc** goes back.
+- **Up/Down** or **j/k** navigate lists and scroll diffs; **Enter** or **l** opens a commit or file; **Esc** or **h** goes back. Search and branch-name prompts accept these letters as normal text.
 - **Tab** switches between history and the working tree. **/** searches history by message, author, or hash; **n** finds the next match.
 - In the working-tree view, **s** stages the selected file, **u** unstages it, and **r** refreshes status.
 - Press **b** to browse local branches. Select one and press **Enter**, or press **c** to create a branch from the current commit; confirm with **y** or cancel with **n** or **Esc**.
