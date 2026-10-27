@@ -2,11 +2,11 @@
 
 ## Now
 
-- No active feature; choose the next item to plan.
+- [Local branches](plans/local-branches.md) — browse, switch, and create local branches safely.
 
 ## Next
 
-- Branch and remote operations — add checkout, branch creation, and fetch/pull/push with progress and confirmation.
+- Remote operations — add fetch/pull/push with progress and confirmation.
 - Compare and filter — compare arbitrary revisions and improve history navigation.
 
 ## Later
