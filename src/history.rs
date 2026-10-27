@@ -29,8 +29,25 @@ pub fn load_history(root: &Path) -> Result<Vec<String>, String> {
             String::from_utf8_lossy(&output.stderr).trim()
         ));
     }
-    Ok(String::from_utf8_lossy(&output.stdout)
+    let mut rows: Vec<String> = String::from_utf8_lossy(&output.stdout)
         .lines()
         .map(str::to_owned)
-        .collect())
+        .collect();
+    if !rows.is_empty() {
+        let remaining = Command::new("git")
+            .current_dir(root)
+            .args(["rev-list", "--all", "--skip=200", "--max-count=1"])
+            .output()
+            .map_err(|error| format!("Unable to check history limit: {error}"))?;
+        if !remaining.status.success() {
+            return Err(format!(
+                "Unable to check history limit: {}",
+                String::from_utf8_lossy(&remaining.stderr).trim()
+            ));
+        }
+        if !remaining.stdout.is_empty() {
+            rows.insert(0, "[history truncated to 200 commits]".to_owned());
+        }
+    }
+    Ok(rows)
 }
