@@ -6,7 +6,7 @@
 
 ## Next
 
-- No additional committed feature is queued.
+- [Gitview 0.3.0: UI navigation polish](plans/ui-navigation-0-3-0.md) — release the responsive cockpit, clearer search flow, compact shortcut bar, and diff line numbers.
 
 ## Later
 
