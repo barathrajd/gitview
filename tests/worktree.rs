@@ -177,3 +177,63 @@ fn previews_staged_unstaged_and_untracked_files() {
     );
     fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn unstages_both_sides_of_a_selected_rename() {
+    use gitview::worktree::unstage;
+    let root = std::env::temp_dir().join(format!(
+        "gitview-rename-stage-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&root).unwrap();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .current_dir(&root)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        )
+    };
+    git(&["init", "-q"]);
+    fs::write(root.join("old name"), "content\n").unwrap();
+    git(&["add", "--", "old name"]);
+    git(&[
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-qm",
+        "base",
+    ]);
+    fs::rename(root.join("old name"), root.join("new name")).unwrap();
+    git(&["add", "-A"]);
+    let entries = load_status(&root).unwrap();
+    let renamed = entries
+        .iter()
+        .find(|entry| entry.section == Section::Staged && entry.path == "new name")
+        .unwrap();
+    let preview = gitview::worktree::load_diff(&root, renamed).unwrap();
+    assert!(preview.contains("rename from old name") && preview.contains("rename to new name"));
+    unstage(&root, renamed).unwrap();
+    let entries = load_status(&root).unwrap();
+    assert!(!entries.iter().any(|entry| entry.section == Section::Staged));
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry.section == Section::Unstaged && entry.path == "old name")
+    );
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry.section == Section::Untracked && entry.path == "new name")
+    );
+    fs::remove_dir_all(root).unwrap();
+}

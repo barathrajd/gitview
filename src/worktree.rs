@@ -11,7 +11,7 @@ pub enum Section {
 pub struct Entry {
     pub section: Section,
     pub path: OsString,
-    pub renamed: bool,
+    pub original: Option<OsString>,
 }
 
 pub fn load_status(root: &Path) -> Result<Vec<Entry>, String> {
@@ -36,7 +36,7 @@ pub fn load_status(root: &Path) -> Result<Vec<Entry>, String> {
             b'?' if record.starts_with(b"? ") => entries.push(Entry {
                 section: Section::Untracked,
                 path: path_from_bytes(&record[2..]),
-                renamed: false,
+                original: None,
             }),
             b'1' | b'2' => {
                 let rename = record[0] == b'2';
@@ -48,22 +48,29 @@ pub fn load_status(root: &Path) -> Result<Vec<Entry>, String> {
                     return Err("Invalid Git status record".into());
                 }
                 let path = path_from_bytes(fields[expected - 1]);
+                let original = if rename {
+                    Some(path_from_bytes(
+                        records
+                            .next()
+                            .filter(|r| !r.is_empty())
+                            .ok_or("Incomplete Git rename record")?,
+                    ))
+                } else {
+                    None
+                };
                 if fields[1][0] != b'.' {
                     entries.push(Entry {
                         section: Section::Staged,
                         path: path.clone(),
-                        renamed: rename,
+                        original: original.clone(),
                     });
                 }
                 if fields[1][1] != b'.' {
                     entries.push(Entry {
                         section: Section::Unstaged,
                         path,
-                        renamed: rename,
+                        original: original.clone(),
                     });
-                }
-                if rename && records.next().is_none() {
-                    return Err("Incomplete Git rename record".into());
                 }
             }
             b'u' => {
@@ -93,13 +100,23 @@ fn path_from_bytes(bytes: &[u8]) -> OsString {
     OsString::from(String::from_utf8_lossy(bytes).into_owned())
 }
 
-fn run_action(root: &Path, args: &[&str], path: &std::ffi::OsStr) -> Result<(), String> {
-    let output = Command::new("git")
+fn run_action(
+    root: &Path,
+    args: &[&str],
+    path: &std::ffi::OsStr,
+    original: Option<&std::ffi::OsStr>,
+) -> Result<(), String> {
+    let mut command = Command::new("git");
+    command
         .current_dir(root)
         .arg("--literal-pathspecs")
         .args(args)
         .arg("--")
-        .arg(path)
+        .arg(path);
+    if let Some(original) = original {
+        command.arg(original);
+    }
+    let output = command
         .output()
         .map_err(|e| format!("Could not run Git: {e}"))?;
     if output.status.success() {
@@ -113,26 +130,24 @@ fn run_action(root: &Path, args: &[&str], path: &std::ffi::OsStr) -> Result<(), 
 }
 
 pub fn stage(root: &Path, entry: &Entry) -> Result<(), String> {
-    if entry.renamed || entry.section == Section::Staged {
-        return Err("Select an unstaged or untracked non-renamed file".into());
+    if entry.section == Section::Staged {
+        return Err("Select an unstaged or untracked file".into());
     }
-    if !load_status(root)?
-        .iter()
-        .any(|item| item.section == entry.section && item.path == entry.path && !item.renamed)
-    {
+    if !load_status(root)?.iter().any(|item| {
+        item.section == entry.section && item.path == entry.path && item.original == entry.original
+    }) {
         return Err("File status changed; refresh and try again".into());
     }
-    run_action(root, &["add", "-A"], &entry.path)
+    run_action(root, &["add", "-A"], &entry.path, None)
 }
 
 pub fn unstage(root: &Path, entry: &Entry) -> Result<(), String> {
-    if entry.renamed || entry.section != Section::Staged {
-        return Err("Select a staged non-renamed file".into());
+    if entry.section != Section::Staged {
+        return Err("Select a staged file".into());
     }
-    if !load_status(root)?
-        .iter()
-        .any(|item| item.section == entry.section && item.path == entry.path && !item.renamed)
-    {
+    if !load_status(root)?.iter().any(|item| {
+        item.section == entry.section && item.path == entry.path && item.original == entry.original
+    }) {
         return Err("File status changed; refresh and try again".into());
     }
     let head = Command::new("git")
@@ -141,7 +156,12 @@ pub fn unstage(root: &Path, entry: &Entry) -> Result<(), String> {
         .output()
         .map_err(|e| format!("Could not check HEAD: {e}"))?;
     if head.status.success() {
-        return run_action(root, &["restore", "--staged"], &entry.path);
+        return run_action(
+            root,
+            &["restore", "--staged"],
+            &entry.path,
+            entry.original.as_deref(),
+        );
     }
     let symbolic = Command::new("git")
         .current_dir(root)
@@ -151,7 +171,12 @@ pub fn unstage(root: &Path, entry: &Entry) -> Result<(), String> {
     if !symbolic.status.success() || head.status.code() != Some(1) {
         return Err("Cannot determine whether HEAD is unborn; index unchanged".into());
     }
-    run_action(root, &["rm", "--cached", "-f"], &entry.path)
+    run_action(
+        root,
+        &["rm", "--cached", "-f"],
+        &entry.path,
+        entry.original.as_deref(),
+    )
 }
 
 pub fn load_diff(root: &Path, entry: &Entry) -> Result<String, String> {
@@ -171,11 +196,16 @@ pub fn load_diff(root: &Path, entry: &Entry) -> Result<String, String> {
             ])
             .arg(&entry.path);
     } else {
-        command.args(["--no-ext-diff", "--no-color"]);
+        command.args(["--no-ext-diff", "--no-color", "--find-renames"]);
         if entry.section == Section::Staged {
             command.arg("--cached");
         }
         command.arg("--").arg(&entry.path);
+        if entry.section == Section::Staged {
+            if let Some(original) = &entry.original {
+                command.arg(original);
+            }
+        }
     }
     let output = command
         .output()
