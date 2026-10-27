@@ -349,7 +349,7 @@ fn render_cockpit(
     let mut hints = match focused {
         View::History => vec![
             ("Tab", "pane"),
-            ("Enter", "details"),
+            ("Enter/l", "details"),
             ("b", "branches"),
             ("/", "search"),
             ("n", "next match"),
@@ -833,7 +833,7 @@ fn render_commit_details(
         Some(Ok(commit)) => {
             let hints = [
                 ("j/k", "select"),
-                ("Enter", "diff"),
+                ("Enter/l", "diff"),
                 ("Esc/h", "back"),
                 ("q", "quit"),
                 ("?", "help"),
@@ -934,7 +934,7 @@ fn render_history(
     } else {
         &[
             ("j/k", "move"),
-            ("Enter", "details"),
+            ("Enter/l", "details"),
             ("b", "branches"),
             ("/", "search"),
             ("n", "next match"),

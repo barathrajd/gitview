@@ -239,5 +239,6 @@ fn renders_branch_and_commit_details() {
     assert!(commit.contains("Add a feature"));
     assert!(commit.contains("src/main.rs"));
     assert!(commit.contains("j/k"));
+    assert!(commit.contains("Enter/l"));
     assert!(commit.contains("diff"));
 }
