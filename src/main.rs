@@ -28,7 +28,7 @@ fn run() -> Result<(), String> {
     if !output.status.success() {
         return Err("Not in a Git repository. Run gitview from a repository.".into());
     }
-    let root = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    let root = gitview::repository::parse_root(&output.stdout);
     let mut terminal =
         ratatui::try_init().map_err(|e| format!("Could not initialize terminal: {e}"))?;
     let result = app(&mut terminal, &root);
@@ -36,7 +36,7 @@ fn run() -> Result<(), String> {
     result.map_err(|e| format!("Terminal error: {e}"))
 }
 
-fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
+fn app(terminal: &mut DefaultTerminal, root: &std::path::Path) -> io::Result<()> {
     let mut help = false;
     let mut searching = false;
     let mut query = String::new();
@@ -218,7 +218,10 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                 } else if !search_message.is_empty() {
                     search_message.clone()
                 } else {
-                    format!("Gitview — {root} — / search • ? help • q quit")
+                    format!(
+                        "Gitview — / search • Tab changes • ? help • q quit — {}",
+                        root.display()
+                    )
                 };
                 let list = List::new(items)
                     .block(Block::bordered().title(title))
