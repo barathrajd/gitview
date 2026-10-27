@@ -4,9 +4,7 @@
   "include-component-in-tag": false,
   "include-v-in-tag": true,
   "include-v-in-release-name": true,
-  "exclude-paths": [
-    ".release-please-config.json"
-  ],
+  "last-release-sha": "d400d71b8aef283f18bda74125e8fb807df9d698",
   "packages": {
     ".": {
       "package-name": "gitview"
