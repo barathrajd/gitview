@@ -186,7 +186,7 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                     Some(Ok(entries)) if entries.is_empty() => vec!["Working tree clean".to_owned()],
                     Some(Ok(entries)) => entries.iter().map(|entry| format!("{:?}  {}", entry.section, entry.path.to_string_lossy())).collect(),
                 };
-                let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>()).block(Block::bordered().title("Working tree — s stage • u unstage • r refresh • Tab history")).highlight_symbol("> ");
+                let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>()).block(Block::bordered().title("Working tree — Enter diff • s stage • u unstage • Tab history")).highlight_symbol("> ");
                 frame.render_stateful_widget(list, frame.area(), &mut status_selection);
             } else {
                 let lines = match &history {
@@ -269,6 +269,27 @@ fn app(terminal: &mut DefaultTerminal, root: &str) -> io::Result<()> {
                             diff = None;
                         } else {
                             details = None;
+                        }
+                    }
+                    KeyCode::Enter if !help && tree_view && diff.is_none() => {
+                        if let (Some(Ok(entries)), Some(index)) =
+                            (&status, status_selection.selected())
+                        {
+                            if let Some(entry) = entries.get(index) {
+                                let entry = entry.clone();
+                                request_id += 1;
+                                let current = request_id;
+                                let sender = diff_sender.clone();
+                                let path = std::path::PathBuf::from(root);
+                                diff = Some((current, None));
+                                diff_scroll = 0;
+                                std::thread::spawn(move || {
+                                    let _ = sender.send((
+                                        current,
+                                        gitview::worktree::load_diff(&path, &entry),
+                                    ));
+                                });
+                            }
                         }
                     }
                     KeyCode::Enter if !help && details.is_none() && !tree_view => {

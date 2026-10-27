@@ -153,3 +153,40 @@ pub fn unstage(root: &Path, entry: &Entry) -> Result<(), String> {
     }
     run_action(root, &["rm", "--cached", "-f"], &entry.path)
 }
+
+pub fn load_diff(root: &Path, entry: &Entry) -> Result<String, String> {
+    let mut command = Command::new("git");
+    command
+        .current_dir(root)
+        .arg("--literal-pathspecs")
+        .arg("diff");
+    if entry.section == Section::Untracked {
+        command
+            .args([
+                "--no-index",
+                "--no-ext-diff",
+                "--no-color",
+                "--",
+                "/dev/null",
+            ])
+            .arg(&entry.path);
+    } else {
+        command.args(["--no-ext-diff", "--no-color"]);
+        if entry.section == Section::Staged {
+            command.arg("--cached");
+        }
+        command.arg("--").arg(&entry.path);
+    }
+    let output = command
+        .output()
+        .map_err(|e| format!("Could not run Git: {e}"))?;
+    if !output.status.success()
+        && !(entry.section == Section::Untracked && output.status.code() == Some(1))
+    {
+        return Err(format!(
+            "Could not load diff: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
