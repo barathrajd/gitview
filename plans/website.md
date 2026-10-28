@@ -43,6 +43,9 @@ The implementation is complete when these outcomes can be checked directly.
   terminal screenshot has a 140-column version for desktop and a 64-column
   version captured from the same binary for phones, so none needs sideways
   scrolling. Elements that still scroll sideways hide their scrollbars.
+- Below 640 px the navigation collapses into a menu button that opens a panel
+  with Features, Changelog, Install, and GitHub links. It works with the
+  keyboard, closes on Escape or a link choice, and exposes `aria-expanded`.
 - The install tabs and copy command work with keyboard and pointer input, and
   copy feedback is announced accessibly.
 - The page includes page title, description, canonical URL, Open Graph metadata,

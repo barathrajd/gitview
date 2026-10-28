@@ -16,13 +16,13 @@ import { href } from "../lib/base";
       <span class="font-mono text-[15px] font-semibold tracking-tight text-slate-100">gitview<span class="text-emerald-400">.</span></span>
     </a>
 
-    <div class="flex items-center gap-5 sm:gap-8">
+    <div class="flex items-center gap-3 sm:gap-8">
       <a href={href("features/")} class="hidden text-sm text-slate-400 transition hover:text-slate-100 sm:inline">Features</a>
       <a href={href("changelog/")} class="hidden text-sm text-slate-400 transition hover:text-slate-100 sm:inline">Changelog</a>
       <a href={href("#install")} class="hidden text-sm text-slate-400 transition hover:text-slate-100 sm:inline">Install</a>
       <a
         href="https://github.com/barathrajd/gitview"
-        class="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-emerald-300/30 hover:bg-white/[0.04]"
+        class="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-sm sm:px-4 font-medium text-slate-200 transition hover:border-emerald-300/30 hover:bg-white/[0.04]"
         target="_blank"
         rel="noreferrer"
       >
@@ -32,6 +32,57 @@ import { href } from "../lib/base";
         <span>GitHub</span>
         <span class="font-mono text-xs text-slate-500">↗</span>
       </a>
+      <button
+        type="button"
+        class="grid size-10 place-items-center rounded-xl border border-white/10 text-slate-300 transition hover:border-emerald-300/30 hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300 sm:hidden"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="mobile-menu"
+        data-menu-button
+      >
+        <svg viewBox="0 0 24 24" fill="none" class="size-5" aria-hidden="true">
+          <path data-menu-open d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          <path data-menu-close class="hidden" d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+      </button>
     </div>
   </nav>
+  <div id="mobile-menu" class="border-t border-white/[0.07] bg-[#050908] px-5 pb-5 pt-2 sm:hidden" hidden data-menu>
+    <ul class="flex flex-col">
+      <li><a href={href("features/")} class="block border-b border-white/[0.06] py-4 text-base text-slate-200 transition hover:text-emerald-200">Features</a></li>
+      <li><a href={href("changelog/")} class="block border-b border-white/[0.06] py-4 text-base text-slate-200 transition hover:text-emerald-200">Changelog</a></li>
+      <li><a href={href("#install")} class="block border-b border-white/[0.06] py-4 text-base text-slate-200 transition hover:text-emerald-200">Install</a></li>
+      <li><a href="https://github.com/barathrajd/gitview" target="_blank" rel="noreferrer" class="block py-4 text-base text-slate-200 transition hover:text-emerald-200">GitHub source <span class="text-slate-500">↗</span></a></li>
+    </ul>
+  </div>
 </header>
+
+<script>
+  const button = document.querySelector<HTMLButtonElement>("[data-menu-button]");
+  const menu = document.querySelector<HTMLElement>("[data-menu]");
+  if (button && menu) {
+    const openIcon = button.querySelector("[data-menu-open]");
+    const closeIcon = button.querySelector("[data-menu-close]");
+    const setOpen = (open: boolean) => {
+      menu.hidden = !open;
+      button.setAttribute("aria-expanded", String(open));
+      button.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+      openIcon?.classList.toggle("hidden", open);
+      closeIcon?.classList.toggle("hidden", !open);
+    };
+    button.addEventListener("click", () => setOpen(menu.hidden));
+    menu.addEventListener("click", (event) => {
+      if ((event.target as HTMLElement).closest("a")) setOpen(false);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !menu.hidden) {
+        setOpen(false);
+        button.focus();
+      }
+    });
+    // Close the menu when the window grows past the phone layout.
+    window.matchMedia("(min-width: 640px)").addEventListener("change", (event) => {
+      if (event.matches) setOpen(false);
+    });
+  }
+</script>
