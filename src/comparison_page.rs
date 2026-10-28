@@ -19,11 +19,22 @@ enum Mode {
 }
 type PreparedResult = Result<(Comparison, Vec<crate::ui::PreparedComparisonFile>), String>;
 type FileLines = (Vec<Line<'static>>, Vec<Line<'static>>);
+fn retained_files_bytes(files: &[FileLines]) -> usize {
+    files
+        .iter()
+        .map(|(left, right)| {
+            crate::ui::retained_line_bytes(left, left.capacity())
+                + crate::ui::retained_line_bytes(right, right.capacity())
+        })
+        .sum()
+}
+const RENDER_CACHE_BYTES: usize = 8 * 1024 * 1024;
 struct RenderCache {
     width: u16,
     raw: bool,
     split: bool,
     files: Vec<FileLines>,
+    bytes: usize,
 }
 pub struct ComparisonPage {
     fields: [String; 3],
@@ -90,6 +101,16 @@ impl ComparisonPage {
             }
         }
         changed
+    }
+    /// Returns cached variant count, total estimated bytes, and the newest entry's bytes.
+    #[cfg(feature = "test-support")]
+    pub fn render_cache_usage(&self) -> (usize, usize, usize) {
+        let cache = self.cache.borrow();
+        (
+            cache.len(),
+            cache.iter().map(|cache| cache.bytes).sum(),
+            cache.last().map_or(0, |cache| cache.bytes),
+        )
     }
     pub fn paste(&mut self, text: &str) {
         if self.mode == Mode::Input && !self.pending {
@@ -364,7 +385,7 @@ impl ComparisonPage {
                 usize::from(inner.width).saturating_sub(12)
             }
             .max(1);
-            let files = result
+            let files: Vec<FileLines> = result
                 .files
                 .iter()
                 .zip(&self.prepared)
@@ -372,11 +393,20 @@ impl ComparisonPage {
                     comparison_file_lines(&file.patch, prepared, width, self.raw, self.side_by_side)
                 })
                 .collect();
+            let bytes = retained_files_bytes(&files);
+            // Preserve the active layout even if it alone exceeds the budget.
+            // Superseded layouts are expendable; their content can be rebuilt.
+            while !cache.is_empty()
+                && cache.iter().map(|cache| cache.bytes).sum::<usize>() + bytes > RENDER_CACHE_BYTES
+            {
+                cache.remove(0);
+            }
             cache.push(RenderCache {
                 width: inner.width,
                 raw: self.raw,
                 split: self.side_by_side,
                 files,
+                bytes,
             });
             cache.len() - 1
         };

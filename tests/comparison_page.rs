@@ -96,3 +96,62 @@ fn reviews_and_folds_files_in_one_comparison_screen() {
     assert!(output.contains("second.txt"));
     assert!(!output.contains("first after unique"));
 }
+#[cfg(feature = "test-support")]
+#[test]
+fn bounds_retained_comparison_layout_bytes() {
+    let root = tempfile::tempdir().unwrap();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .current_dir(root.path())
+                .args(args)
+                .output()
+                .unwrap()
+                .status
+                .success()
+        );
+    };
+    git(&["init", "-q"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "commit.gpgsign", "false"]);
+    std::fs::write(root.path().join("big.txt"), "base\n").unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-qm", "base"]);
+    let line = "x".repeat(190);
+    std::fs::write(
+        root.path().join("big.txt"),
+        format!("{line}\n").repeat(3000),
+    )
+    .unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-qm", "target"]);
+    let mut page = ComparisonPage::open("HEAD", None);
+    page.key(root.path(), KeyCode::Enter);
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        page.tick();
+        if !draw(&page).contains("Loading comparison...") {
+            break;
+        }
+        assert!(Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    for key in [
+        None,
+        Some(KeyCode::Char('v')),
+        Some(KeyCode::Tab),
+        Some(KeyCode::Char('v')),
+        Some(KeyCode::Tab),
+        Some(KeyCode::Char('v')),
+    ] {
+        if let Some(key) = key {
+            page.key(root.path(), key);
+        }
+        let output = draw(&page);
+        assert!(output.contains("COMPARISON REVIEW"));
+        let (entries, bytes, newest) = page.render_cache_usage();
+        assert!(entries >= 1 && entries <= 4);
+        assert!(bytes <= 8 * 1024 * 1024 || (entries == 1 && bytes == newest));
+    }
+}

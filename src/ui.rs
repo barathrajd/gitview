@@ -3036,7 +3036,7 @@ struct OrdinaryLayout {
     bytes: usize,
 }
 
-fn retained_line_bytes(lines: &[Line<'static>], capacity: usize) -> usize {
+pub(crate) fn retained_line_bytes(lines: &[Line<'static>], capacity: usize) -> usize {
     capacity * std::mem::size_of::<Line<'static>>()
         + lines
             .iter()

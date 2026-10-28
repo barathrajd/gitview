@@ -218,7 +218,16 @@ excludes allocator metadata and prepared syntax data. One active layout remains
 available when it alone exceeds the budget; the budget doesn't truncate content.
 An evicted variant is rebuilt when selected. Blank alignment rows, empty line
 number gutters, and fixed markers also avoid unnecessary owned allocations.
-The comparison page's separate cache remains pending review.
+The comparison page's render cache now uses the same 8 MiB owned-allocation
+estimate and keeps one active layout even if it alone exceeds the budget. Before
+the change, a 940 KB comparison held about 28 MiB of live heap after all four
+variants rendered (13,484 KiB loaded with one variant, plus 15,232 KiB). After
+it, the same sequence ends 772 KiB below the loaded value, so about 12.7 MiB.
+The active layout alone exceeds 8 MiB there, which is why the total stays above
+the budget. Run `comparison_cache_live_allocations` with `--ignored --nocapture`
+to reproduce. This is a single local measurement, not p95 or cross-platform proof.
+Comparison loading still uses one spawned thread per Enter, which can't be
+cancelled when the page closes; that lifecycle remains unreviewed.
 
 Explicit optimized-build diagnostics check a 100 ms first-layout budget and
 50 ms p95 across 100 warm actions at both terminal sizes. These are in-memory
