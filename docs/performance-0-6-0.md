@@ -532,6 +532,48 @@ appeared and the next load succeeded. The times include the pseudo-terminal. The
 script checks visible behavior only; it doesn't observe whether syntax
 preparation actually stopped, which the unit test covers.
 
+## Pre-release pass on macOS
+
+This pass ran every gate and diagnostic from this report once, in release
+builds, on macOS ARM64 (Rust 1.99.1, Git 2.56.0). The source matched revision
+`3e68f3f`. The worktree also held uncommitted additions to the documentation,
+the plan, `scripts/check-load-cancel.py`, and `tests/language_diff_performance.rs`
+(no `src/` changes), so this is not clean-revision evidence. A website sub-agent
+ran headless Chrome and a site build during the first part of the pass, so
+timings and RSS may be perturbed. Rerun the pass on a clean commit with the
+machine otherwise idle before treating any value as release evidence.
+
+| Check | Result |
+| --- | --- |
+| `cargo fmt --check`, `git diff --check` | Pass |
+| Clippy (CI command), full suite, release build | Pass |
+| Warm ordinary-diff frames, three limit fixtures, both sizes | p95 0.09 to 10.1 ms; pass |
+| Cockpit frames, 10,000 entries | p95 at most 1.36 ms; pass |
+| History search, 10,000 rows | p95 0.37 ms; pass |
+| Tag page (10,000 tags) and object page frames | p95 at most 0.59 ms; pass |
+| 20 languages, warm frames | p95 at most 0.19 ms; pass |
+| Native list navigation, stress fixture | p95 at most 5.25 ms; pass |
+| Startup first frame, small fixture | p95 45.3 ms; pass |
+| Idle CPU, small fixture | 0.2% of one core, 25 output bytes; pass |
+| Slow-preview feedback and cancel | p95 about 12.3 ms; pass |
+| Escape during slow comparison and object loads | at most 3 ms; pass |
+| Commit editor save, retry, ordinary diff, preview scripts | Pass |
+| Native ordinary-diff memory, 100 cycles | 7,184 KiB growth; pass |
+| Native tag and object page memory | 592 and 16 KiB growth; pass |
+| Native comparison page memory, small fixture | 9,664 KiB growth; pass, 94% of budget |
+| Renderer-only diff RSS diagnostic | 17,296 KiB growth; **fails** |
+| Large-comparison native RSS | Variable; one earlier run failed; deferred |
+
+Two values moved the wrong way against earlier single runs: native diff memory
+grew 7,184 KiB (earlier 4,848 KiB) and the small comparison page grew
+9,664 KiB (earlier 4,256 KiB). Both stay inside the 10,240 KiB budget, but the
+comparison value is close and agrees with the run-to-run variance already
+recorded for that page.
+
+Release 0.6.0 still isn't ready. Open items: the failing renderer-only RSS
+diagnostic, the deferred comparison memory variance, native Linux x86_64
+evidence, a clean-revision rerun, and the Clippy rerun on the CI toolchain.
+
 ## Review status and remaining work
 
 The following checks remain required before release:
