@@ -47,6 +47,7 @@ pub const HELP: &str = concat!(
     "H                   Open history outside prompts\n",
     "W                   Open working tree outside prompts\n",
     "?                   Help outside prompts               b                   Browse local branches\n",
+    "f                   Filter history by a literal path; empty clears\n",
     "/                   Search commit history               s                   Stage selected file\n",
     "u                   Unstage selected file               r                   Refresh worktree\n",
     "S                   Stage all worktree changes\n",
@@ -278,6 +279,7 @@ pub fn render_help_overlay(
         ("Up/Down, j/k", "Move through commits"),
         ("Enter, l", "Open selected commit"),
         ("/", "Search commit history"),
+        ("f", "Filter history by literal path; empty clears"),
         ("b", "Browse local branches"),
         ("Tab", "Open working tree"),
         ("W", "Open working tree"),
@@ -481,6 +483,9 @@ pub struct Cockpit<'a> {
 }
 
 pub enum Screen<'a> {
+    PathHistoryInput {
+        path: &'a str,
+    },
     Tags(&'a crate::tag_page::TagPage),
     Cockpit(Cockpit<'a>),
     Help,
@@ -626,6 +631,15 @@ pub fn render(
     // next one, including when switching from a wide pane layout to a dialog.
     frame.render_widget(Clear, frame.area());
     match screen {
+        Screen::PathHistoryInput { path } => render_message_page(
+            frame,
+            "HISTORY PATH FILTER",
+            &format!(
+                "Repository-relative file or directory: {path}_\n\nEmpty path clears the filter. Paths are literal; rename following is not enabled."
+            ),
+            border,
+            &[("Enter", "apply/clear"), ("Esc", "cancel")],
+        ),
         Screen::Tags(page) => page.render(frame, border),
         Screen::Cockpit(cockpit) => render_cockpit(frame, cockpit, border),
         Screen::Help => render_help(frame, border),
@@ -1356,6 +1370,7 @@ fn render_cockpit(
             ("Tab", "pane"),
             ("W", "worktree"),
             ("Enter/l", "details"),
+            ("f", "path history"),
             ("b", "branches"),
             ("p", "profiles"),
             ("/", "search"),

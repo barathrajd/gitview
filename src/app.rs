@@ -12,6 +12,7 @@ pub enum AppAction {
     LoadWorkingTree,
     ReturnToHistory,
     StartSearch,
+    StartPathHistory,
     OpenBranches,
     StageSelected,
     StageAll,
@@ -92,6 +93,7 @@ impl AppState {
 
         match (self.view, key) {
             (_, KeyCode::Char('b')) => Some(AppAction::OpenBranches),
+            (View::History, KeyCode::Char('f')) => Some(AppAction::StartPathHistory),
             (View::History, KeyCode::Char('/')) => Some(AppAction::StartSearch),
             (View::History, KeyCode::Up) => Some(AppAction::MoveUp),
             (View::History, KeyCode::Down) => Some(AppAction::MoveDown),

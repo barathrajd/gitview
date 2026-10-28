@@ -280,6 +280,8 @@ fn app(
     };
     let mut help = false;
     let mut searching = false;
+    let mut history_filter: Option<std::path::PathBuf> = None;
+    let mut history_path_input: Option<String> = None;
     let mut query = String::new();
     let mut search_results = Vec::new();
     let mut search_selection = ListState::default();
@@ -289,8 +291,12 @@ fn app(
     let mut history_request = 0u64;
     let sender = history_sender.clone();
     let path = root.to_path_buf();
+    let requested_history_path = history_filter.clone();
     std::thread::spawn(move || {
-        let _ = sender.send((0, gitview::history::load_history(&path)));
+        let _ = sender.send((
+            0,
+            gitview::history::load_history_for_path(&path, requested_history_path.as_deref()),
+        ));
     });
     let mut history: Option<Result<Vec<String>, String>> = None;
     let mut selection = ListState::default();
@@ -622,8 +628,15 @@ fn app(
             let id = history_request;
             let sender = history_sender.clone();
             let path = root.to_path_buf();
+            let requested_history_path = history_filter.clone();
             std::thread::spawn(move || {
-                let _ = sender.send((id, gitview::history::load_history(&path)));
+                let _ = sender.send((
+                    id,
+                    gitview::history::load_history_for_path(
+                        &path,
+                        requested_history_path.as_deref(),
+                    ),
+                ));
             });
             status_request += 1;
             status = None;
@@ -663,8 +676,15 @@ fn app(
                     let id = history_request;
                     let sender = history_sender.clone();
                     let path = root.to_path_buf();
+                    let requested_history_path = history_filter.clone();
                     std::thread::spawn(move || {
-                        let _ = sender.send((id, gitview::history::load_history(&path)));
+                        let _ = sender.send((
+                            id,
+                            gitview::history::load_history_for_path(
+                                &path,
+                                requested_history_path.as_deref(),
+                            ),
+                        ));
                     });
                     status_request += 1;
                     status = None;
@@ -772,6 +792,20 @@ fn app(
             };
         }
         terminal.draw(|frame| {
+            let workspace_feedback = if app_state.view() == View::History {
+                history_filter
+                    .as_ref()
+                    .map(|path| {
+                        format!(
+                            "History path: {} · f change/clear. {}",
+                            path.display(),
+                            commit_feedback
+                        )
+                    })
+                    .unwrap_or_else(|| commit_feedback.clone())
+            } else {
+                commit_feedback.clone()
+            };
             let composed_message = combined_commit_message(
                 commit_message.as_deref().unwrap_or_default(),
                 &commit_description,
@@ -807,7 +841,9 @@ fn app(
             } else {
                 ui::HelpPage::History
             };
-            let screen = if let Some(page) = &tag_page {
+            let screen = if let Some(path) = &history_path_input {
+                Screen::PathHistoryInput { path }
+            } else if let Some(page) = &tag_page {
                 Screen::Tags(page)
             } else if profiles_view {
                 Screen::Profiles {
@@ -930,7 +966,7 @@ fn app(
                     branches: branches.as_ref(),
                     history: history.as_ref(),
                     status: status.as_ref(),
-                    feedback: &commit_feedback,
+                    feedback: &workspace_feedback,
                     focused: app_state.view(),
                     history_selection: &mut selection,
                     working_tree_selection: &mut status_selection,
@@ -947,6 +983,12 @@ fn app(
             Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
         };
         if let Event::Paste(pasted) = &event {
+            if let Some(path) = &mut history_path_input {
+                if !help {
+                    path.push_str(pasted);
+                }
+                continue;
+            }
             if let Some(page) = &mut tag_page {
                 page.paste(pasted);
                 continue;
@@ -988,6 +1030,35 @@ fn app(
                 }
                 continue;
             }
+            if let Some(input) = &mut history_path_input {
+                match key.code {
+                    KeyCode::Esc => history_path_input = None,
+                    KeyCode::Backspace => {
+                        input.pop();
+                    }
+                    KeyCode::Char(ch) if !ch.is_control() => input.push(ch),
+                    KeyCode::Enter => {
+                        history_filter =
+                            (!input.is_empty()).then(|| std::path::PathBuf::from(&*input));
+                        history_path_input = None;
+                        history_request += 1;
+                        let id = history_request;
+                        let sender = history_sender.clone();
+                        let path = root.to_path_buf();
+                        let filter = history_filter.clone();
+                        history = None;
+                        selection.select(None);
+                        std::thread::spawn(move || {
+                            let _ = sender.send((
+                                id,
+                                gitview::history::load_history_for_path(&path, filter.as_deref()),
+                            ));
+                        });
+                    }
+                    _ => {}
+                }
+                continue;
+            }
             if let Some(page) = &mut tag_page {
                 if !page.key(root, key.code) {
                     tag_page = None;
@@ -996,8 +1067,15 @@ fn app(
                     let sender = history_sender.clone();
                     let path = root.to_path_buf();
                     history = None;
+                    let requested_history_path = history_filter.clone();
                     std::thread::spawn(move || {
-                        let _ = sender.send((id, gitview::history::load_history(&path)));
+                        let _ = sender.send((
+                            id,
+                            gitview::history::load_history_for_path(
+                                &path,
+                                requested_history_path.as_deref(),
+                            ),
+                        ));
                     });
                 }
                 continue;
@@ -1631,6 +1709,14 @@ fn app(
                         // The initial load, mutations, and explicit `r` refresh it.
                     }
                     AppAction::ReturnToHistory => {}
+                    AppAction::StartPathHistory => {
+                        history_path_input = Some(
+                            history_filter
+                                .as_ref()
+                                .map(|path| path.to_string_lossy().into_owned())
+                                .unwrap_or_default(),
+                        );
+                    }
                     AppAction::StartSearch => {
                         searching = true;
                         query.clear();

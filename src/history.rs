@@ -3,18 +3,40 @@ use std::path::Path;
 use crate::process;
 
 pub fn load_history(root: &Path) -> Result<Vec<String>, String> {
-    let output = process::git_command()
-        .current_dir(root)
-        .args([
-            "log",
-            "--all",
-            "--graph",
-            "--decorate=short",
-            "--format=%h %d %s - %an%x1f%H",
-            "--color=never",
-            "-n",
-            "200",
-        ])
+    load_history_for_path(root, None)
+}
+
+pub fn load_history_for_path(root: &Path, path: Option<&Path>) -> Result<Vec<String>, String> {
+    if let Some(path) = path {
+        if path.as_os_str().is_empty()
+            || path.is_absolute()
+            || path.components().any(|component| {
+                matches!(
+                    component,
+                    std::path::Component::ParentDir
+                        | std::path::Component::RootDir
+                        | std::path::Component::Prefix(_)
+                )
+            })
+        {
+            return Err("Use a repository-relative history path without parent components".into());
+        }
+    }
+    let mut command = process::git_command();
+    command.current_dir(root).arg("--literal-pathspecs").args([
+        "log",
+        "--all",
+        "--graph",
+        "--decorate=short",
+        "--format=%h %d %s - %an%x1f%H",
+        "--color=never",
+        "-n",
+        "200",
+    ]);
+    if let Some(path) = path {
+        command.arg("--").arg(path);
+    }
+    let output = command
         .output()
         .map_err(|error| format!("Unable to load history: {error}"))?;
     if !output.status.success() {
@@ -36,9 +58,15 @@ pub fn load_history(root: &Path) -> Result<Vec<String>, String> {
         .map(str::to_owned)
         .collect();
     if !rows.is_empty() {
-        let remaining = process::git_command()
+        let mut remaining_command = process::git_command();
+        remaining_command
             .current_dir(root)
-            .args(["rev-list", "--all", "--skip=200", "--max-count=1"])
+            .arg("--literal-pathspecs")
+            .args(["rev-list", "--all", "--skip=200", "--max-count=1"]);
+        if let Some(path) = path {
+            remaining_command.arg("--").arg(path);
+        }
+        let remaining = remaining_command
             .output()
             .map_err(|error| format!("Unable to check history limit: {error}"))?;
         if !remaining.status.success() {

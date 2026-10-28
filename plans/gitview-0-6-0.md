@@ -83,9 +83,10 @@ the user approves the final release candidate.
    reviewed destination and stale-state checks. Local tags support listing,
    lightweight creation at reviewed HEAD, Git signature verification, and
    deletion with atomic object checks. Annotated/signed creation is not exposed.
-5. **History and diff inspection:** add path history, path/commit comparisons,
-   patch summaries, branch and locally available remote-ref comparisons, and
-   object descriptions.
+5. **History and diff inspection (in progress):** literal file/directory
+   history is implemented with a persistent, clearable filter and the existing
+   200-commit limit. Finish path/commit comparisons, patch summaries, branch and
+   locally available remote-ref comparisons, and object descriptions.
 6. **Coverage and release gate:** complete capability-matrix acceptance,
    focused safety review, full test/build/lint checks on both target platforms,
    Linux and macOS archive checksum verification, installer checks, crate dry

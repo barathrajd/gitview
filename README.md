@@ -85,6 +85,10 @@ gitview clone <repository> [directory]
 - **Up/Down** or **j/k** navigate lists and scroll diffs. **Enter** or **l**
   opens a commit or file; **Esc** or **h** goes back. Search and branch-name
   prompts accept these letters as normal text.
+- Press **f** while history is focused to filter commits by a literal
+  repository-relative file or directory. Submit an empty path to clear the
+  filter. This view does not follow renames. Search and commit details use the
+  filtered history, and the filter remains active across refreshes.
 - **Tab** switches between history and the working tree. **/** opens debounced
   history search. **Up/Down** selects a result, **Enter** opens its details,
   **Backspace** edits the query, and **Esc** returns to history.
