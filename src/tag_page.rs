@@ -62,8 +62,10 @@ impl TagPage {
             let _ = sender.send((message, tags::list(&root)));
         });
     }
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self) -> bool {
+        let mut changed = false;
         while let Ok((message, entries)) = self.receiver.try_recv() {
+            changed = true;
             self.pending = false;
             match message {
                 Ok(text) => self.feedback = text,
@@ -78,6 +80,7 @@ impl TagPage {
                 self.verification = Some(self.feedback.clone());
             }
         }
+        changed
     }
     pub fn paste(&mut self, text: &str) {
         if let Some(input) = &mut self.input {

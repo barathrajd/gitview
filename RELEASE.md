@@ -28,6 +28,11 @@ Features:
 
 Release gate:
 
+- Complete the [whole-TUI performance review](plans/gitview-0-6-0-performance.md)
+  and measured fixes on macOS ARM64 and Linux x86_64. The plan is approved and initial
+  native preview/idle fixes are measured; full acceptance remains pending.
+  See the [performance report](docs/performance-0-6-0.md).
+
 - All included features pass their acceptance checks; excluded workflows stay
   labeled incomplete.
 - Full tests, formatting, build, and Clippy pass on the supported CI toolchain.

@@ -35,8 +35,10 @@ impl ObjectPage {
             receiver,
         }
     }
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self) -> bool {
+        let mut changed = false;
         while let Ok(result) = self.receiver.try_recv() {
+            changed = true;
             self.pending = false;
             match result {
                 Ok(result) => {
@@ -48,6 +50,7 @@ impl ObjectPage {
                 Err(error) => self.error = error,
             }
         }
+        changed
     }
     pub fn paste(&mut self, text: &str) {
         if self.editing && !self.pending {

@@ -2,10 +2,8 @@ Gitview is a keyboard-first terminal interface for everyday Git review.
 
 - [git-review-mvp](plans/git-review-mvp.md) — initial review and staging.
 - [local-branches](plans/local-branches.md) — safe local branch actions.
-- [refactor-0-2-1](plans/refactor-0-2-1.md) — UI refactor and 0.2.1 release.
-- [ui-navigation-0-3-0](plans/ui-navigation-0-3-0.md) — navigation polish.
-- [release-installation-0-3-1](plans/release-installation-0-3-1.md) — install and release automation.
+- [Release plans](plans/releases/) — versioned implementation and installation plans.
 - [git-cli-capability-roadmap-2026](plans/git-cli-capability-roadmap-2026.md) — tiered Git coverage.
 - [git-config-profiles](plans/git-config-profiles.md) — isolate account settings by repository folder.
-- [website](plans/website.md) — publish a truthful Gitview product and installation site.
-- [0.6.0](plans/gitview-0-6-0.md) — complete partial Basic workflows.
+- [website](plans/website.md) — publish a truthful product and installation site.
+- [0.6.0 performance](plans/gitview-0-6-0-performance.md) — review responsiveness and fix measured bottlenecks before release.

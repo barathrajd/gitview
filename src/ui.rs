@@ -497,6 +497,9 @@ pub struct Cockpit<'a> {
 }
 
 pub enum Screen<'a> {
+    CommitPreviewLoading {
+        amend: bool,
+    },
     Object(&'a crate::object_page::ObjectPage),
     Comparison(&'a crate::comparison_page::ComparisonPage),
     PathHistoryInput {
@@ -647,6 +650,17 @@ pub fn render(
     // next one, including when switching from a wide pane layout to a dialog.
     frame.render_widget(Clear, frame.area());
     match screen {
+        Screen::CommitPreviewLoading { amend } => render_message_page(
+            frame,
+            if amend {
+                "PREPARING AMEND"
+            } else {
+                "PREPARING COMMIT"
+            },
+            "Loading staged changes...",
+            border,
+            &[("Esc", "cancel")],
+        ),
         Screen::Object(page) => page.render(frame, border),
         Screen::Comparison(page) => page.render(frame, border),
         Screen::PathHistoryInput { path } => render_message_page(

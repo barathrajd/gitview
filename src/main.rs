@@ -264,6 +264,11 @@ fn edit_profile_registry(
     Ok(())
 }
 
+enum CommitReadResult {
+    Create(Result<gitview::commit::CommitPreview, String>),
+    Amend(Result<gitview::commit::AmendPreview, String>),
+}
+
 fn app(
     terminal: &mut DefaultTerminal,
     paste_mode: &mut BracketedPasteMode,
@@ -337,6 +342,15 @@ fn app(
     let mut move_destination = String::new();
     let mut move_destination_focused = false;
     let mut move_confirm: Option<gitview::worktree::MovePathPreview> = None;
+    let mut commit_preview_mode: Option<bool> = None;
+    let preview_root = root.to_path_buf();
+    let commit_preview_worker = gitview::read_worker::LatestRead::new(move |amend: bool| {
+        if amend {
+            CommitReadResult::Amend(gitview::commit::preview_amend(&preview_root))
+        } else {
+            CommitReadResult::Create(gitview::commit::preview_commit(&preview_root))
+        }
+    });
     let mut commit_message: Option<String> = None;
     let mut commit_description = String::new();
     let mut commit_description_focused = false;
@@ -434,17 +448,19 @@ fn app(
             }
         }
     });
+    let mut needs_redraw = true;
     loop {
         if let Some(page) = &mut object_page {
-            page.tick();
+            needs_redraw |= page.tick();
         }
         if let Some(page) = &mut comparison_page {
-            page.tick();
+            needs_redraw |= page.tick();
         }
         if let Some(page) = &mut tag_page {
-            page.tick();
+            needs_redraw |= page.tick();
         }
         while let Ok(entries) = status_watch_receiver.try_recv() {
+            needs_redraw = true;
             if mutation_pending {
                 continue;
             }
@@ -474,6 +490,7 @@ fn app(
             status = Some(Ok(entries));
         }
         while let Ok((id, result)) = receiver.try_recv() {
+            needs_redraw = true;
             if id != history_request {
                 continue;
             }
@@ -493,8 +510,10 @@ fn app(
                 &mut search_selection,
             );
             search_debounce = None;
+            needs_redraw = true;
         }
         while let Ok((id, result)) = details_receiver.try_recv() {
+            needs_redraw = true;
             if let Some((active, value)) = &mut details
                 && *active == id
             {
@@ -505,6 +524,7 @@ fn app(
             }
         }
         while let Ok((id, result)) = diff_receiver.try_recv() {
+            needs_redraw = true;
             if let Some((active, value)) = &mut diff
                 && *active == id
             {
@@ -514,6 +534,7 @@ fn app(
             }
         }
         while let Ok((id, result)) = status_receiver.try_recv() {
+            needs_redraw = true;
             let is_mutation = status_mutation == Some(id);
             if is_mutation {
                 mutation_pending = false;
@@ -609,6 +630,7 @@ fn app(
             status = Some(result);
         }
         while let Ok((id, result)) = branch_receiver.try_recv() {
+            needs_redraw = true;
             if id != branch_request {
                 continue;
             }
@@ -620,6 +642,7 @@ fn app(
             branches = Some(result);
         }
         while let Ok((success_message, result)) = operation_receiver.try_recv() {
+            needs_redraw = true;
             mutation_pending = false;
             branch_feedback = match result {
                 Ok(()) => success_message,
@@ -664,6 +687,7 @@ fn app(
             });
         }
         while let Ok((message, description, was_amend, result)) = commit_receiver.try_recv() {
+            needs_redraw = true;
             mutation_pending = false;
             amend_confirm = false;
             match result {
@@ -719,6 +743,7 @@ fn app(
             }
         }
         while let Ok(result) = discard_receiver.try_recv() {
+            needs_redraw = true;
             mutation_pending = false;
             discard_confirm = None;
             commit_feedback = match result {
@@ -736,6 +761,7 @@ fn app(
             });
         }
         while let Ok(result) = untrack_receiver.try_recv() {
+            needs_redraw = true;
             mutation_pending = false;
             untrack_confirm = None;
             commit_feedback = match result {
@@ -753,6 +779,7 @@ fn app(
             });
         }
         while let Ok(result) = remove_receiver.try_recv() {
+            needs_redraw = true;
             mutation_pending = false;
             remove_confirm = None;
             commit_feedback = match result {
@@ -770,6 +797,7 @@ fn app(
             });
         }
         while let Ok(result) = move_receiver.try_recv() {
+            needs_redraw = true;
             mutation_pending = false;
             move_confirm = None;
             move_path_input = false;
@@ -788,6 +816,7 @@ fn app(
             });
         }
         while let Ok(result) = ignore_receiver.try_recv() {
+            needs_redraw = true;
             commit_feedback = match result {
                 Ok(Some(rule)) => {
                     format!(
@@ -799,201 +828,243 @@ fn app(
                 Err(error) => error,
             };
         }
-        terminal.draw(|frame| {
-            let workspace_feedback = if app_state.view() == View::History {
-                history_filter
-                    .as_ref()
-                    .map(|path| {
-                        format!(
-                            "History path: {} · f change/clear. {}",
-                            path.display(),
-                            commit_feedback
-                        )
-                    })
-                    .unwrap_or_else(|| commit_feedback.clone())
-            } else {
-                commit_feedback.clone()
-            };
-            let composed_message = combined_commit_message(
-                commit_message.as_deref().unwrap_or_default(),
-                &commit_description,
-            );
-            let help_page = if profiles_view {
-                ui::HelpPage::Profiles
-            } else if amend_confirm {
-                ui::HelpPage::AmendConfirmation
-            } else if commit_message.is_some() {
-                ui::HelpPage::CommitMessage
-            } else if move_path_input || move_confirm.is_some() {
-                ui::HelpPage::WorkingTree
-            } else if remove_path_input.is_some() || remove_confirm.is_some() {
-                ui::HelpPage::WorkingTree
-            } else if ignore_path_input.is_some() {
-                ui::HelpPage::IgnorePathInput
-            } else if branch_view && branch_input.is_some() {
-                ui::HelpPage::BranchInput
-            } else if branch_view && branch_confirm.is_some() {
-                ui::HelpPage::BranchConfirmation
-            } else if branch_view {
-                ui::HelpPage::Branches
-            } else if diff_entry.is_some() && diff.is_some() {
-                ui::HelpPage::WorktreeDiff
-            } else if diff.is_some() {
-                ui::HelpPage::CommitDiff
-            } else if details.is_some() {
-                ui::HelpPage::Commit
-            } else if searching {
-                ui::HelpPage::Search
-            } else if app_state.view() == View::WorkingTree {
-                ui::HelpPage::WorkingTree
-            } else {
-                ui::HelpPage::History
-            };
-            let screen = if let Some(page) = &object_page {
-                Screen::Object(page)
-            } else if let Some(page) = &comparison_page {
-                Screen::Comparison(page)
-            } else if let Some(path) = &history_path_input {
-                Screen::PathHistoryInput { path }
-            } else if let Some(page) = &tag_page {
-                Screen::Tags(page)
-            } else if profiles_view {
-                Screen::Profiles {
-                    profiles,
-                    selected: profile_selection.selected(),
-                    active_profile: &profile_label,
-                    registry_path: &profile_registry_path,
-                    feedback: &profile_feedback,
-                }
-            } else if move_path_input {
-                Screen::MovePathInput {
-                    source: &move_source,
-                    destination: &move_destination,
-                    destination_focused: move_destination_focused,
-                    feedback: &commit_feedback,
-                }
-            } else if let Some(preview) = &move_confirm {
-                Screen::MovePathConfirmation {
-                    source: preview.source(),
-                    destination: preview.destination(),
-                    pending: mutation_pending,
-                }
-            } else if let Some(path) = &remove_path_input {
-                Screen::RemovePathInput {
-                    path,
-                    feedback: &commit_feedback,
-                }
-            } else if let Some(preview) = &remove_confirm {
-                Screen::RemovePathConfirmation {
-                    path: preview.path(),
-                    pending: mutation_pending,
-                }
-            } else if let Some(path) = &ignore_path_input {
-                Screen::IgnorePathInput {
-                    path,
-                    feedback: &commit_feedback,
-                }
-            } else if amend_confirm {
-                let preview = amend_expected.as_ref();
-                Screen::AmendConfirmation {
-                    repository: root,
-                    profile: &profile_label,
-                    branches: branches.as_ref(),
-                    entries: status.as_ref(),
-                    head: preview.map_or("unavailable", |preview| preview.head.as_str()),
-                    original_message: preview
-                        .map_or("Unavailable", |preview| preview.message.as_str()),
-                    new_message: &composed_message,
-                    pending: mutation_pending,
-                }
-            } else if let Some(preview) = &discard_confirm {
-                Screen::DiscardConfirmation {
-                    entry: &preview.entry,
-                    pending: mutation_pending,
-                }
-            } else if let Some(preview) = &untrack_confirm {
-                Screen::UntrackConfirmation {
-                    entry: &preview.entry,
-                    pending: mutation_pending,
-                }
-            } else if let Some(message) = &commit_message {
-                Screen::CommitInput {
-                    repository: root,
-                    profile: &profile_label,
-                    branches: branches.as_ref(),
-                    message,
-                    description: &commit_description,
-                    description_focused: commit_description_focused,
-                    amend: commit_amend,
-                    feedback: &commit_feedback,
-                    entries: status.as_ref(),
-                    pending: mutation_pending,
-                }
-            } else if branch_view && branch_input.is_some() {
-                if let Some(preview) = &branch_rename {
-                    Screen::RenameBranchInput {
-                        input: branch_input.as_deref().unwrap_or(""),
-                        name: preview.name(),
+        if let Some(result) = commit_preview_worker.take_result()
+            && commit_preview_mode.take().is_some()
+        {
+            needs_redraw = true;
+            match result {
+                CommitReadResult::Create(result) => match result {
+                    Ok(preview) => {
+                        commit_expected = Some(preview);
+                        amend_expected = None;
+                        amend_confirm = false;
+                        commit_amend = false;
+                        commit_feedback.clear();
+                        commit_description.clear();
+                        commit_description_focused = false;
+                        commit_message = Some(String::new());
+                    }
+                    Err(error) => {
+                        commit_feedback = error;
+                    }
+                },
+                CommitReadResult::Amend(result) => match result {
+                    Ok(preview) => {
+                        let (subject, description) = split_commit_message(&preview.message);
+                        amend_expected = Some(preview);
+                        commit_expected = None;
+                        amend_confirm = false;
+                        commit_amend = true;
+                        commit_feedback.clear();
+                        commit_description = description;
+                        commit_description_focused = false;
+                        commit_message = Some(subject);
+                    }
+                    Err(error) => commit_feedback = error,
+                },
+            }
+        }
+        if needs_redraw {
+            terminal.draw(|frame| {
+                let workspace_feedback = if app_state.view() == View::History {
+                    history_filter
+                        .as_ref()
+                        .map(|path| {
+                            format!(
+                                "History path: {} · f change/clear. {}",
+                                path.display(),
+                                commit_feedback
+                            )
+                        })
+                        .unwrap_or_else(|| commit_feedback.clone())
+                } else {
+                    commit_feedback.clone()
+                };
+                let composed_message = combined_commit_message(
+                    commit_message.as_deref().unwrap_or_default(),
+                    &commit_description,
+                );
+                let help_page = if profiles_view {
+                    ui::HelpPage::Profiles
+                } else if amend_confirm {
+                    ui::HelpPage::AmendConfirmation
+                } else if commit_message.is_some() {
+                    ui::HelpPage::CommitMessage
+                } else if move_path_input || move_confirm.is_some() {
+                    ui::HelpPage::WorkingTree
+                } else if remove_path_input.is_some() || remove_confirm.is_some() {
+                    ui::HelpPage::WorkingTree
+                } else if ignore_path_input.is_some() {
+                    ui::HelpPage::IgnorePathInput
+                } else if branch_view && branch_input.is_some() {
+                    ui::HelpPage::BranchInput
+                } else if branch_view && branch_confirm.is_some() {
+                    ui::HelpPage::BranchConfirmation
+                } else if branch_view {
+                    ui::HelpPage::Branches
+                } else if diff_entry.is_some() && diff.is_some() {
+                    ui::HelpPage::WorktreeDiff
+                } else if diff.is_some() {
+                    ui::HelpPage::CommitDiff
+                } else if details.is_some() {
+                    ui::HelpPage::Commit
+                } else if searching {
+                    ui::HelpPage::Search
+                } else if app_state.view() == View::WorkingTree {
+                    ui::HelpPage::WorkingTree
+                } else {
+                    ui::HelpPage::History
+                };
+                let screen = if let Some(amend) = commit_preview_mode {
+                    Screen::CommitPreviewLoading { amend }
+                } else if let Some(page) = &object_page {
+                    Screen::Object(page)
+                } else if let Some(page) = &comparison_page {
+                    Screen::Comparison(page)
+                } else if let Some(path) = &history_path_input {
+                    Screen::PathHistoryInput { path }
+                } else if let Some(page) = &tag_page {
+                    Screen::Tags(page)
+                } else if profiles_view {
+                    Screen::Profiles {
+                        profiles,
+                        selected: profile_selection.selected(),
+                        active_profile: &profile_label,
+                        registry_path: &profile_registry_path,
+                        feedback: &profile_feedback,
+                    }
+                } else if move_path_input {
+                    Screen::MovePathInput {
+                        source: &move_source,
+                        destination: &move_destination,
+                        destination_focused: move_destination_focused,
+                        feedback: &commit_feedback,
+                    }
+                } else if let Some(preview) = &move_confirm {
+                    Screen::MovePathConfirmation {
+                        source: preview.source(),
+                        destination: preview.destination(),
+                        pending: mutation_pending,
+                    }
+                } else if let Some(path) = &remove_path_input {
+                    Screen::RemovePathInput {
+                        path,
+                        feedback: &commit_feedback,
+                    }
+                } else if let Some(preview) = &remove_confirm {
+                    Screen::RemovePathConfirmation {
+                        path: preview.path(),
+                        pending: mutation_pending,
+                    }
+                } else if let Some(path) = &ignore_path_input {
+                    Screen::IgnorePathInput {
+                        path,
+                        feedback: &commit_feedback,
+                    }
+                } else if amend_confirm {
+                    let preview = amend_expected.as_ref();
+                    Screen::AmendConfirmation {
+                        repository: root,
+                        profile: &profile_label,
+                        branches: branches.as_ref(),
+                        entries: status.as_ref(),
+                        head: preview.map_or("unavailable", |preview| preview.head.as_str()),
+                        original_message: preview
+                            .map_or("Unavailable", |preview| preview.message.as_str()),
+                        new_message: &composed_message,
+                        pending: mutation_pending,
+                    }
+                } else if let Some(preview) = &discard_confirm {
+                    Screen::DiscardConfirmation {
+                        entry: &preview.entry,
+                        pending: mutation_pending,
+                    }
+                } else if let Some(preview) = &untrack_confirm {
+                    Screen::UntrackConfirmation {
+                        entry: &preview.entry,
+                        pending: mutation_pending,
+                    }
+                } else if let Some(message) = &commit_message {
+                    Screen::CommitInput {
+                        repository: root,
+                        profile: &profile_label,
+                        branches: branches.as_ref(),
+                        message,
+                        description: &commit_description,
+                        description_focused: commit_description_focused,
+                        amend: commit_amend,
+                        feedback: &commit_feedback,
+                        entries: status.as_ref(),
+                        pending: mutation_pending,
+                    }
+                } else if branch_view && branch_input.is_some() {
+                    if let Some(preview) = &branch_rename {
+                        Screen::RenameBranchInput {
+                            input: branch_input.as_deref().unwrap_or(""),
+                            name: preview.name(),
+                        }
+                    } else {
+                        Screen::BranchInput(branch_input.as_deref().unwrap_or(""))
+                    }
+                } else if branch_view && (mutation_pending || branch_confirm.is_some()) {
+                    Screen::BranchConfirmation {
+                        pending: mutation_pending,
+                        action: branch_confirm.as_ref(),
+                    }
+                } else if branch_view {
+                    Screen::Branches {
+                        branches: branches.as_ref(),
+                        feedback: &branch_feedback,
+                        selection: &mut branch_selection,
+                    }
+                } else if let Some(diff) = &diff {
+                    Screen::Diff {
+                        diff,
+                        scroll: diff_scroll,
+                        selected_hunk,
+                        raw: diff_raw_view,
+                        side_by_side: diff_side_by_side,
+                        worktree_entry: diff_entry.as_ref(),
+                    }
+                } else if let Some(details) = &details {
+                    Screen::CommitDetails {
+                        details,
+                        selection: &mut file_selection,
+                    }
+                } else if searching {
+                    Screen::Search {
+                        history: history.as_ref(),
+                        matches: &search_results,
+                        query: &query,
+                        pending: search_debounce.is_some(),
+                        selection: &mut search_selection,
                     }
                 } else {
-                    Screen::BranchInput(branch_input.as_deref().unwrap_or(""))
+                    Screen::Cockpit(ui::Cockpit {
+                        repository: root,
+                        profile: &profile_label,
+                        branches: branches.as_ref(),
+                        history: history.as_ref(),
+                        status: status.as_ref(),
+                        feedback: &workspace_feedback,
+                        focused: app_state.view(),
+                        history_selection: &mut selection,
+                        working_tree_selection: &mut status_selection,
+                    })
+                };
+                ui::render(frame, screen, border);
+                if help {
+                    ui::render_help_overlay(frame, help_page, border);
                 }
-            } else if branch_view && (mutation_pending || branch_confirm.is_some()) {
-                Screen::BranchConfirmation {
-                    pending: mutation_pending,
-                    action: branch_confirm.as_ref(),
-                }
-            } else if branch_view {
-                Screen::Branches {
-                    branches: branches.as_ref(),
-                    feedback: &branch_feedback,
-                    selection: &mut branch_selection,
-                }
-            } else if let Some(diff) = &diff {
-                Screen::Diff {
-                    diff,
-                    scroll: diff_scroll,
-                    selected_hunk,
-                    raw: diff_raw_view,
-                    side_by_side: diff_side_by_side,
-                    worktree_entry: diff_entry.as_ref(),
-                }
-            } else if let Some(details) = &details {
-                Screen::CommitDetails {
-                    details,
-                    selection: &mut file_selection,
-                }
-            } else if searching {
-                Screen::Search {
-                    history: history.as_ref(),
-                    matches: &search_results,
-                    query: &query,
-                    pending: search_debounce.is_some(),
-                    selection: &mut search_selection,
-                }
-            } else {
-                Screen::Cockpit(ui::Cockpit {
-                    repository: root,
-                    profile: &profile_label,
-                    branches: branches.as_ref(),
-                    history: history.as_ref(),
-                    status: status.as_ref(),
-                    feedback: &workspace_feedback,
-                    focused: app_state.view(),
-                    history_selection: &mut selection,
-                    working_tree_selection: &mut status_selection,
-                })
-            };
-            ui::render(frame, screen, border);
-            if help {
-                ui::render_help_overlay(frame, help_page, border);
-            }
-        })?;
+            })?;
+            needs_redraw = false;
+        }
         let event = match event_receiver.recv_timeout(Duration::from_millis(50)) {
             Ok(event) => event,
             Err(mpsc::RecvTimeoutError::Timeout) => continue,
             Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
         };
+        needs_redraw = true;
         if let Event::Paste(pasted) = &event {
             if let Some(page) = &mut object_page {
                 page.paste(pasted);
@@ -1047,6 +1118,14 @@ fn app(
             if help {
                 if matches!(key.code, KeyCode::Esc | KeyCode::Char('?')) {
                     help = false;
+                }
+                continue;
+            }
+            if commit_preview_mode.is_some() {
+                if key.code == KeyCode::Esc {
+                    commit_preview_worker.cancel();
+                    commit_preview_mode = None;
+                    commit_feedback.clear();
                 }
                 continue;
             }
@@ -1799,35 +1878,12 @@ fn app(
                             let _ = sender.send((id, gitview::branches::load_branches(&path)));
                         });
                     }
-                    AppAction::StartCommit => match gitview::commit::preview_commit(root) {
-                        Ok(preview) => {
-                            commit_expected = Some(preview);
-                            amend_expected = None;
-                            amend_confirm = false;
-                            commit_amend = false;
-                            commit_feedback.clear();
-                            commit_description.clear();
-                            commit_description_focused = false;
-                            commit_message = Some(String::new());
-                        }
-                        Err(error) => {
-                            commit_feedback = error;
-                        }
-                    },
-                    AppAction::StartAmend => match gitview::commit::preview_amend(root) {
-                        Ok(preview) => {
-                            let (subject, description) = split_commit_message(&preview.message);
-                            amend_expected = Some(preview);
-                            commit_expected = None;
-                            amend_confirm = false;
-                            commit_amend = true;
-                            commit_feedback.clear();
-                            commit_description = description;
-                            commit_description_focused = false;
-                            commit_message = Some(subject);
-                        }
-                        Err(error) => commit_feedback = error,
-                    },
+                    AppAction::StartCommit | AppAction::StartAmend => {
+                        let amend = action == AppAction::StartAmend;
+                        commit_preview_mode = Some(amend);
+                        commit_feedback.clear();
+                        commit_preview_worker.request(amend);
+                    }
                     AppAction::PreviewDiscardSelected => {
                         if let (Some(Ok(entries)), Some(index)) =
                             (&status, status_selection.selected())

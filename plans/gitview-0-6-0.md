@@ -91,7 +91,9 @@ the user approves the final release candidate.
    locally stored remote refs are supported without fetching. Object inspection
    resolves fixed IDs for commits, tags, trees, and blobs; it shows type, size,
    bounded previews, binary notices, and commit descriptions.
-6. **Coverage and release gate:** complete capability-matrix acceptance,
+6. **Coverage and release gate:** complete the approved
+   [performance review](gitview-0-6-0-performance.md) and its measured fixes
+   before release, then complete capability-matrix acceptance,
    focused safety review, full test/build/lint checks on both target platforms,
    Linux and macOS archive checksum verification, installer checks, crate dry
    run, and release notes. Release only after all included features pass.

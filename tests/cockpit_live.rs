@@ -107,6 +107,23 @@ fn startup_data_refreshes_the_cockpit_without_keyboard_input() {
         thread::sleep(Duration::from_millis(20));
     };
 
+    // A quiet event loop must still paint externally changed status without input.
+    fs::write(
+        repository.join("external-refresh-probe"),
+        "external change\n",
+    )
+    .unwrap();
+    let refresh_deadline = Instant::now() + Duration::from_secs(2);
+    let refreshed = loop {
+        if String::from_utf8_lossy(&output.lock().unwrap()).contains("external-refresh-probe") {
+            break true;
+        }
+        if Instant::now() >= refresh_deadline {
+            break false;
+        }
+        thread::sleep(Duration::from_millis(20));
+    };
+
     master.write_all(b"q").unwrap();
     let exit_deadline = Instant::now() + Duration::from_secs(2);
     while child.try_wait().unwrap().is_none() && Instant::now() < exit_deadline {
@@ -125,4 +142,8 @@ fn startup_data_refreshes_the_cockpit_without_keyboard_input() {
     assert!(output.contains("Initial cockpit commit"));
     assert!(output.contains("untracked-file"));
     assert!(output.contains("main"), "{output}");
+    assert!(
+        refreshed,
+        "external status change did not repaint within two seconds"
+    );
 }

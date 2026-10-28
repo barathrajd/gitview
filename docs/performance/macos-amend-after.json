@@ -1,0 +1,73 @@
+{
+  "binary": "target/release/gitview",
+  "binary_mtime": 1793218365.520788,
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "architecture": "arm64",
+  "git": "git version 2.56.0",
+  "rust": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "revision": "a3202185bf83cefcc2fcd3ca122fd623a3411abc",
+  "terminal": [
+    140,
+    35
+  ],
+  "samples": 3,
+  "build_profile": "caller-selected; use cargo build --release --locked",
+  "binary_sha256": "f3698fac5f159c039899ff86a02e22aa9f789dc5578813f27152a112bdfd2583",
+  "worktree_dirty": true,
+  "action": "amend",
+  "cancel_timing": "after first loading feedback or form; inspect feedback latency to identify blocking",
+  "metrics": {
+    "idle": {
+      "wall_seconds": 3.0007532500021625,
+      "process_cpu_seconds": 0.0,
+      "process_cpu_percent_one_core": 0.0,
+      "rss_kib_before": 4544,
+      "rss_kib_after": 4576,
+      "excludes_git_child_cpu": true,
+      "terminal_output_bytes": 0
+    },
+    "startup_first_frame": {
+      "samples_ms": [
+        272.7218750223983,
+        38.7802500044927,
+        44.603749993257225
+      ],
+      "p50_ms": 44.603749993257225,
+      "p95_ms": 272.7218750223983
+    },
+    "slow_git_preview_feedback": {
+      "samples_ms": [
+        12.542292010039091,
+        12.479958008043468,
+        10.460833989782259
+      ],
+      "p50_ms": 12.479958008043468,
+      "p95_ms": 12.542292010039091
+    },
+    "slow_git_preview_cancel": {
+      "samples_ms": [
+        12.513666995801032,
+        12.163000006694347,
+        12.510999978985637
+      ],
+      "p50_ms": 12.510999978985637,
+      "p95_ms": 12.513666995801032
+    }
+  },
+  "unmeasured": [
+    "diff first-use and switching",
+    "navigation and large-list actions",
+    "path/ref previews",
+    "editor/hook/signing response",
+    "Git-child CPU",
+    "memory plateau cycles",
+    "Linux evidence if running on macOS"
+  ],
+  "fixture": {
+    "commits": 50,
+    "tracked_files": 100,
+    "staged_paths": 10,
+    "extra_refs": 0
+  },
+  "injected_git_delay_ms_per_matching_call": 250
+}

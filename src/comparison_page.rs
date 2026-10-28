@@ -70,8 +70,10 @@ impl ComparisonPage {
             receiver,
         }
     }
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self) -> bool {
+        let mut changed = false;
         while let Ok(result) = self.receiver.try_recv() {
+            changed = true;
             self.pending = false;
             match result {
                 Ok((result, prepared)) => {
@@ -87,6 +89,7 @@ impl ComparisonPage {
                 Err(error) => self.feedback = error,
             }
         }
+        changed
     }
     pub fn paste(&mut self, text: &str) {
         if self.mode == Mode::Input && !self.pending {

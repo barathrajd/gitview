@@ -2,6 +2,9 @@
 
 ## Now
 
+- [0.6.0 performance review](plans/gitview-0-6-0-performance.md) — approved
+  release prerequisite; initial preview/idle fixes measured, audit in progress.
+
 - [Gitview 0.6.0](plans/gitview-0-6-0.md) — complete six partial Basic
   workflows; target December 31, 2026.
 - [Git CLI capability roadmap](plans/git-cli-capability-roadmap-2026.md) —
