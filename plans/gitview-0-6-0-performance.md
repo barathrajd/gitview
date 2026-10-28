@@ -136,7 +136,8 @@ change is selected, and no unverified library-performance claim is assumed.
    small-fixture idle measurements pass. Cockpit rendering with 10,000-entry
    lists measures at most 1.4 ms p95 and needs no change; the tag page with
    10,000 tags and the object page at its output limit also render within a
-   millisecond. Native navigation and memory cycles remain pending. Continue
+   millisecond. Native list navigation measures at most 4.7 ms p95 on the
+   stress fixture; memory cycles on the new pages remain pending. Continue
    to use measured evidence to avoid unchanged redraw/preparation work and
    excessive request/clone volume. Preserve timers,
    status-watch freshness, live startup data, debounced search, and navigation.

@@ -352,7 +352,33 @@ off the UI thread behind a loading state, and these are Git and thread times, no
 promises. All frame times are far below the 50 ms budget, so neither page was
 changed. The numbers exclude terminal I/O, input handling, and syntax work, and
 the object page's per-Enter load thread is still not cancellable on close.
-Native navigation latency and Linux remain unmeasured.
+Linux remains unmeasured.
+
+## Native navigation latency
+
+`scripts/profile-navigation.py` starts the release binary in a pseudo-terminal
+on a temporary fixture, sends one `j` at a time, and records the time until the
+reconstructed screen changes. The time includes the pseudo-terminal and screen
+reconstruction, so it is an upper bound for Gitview's own response. Run it with:
+
+```sh
+cargo build --release --locked
+python3 scripts/profile-navigation.py --fixture stress --check
+```
+
+One run on macOS ARM64 with the stress fixture (10,000 staged paths, 200 commits,
+1,000 extra refs) sent 100 keys down the worktree list and 100 down the history
+list at each size. The p95 values were:
+
+| Series | 140x35 | 80x24 |
+| --- | --- | --- |
+| Worktree list | 4.71 ms | 2.47 ms |
+| History list | 2.34 ms | 2.51 ms |
+
+These are below the 100 ms UI-thread budget. The script counts the first screen
+change, which is the moving selection marker; later inspector updates arrive
+asynchronously and aren't timed here. This is one local run, not Linux or
+clean-revision evidence.
 
 ## Review status and remaining work
 
