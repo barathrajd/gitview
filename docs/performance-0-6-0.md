@@ -380,6 +380,40 @@ change, which is the moving selection marker; later inspector updates arrive
 asynchronously and aren't timed here. This is one local run, not Linux or
 clean-revision evidence.
 
+## Page open and close memory
+
+`scripts/check-page-memory.py` drives the release binary in a pseudo-terminal.
+It builds a temporary repository with 2,000 local tags and a 2,490-line
+replaced file in the last commit. For each page it warms ten open and close
+cycles, runs 100 measured cycles, and compares settled RSS with the larger of
+10 MiB or 10% of warm RSS. Each cycle does the following:
+
+- **Tags:** open the branches view, open the tag list, move down 20 rows, and
+  close both.
+- **Object:** inspect the selected commit, scroll 20 lines, and close it.
+- **Comparison:** compare the selected commit with its parent, toggle IDE/raw
+  and split/unified twice each, and close it.
+
+```sh
+cargo build --release --locked
+python3 scripts/check-page-memory.py
+```
+
+One run on macOS ARM64 gave:
+
+| Page | Warm RSS | Final RSS | Growth | Budget |
+| --- | --- | --- | --- | --- |
+| Tags | 8,048 KiB | 8,256 KiB | 208 KiB | 10,240 KiB |
+| Object | 8,432 KiB | 8,464 KiB | 32 KiB | 10,240 KiB |
+| Comparison | 40,608 KiB | 44,864 KiB | 4,256 KiB | 10,240 KiB |
+
+All three pass. The pages run in order in one process, so each warm value
+includes memory left by the earlier pages. Comparison grew the most, using about
+42% of its budget without flattening in this run, so a longer run is needed
+before calling it a plateau. This is one local run on one small fixture. It doesn't
+cover the 940 KB comparison fixture, the uncancellable load threads, Linux, or a
+clean revision.
+
 ## Review status and remaining work
 
 The following checks remain required before release:
@@ -394,7 +428,8 @@ The following checks remain required before release:
 - Cover navigation, debounced search, native large-list navigation, signed-tag/key
   verification behavior, object inspection, mutation progress, and external
   editor/hook/signing responsiveness.
-- Run medium/stress fixtures, cache memory plateaus, and request lifecycle checks.
+- Run medium/stress fixtures, longer comparison memory runs, and request
+  lifecycle checks.
 - Collect native Linux evidence and report Git-child CPU separately.
 - Clear the release Clippy gate and complete the existing release gates.
 
