@@ -44,8 +44,9 @@ of another account claiming an unconfigured subdomain. See
 2. In the domain provider's DNS form, add a CNAME with name `gitview` and
    target `barathrajd.github.io`. Keep the provider's default TTL unless you
    have a reason to change it.
-3. Tell the site maintainer after Pages accepts the custom domain. The site
-   base must switch from `/gitview` to `/` before the next deployment.
+3. The next workflow build uses `https://gitview.barathrajdevarajan.dev` and
+   the root path `/`. The default project path `/gitview` is only for the
+   initial deployment before the custom domain is connected.
 4. After DNS propagates, return to **Settings → Pages** and enable **Enforce
    HTTPS** when GitHub makes it available.
 

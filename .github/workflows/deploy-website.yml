@@ -20,8 +20,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      GITVIEW_DEFAULT_PAGES_DOMAIN: "true"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7

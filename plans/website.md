@@ -111,23 +111,22 @@ part of the final experience.
 3. [x] Add the feature grid and interactive installation guide with Cargo as the
    primary path, a macOS Apple Silicon release option, accessible tabs, and
    clipboard feedback. Verify links and keyboard interaction.
-4. [ ] Add the footer, Bun-based GitHub Pages workflow, and deployment
-   checklist. Deploy at the default project URL first. After the user adds the
-   custom domain in Pages settings, switch the site base and redeploy before
-   adding the DNS CNAME to the target subdomain.
+4. [x] Add the footer, Bun-based GitHub Pages workflow, and deployment
+   checklist. Deploy at the default project URL first, then switch to the
+   custom domain and root base after the user adds the domain in Pages settings.
 
 ## Risks & open questions
 
 The remaining release dependency is configuring the custom domain outside the
 site source.
 
-- **Custom-domain activation — owner: user.** First save the custom domain in
-  this repository's Pages settings, then add the subdomain CNAME pointing to
+- **Custom-domain activation — owner: user/site maintainer.** Save the custom
+  domain in Pages settings before adding the CNAME pointing to
   `barathrajd.github.io`. GitHub Actions custom publishing ignores a `CNAME`
   file, so the domain setting is the source of truth.
-- **Two-stage base path — owner: site maintainer.** The default project URL
-  needs `/gitview`; after Pages accepts the custom domain, remove the workflow's
-  `GITVIEW_DEFAULT_PAGES_DOMAIN` setting and redeploy with the root base path.
+- **Two-stage base path — owner: site maintainer.** The first deployment uses
+  `/gitview`; after Pages accepts the custom domain, redeploy with the root
+  base path so styles and links resolve at the custom-domain root.
 - **Release support can change — owner: site maintainer.** Keep install
   instructions and platform claims grounded in `README.md` and `RELEASE.md`,
   and update them when release artifacts change.
