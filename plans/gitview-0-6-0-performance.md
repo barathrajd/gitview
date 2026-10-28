@@ -134,9 +134,11 @@ change is selected, and no unverified library-performance claim is assumed.
 4. **Idle and large-list fixes (in progress):** unchanged main-loop frames are
    skipped; page completions and status updates request a redraw. Native
    small-fixture idle measurements pass. Cockpit rendering with 10,000-entry
-   lists measures at most 1.4 ms p95 and needs no change; native navigation,
-   search, other list pages, and memory cycles remain pending. Continue to use measured evidence to avoid unchanged
-   redraw/preparation work and excessive request/clone volume. Preserve timers,
+   lists measures at most 1.4 ms p95 and needs no change; the tag page with
+   10,000 tags and the object page at its output limit also render within a
+   millisecond. Native navigation and memory cycles remain pending. Continue
+   to use measured evidence to avoid unchanged redraw/preparation work and
+   excessive request/clone volume. Preserve timers,
    status-watch freshness, live startup data, debounced search, and navigation.
    Recheck new pages, many refs, and large worktrees with CPU/RSS measurements.
 5. **Release evidence and handoff:** rerun the complete workflow matrix and

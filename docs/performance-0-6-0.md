@@ -324,9 +324,35 @@ diagnostic, `measures_history_search_on_the_ui_thread` in the same test file,
 times `search_matches` over 100 mixed queries. One run gave p95 of 0.023 ms at
 200 rows, 0.79 ms at 10,000 rows, and 3.8 ms at 100,000 rows. That is well within
 the 100 ms UI-thread budget, so search needs no worker. The numbers cover
-matching only, not the debounce timer, rendering, or terminal I/O. Tag,
-path-history, and object lists, native navigation latency, and Linux remain
-unmeasured.
+matching only, not the debounce timer, rendering, or terminal I/O.
+
+## Tag and object pages
+
+Path history uses the same 200-row history loader and cockpit list as the
+history view, so the large-list and search results above cover its rendering.
+Two further diagnostics in `tests/object_tag_performance.rs` cover the tag and
+object pages. Run them explicitly in a release build:
+
+```sh
+cargo test --release --locked --features test-support \
+  --test object_tag_performance -- --ignored --nocapture --test-threads=1
+```
+
+One run on macOS ARM64 gave:
+
+| Fixture | Measurement | 140x35 | 80x24 |
+| --- | --- | --- | --- |
+| Blob of 4,900 lines, about 940 KB | first frame | 0.86 ms | 0.43 ms |
+| Same blob | scroll p95 over 100 actions | 0.58 ms | 0.47 ms |
+| 10,000 local tags | first frame | 0.22 ms | 0.09 ms |
+| Same tags | selection p95 over 100 jumps of 97 | 0.12 ms | 0.06 ms |
+
+Loading the blob took 20 ms and listing 10,000 tags took 303 ms. Both happen
+off the UI thread behind a loading state, and these are Git and thread times, not
+promises. All frame times are far below the 50 ms budget, so neither page was
+changed. The numbers exclude terminal I/O, input handling, and syntax work, and
+the object page's per-Enter load thread is still not cancellable on close.
+Native navigation latency and Linux remain unmeasured.
 
 ## Review status and remaining work
 
