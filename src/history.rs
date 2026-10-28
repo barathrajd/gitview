@@ -7,8 +7,8 @@ pub fn load_history(root: &Path) -> Result<Vec<String>, String> {
 }
 
 pub fn load_history_for_path(root: &Path, path: Option<&Path>) -> Result<Vec<String>, String> {
-    if let Some(path) = path {
-        if path.as_os_str().is_empty()
+    if let Some(path) = path
+        && (path.as_os_str().is_empty()
             || path.is_absolute()
             || path.components().any(|component| {
                 matches!(
@@ -17,10 +17,9 @@ pub fn load_history_for_path(root: &Path, path: Option<&Path>) -> Result<Vec<Str
                         | std::path::Component::RootDir
                         | std::path::Component::Prefix(_)
                 )
-            })
-        {
-            return Err("Use a repository-relative history path without parent components".into());
-        }
+            }))
+    {
+        return Err("Use a repository-relative history path without parent components".into());
     }
     let mut command = process::git_command();
     command.current_dir(root).arg("--literal-pathspecs").args([

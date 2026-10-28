@@ -308,7 +308,8 @@ The following checks remain required before release:
 - Clear the release Clippy gate and complete the existing release gates.
 
 Feature-enabled tests pass, including stale-state, terminal restoration, and
-live external refresh coverage. The current release Clippy command still fails
-on pre-existing findings in `comparison.rs`, `history.rs`, and `ui.rs` (nested
-conditions, complex types, prefix stripping, and a one-range vector). This is
-an open release blocker, not a passing check.
+live external refresh coverage. The release CI Clippy command, `cargo clippy
+--locked --all-targets --features test-support -- -D warnings -A
+clippy::too_many_arguments`, now passes locally on Rust 1.99.1. The earlier
+findings were fixed without behavior changes. Rerun it on the release CI
+toolchain and a clean revision before treating the gate as closed.

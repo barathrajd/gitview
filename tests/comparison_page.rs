@@ -151,7 +151,7 @@ fn bounds_retained_comparison_layout_bytes() {
         let output = draw(&page);
         assert!(output.contains("COMPARISON REVIEW"));
         let (entries, bytes, newest) = page.render_cache_usage();
-        assert!(entries >= 1 && entries <= 4);
+        assert!((1..=4).contains(&entries));
         assert!(bytes <= 8 * 1024 * 1024 || (entries == 1 && bytes == newest));
     }
 }

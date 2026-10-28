@@ -36,7 +36,7 @@ scope on October 29, 2026. Implementation was approved on October 29, 2026.
   layouts, output limits, cancellation, and external status refresh.
 - Every reviewed workflow is recorded as passing, fixed, or an explicit release
   blocker. Full feature-enabled tests, formatting, build, and release Clippy
-  checks pass. The 0.6.0 release gate requires this review's completion.
+  checks pass (Clippy passes locally; CI toolchain rerun pending). The 0.6.0 release gate requires this review's completion.
 
 ## In scope / Out of scope
 

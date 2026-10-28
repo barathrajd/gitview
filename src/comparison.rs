@@ -52,8 +52,8 @@ pub fn load(
     target: &str,
     path: Option<&Path>,
 ) -> Result<Comparison, String> {
-    if let Some(path) = path {
-        if path.is_absolute()
+    if let Some(path) = path
+        && (path.is_absolute()
             || path.components().any(|c| {
                 matches!(
                     c,
@@ -61,12 +61,9 @@ pub fn load(
                         | std::path::Component::RootDir
                         | std::path::Component::Prefix(_)
                 )
-            })
-        {
-            return Err(
-                "Use a repository-relative comparison path without parent components".into(),
-            );
-        }
+            }))
+    {
+        return Err("Use a repository-relative comparison path without parent components".into());
     }
     let base = resolve(root, base)?;
     let target = resolve(root, target)?;

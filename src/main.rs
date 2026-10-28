@@ -980,9 +980,11 @@ fn app(
                     ui::HelpPage::AmendConfirmation
                 } else if commit_message.is_some() {
                     ui::HelpPage::CommitMessage
-                } else if move_path_input || move_confirm.is_some() {
-                    ui::HelpPage::WorkingTree
-                } else if remove_path_input.is_some() || remove_confirm.is_some() {
+                } else if move_path_input
+                    || move_confirm.is_some()
+                    || remove_path_input.is_some()
+                    || remove_confirm.is_some()
+                {
                     ui::HelpPage::WorkingTree
                 } else if ignore_path_input.is_some() {
                     ui::HelpPage::IgnorePathInput

@@ -2359,8 +2359,9 @@ struct IdeDiffRow {
     after: IdeDiffLine,
 }
 
+type IdeDiffCacheEntry = (u64, usize, String, Rc<Vec<IdeDiffRow>>);
 thread_local! {
-    static IDE_DIFF_CACHE: RefCell<Option<(u64, usize, String, Rc<Vec<IdeDiffRow>>)>> = const { RefCell::new(None) };
+    static IDE_DIFF_CACHE: RefCell<Option<IdeDiffCacheEntry>> = const { RefCell::new(None) };
 }
 
 fn syntax_assets() -> (&'static SyntaxSet, &'static ThemeSet) {
@@ -2536,10 +2537,9 @@ fn inline_diff_background(background: Color) -> Color {
     }
 }
 
-fn inline_change_ranges(
-    before: &str,
-    after: &str,
-) -> (Option<(usize, usize)>, Option<(usize, usize)>) {
+type InlineRange = Option<(usize, usize)>;
+
+fn inline_change_ranges(before: &str, after: &str) -> (InlineRange, InlineRange) {
     let before: Vec<_> = before.chars().collect();
     let after: Vec<_> = after.chars().collect();
     let mut prefix = 0;
@@ -2563,12 +2563,16 @@ fn inline_change_ranges(
 }
 
 fn source_line(diff_text: &str) -> (&str, Option<Color>) {
-    if diff_text.starts_with('+') && !diff_text.starts_with("+++") {
-        (&diff_text[1..], Some(Color::Rgb(24, 58, 43)))
-    } else if diff_text.starts_with('-') && !diff_text.starts_with("---") {
-        (&diff_text[1..], Some(Color::Rgb(63, 39, 44)))
-    } else if diff_text.starts_with(' ') {
-        (&diff_text[1..], None)
+    if let Some(text) = diff_text.strip_prefix('+')
+        && !diff_text.starts_with("+++")
+    {
+        (text, Some(Color::Rgb(24, 58, 43)))
+    } else if let Some(text) = diff_text.strip_prefix('-')
+        && !diff_text.starts_with("---")
+    {
+        (text, Some(Color::Rgb(63, 39, 44)))
+    } else if let Some(text) = diff_text.strip_prefix(' ') {
+        (text, None)
     } else {
         (diff_text, None)
     }
@@ -2898,6 +2902,7 @@ fn wrap_diff_line(text: &str, width: usize) -> Vec<String> {
 
 fn wrap_line_ranges(text: &str, width: usize) -> Vec<Range<usize>> {
     if text.is_empty() {
+        #[allow(clippy::single_range_in_vec_init)]
         return vec![0..0];
     }
 

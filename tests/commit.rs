@@ -108,7 +108,7 @@ fn refuses_to_commit_when_the_staged_set_changed_after_confirmation() {
     let error = create_commit(repo.path(), "Commit selected files", &expected).unwrap_err();
 
     assert!(error.contains("Staged changes changed"));
-    assert!(repo.git(&["status", "--porcelain"]).len() > 0);
+    assert!(!repo.git(&["status", "--porcelain"]).is_empty());
 }
 
 #[test]
@@ -123,7 +123,7 @@ fn refuses_when_staged_content_changes_without_changing_the_path_set() {
     let error = create_commit(repo.path(), "Commit reviewed version", &expected).unwrap_err();
 
     assert!(error.contains("Staged changes changed"));
-    assert!(repo.git(&["status", "--porcelain"]).len() > 0);
+    assert!(!repo.git(&["status", "--porcelain"]).is_empty());
 }
 
 #[test]
@@ -136,5 +136,5 @@ fn refuses_an_empty_or_whitespace_only_message() {
     let error = create_commit(repo.path(), "  \n", &expected).unwrap_err();
 
     assert!(error.contains("Commit message cannot be empty"));
-    assert!(repo.git(&["status", "--porcelain"]).len() > 0);
+    assert!(!repo.git(&["status", "--porcelain"]).is_empty());
 }
