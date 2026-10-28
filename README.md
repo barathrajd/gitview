@@ -193,15 +193,15 @@ implemented. See the [Git CLI capability matrix](docs/git-cli-capability-matrix.
 for current coverage and planned work.
 
 History is limited to 200 commits. Diffs are limited to 1 MB or 5,000 lines and
-indicate truncation; binary changes show Git's binary notice. Diff lines wider
-than the available pane are clipped. Terminals at least 120 columns wide show
-side-by-side diffs; narrower terminals show a unified diff. Commit rename
-changes are displayed as separate deletion and addition entries. Unmerged
-working-tree entries are not supported; resolve conflicts using Git. Branch
-creation requires a first commit. Git checkout hooks run normally and can
-report failure after a switch has already occurred; Gitview refreshes the
-branch state and displays the error. Linux builds and tests were verified for
-0.2.1; Linux release packaging is not provided.
+indicate truncation; binary changes show Git's binary notice. Side-by-side diffs
+are the default at every terminal width, and long lines wrap within each pane.
+Press **v** to switch to a unified diff. Commit rename changes are displayed as
+separate deletion and addition entries. Unmerged working-tree entries are not
+supported; resolve conflicts using Git. Branch creation requires a first
+commit. Git checkout hooks run normally and can report failure after a switch
+has already occurred; Gitview refreshes the branch state and displays the
+error. Linux builds and tests were verified for 0.2.1; Linux release packaging
+is not provided.
 
 ## License
 

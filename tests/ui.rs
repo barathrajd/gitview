@@ -42,6 +42,7 @@ fn contextual_help_opens_as_a_page_specific_overlay() {
                     diff: &diff,
                     scroll: 0,
                     selected_hunk: 0,
+                    side_by_side: true,
                     worktree_entry: Some(&entry),
                 },
                 ratatui::symbols::border::PLAIN,
@@ -413,6 +414,7 @@ fn renders_error_states_for_git_backed_views() {
             diff: &diff,
             scroll: 0,
             selected_hunk: 0,
+            side_by_side: true,
             worktree_entry: None,
         },
         80,
@@ -422,20 +424,21 @@ fn renders_error_states_for_git_backed_views() {
 }
 
 #[test]
-fn renders_diff_titles_for_narrow_and_wide_terminals() {
+fn renders_split_or_unified_diff_at_any_terminal_width() {
     let diff = (1, Some(Ok("@@ -10 +20 @@\n-before\n+after\n".to_owned())));
     let narrow = draw(
         Screen::Diff {
             diff: &diff,
             scroll: 0,
             selected_hunk: 0,
+            side_by_side: true,
             worktree_entry: None,
         },
         119,
         24,
     );
-    assert!(narrow.contains("DIFF"));
-    assert!(!narrow.contains("Before"));
+    assert!(narrow.contains("BEFORE"));
+    assert!(narrow.contains("AFTER"));
     assert!(narrow.contains("10"));
     assert!(narrow.contains("20"));
 
@@ -444,13 +447,15 @@ fn renders_diff_titles_for_narrow_and_wide_terminals() {
             diff: &diff,
             scroll: 0,
             selected_hunk: 0,
+            side_by_side: false,
             worktree_entry: None,
         },
         120,
         24,
     );
-    assert!(wide.contains("BEFORE"));
-    assert!(wide.contains("AFTER"));
+    assert!(wide.contains("UNIFIED"));
+    assert!(!wide.contains("BEFORE"));
+    assert!(!wide.contains("AFTER"));
     assert!(wide.contains("10"));
     assert!(wide.contains("20"));
     assert!(wide.contains("Up/Down or j/k"));
@@ -475,6 +480,7 @@ fn working_tree_diff_shows_hunk_controls_and_selection() {
             diff: &diff,
             scroll: 0,
             selected_hunk: 1,
+            side_by_side: true,
             worktree_entry: Some(&entry),
         },
         56,
@@ -512,6 +518,7 @@ fn staged_worktree_diff_shows_unstage_all_controls() {
             diff: &diff,
             scroll: 0,
             selected_hunk: 0,
+            side_by_side: true,
             worktree_entry: Some(&entry),
         },
         120,
@@ -532,6 +539,7 @@ fn wide_side_by_side_diff_wraps_long_lines() {
             diff: &diff,
             scroll: 0,
             selected_hunk: 0,
+            side_by_side: true,
             worktree_entry: None,
         },
         120,

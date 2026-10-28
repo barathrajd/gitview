@@ -268,6 +268,7 @@ fn app(
     let (diff_sender, diff_receiver) = std::sync::mpsc::channel::<(u64, Result<String, String>)>();
     let mut diff: Option<(u64, Option<Result<String, String>>)> = None;
     let mut diff_scroll = 0u16;
+    let mut diff_side_by_side = true;
     let mut diff_entry: Option<gitview::worktree::Entry> = None;
     let mut selected_hunk = 0usize;
     let mut branch_view = false;
@@ -717,6 +718,7 @@ fn app(
                     diff,
                     scroll: diff_scroll,
                     selected_hunk,
+                    side_by_side: diff_side_by_side,
                     worktree_entry: diff_entry.as_ref(),
                 }
             } else if let Some(details) = &details {
@@ -1344,6 +1346,10 @@ fn app(
                         details = None;
                     }
                 }
+                KeyCode::Char('v') if !help && diff.is_some() => {
+                    diff_side_by_side = !diff_side_by_side;
+                    diff_scroll = 0;
+                }
                 KeyCode::Enter
                     if !help && app_state.view() == View::WorkingTree && diff.is_none() =>
                 {
@@ -1419,8 +1425,7 @@ fn app(
                         }) =>
                 {
                     if let Some((_, Some(Ok(text)))) = &diff {
-                        let wide = terminal.size().is_ok_and(|size| size.width >= 120);
-                        let positions = hunk_line_positions(text, wide);
+                        let positions = hunk_line_positions(text, diff_side_by_side);
                         if !positions.is_empty() {
                             selected_hunk = (selected_hunk + 1).min(positions.len() - 1);
                             diff_scroll = positions[selected_hunk] as u16;
@@ -1434,8 +1439,7 @@ fn app(
                         }) =>
                 {
                     if let Some((_, Some(Ok(text)))) = &diff {
-                        let wide = terminal.size().is_ok_and(|size| size.width >= 120);
-                        let positions = hunk_line_positions(text, wide);
+                        let positions = hunk_line_positions(text, diff_side_by_side);
                         if !positions.is_empty() {
                             selected_hunk = selected_hunk.saturating_sub(1);
                             diff_scroll = positions[selected_hunk] as u16;
@@ -1452,12 +1456,7 @@ fn app(
                                     && entry.section == gitview::worktree::Section::Untracked)))
                             || (!stage && entry.section == gitview::worktree::Section::Staged))
                         && (all_hunks
-                            || selected_hunk
-                                < hunk_line_positions(
-                                    text,
-                                    terminal.size().is_ok_and(|size| size.width >= 120),
-                                )
-                                .len())
+                            || selected_hunk < hunk_line_positions(text, diff_side_by_side).len())
                     {
                         let entry = entry.clone();
                         let hunk = selected_hunk;

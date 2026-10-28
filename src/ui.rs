@@ -307,6 +307,7 @@ pub fn render_help_overlay(
     ];
     const WORKTREE_DIFF: &[(&str, &str)] = &[
         ("[, ]", "Select previous or next hunk"),
+        ("v", "Toggle Before/After or unified view"),
         ("s, u", "Stage or unstage selected hunk"),
         ("S, U", "Stage or unstage all file changes"),
         ("Up/Down, j/k", "Scroll diff"),
@@ -316,6 +317,7 @@ pub fn render_help_overlay(
         ("q", "Quit Gitview"),
     ];
     const COMMIT_DIFF: &[(&str, &str)] = &[
+        ("v", "Toggle Before/After or unified view"),
         ("Up/Down, j/k", "Scroll diff"),
         ("Esc, h", "Return to commit files"),
         ("H", "Return to history"),
@@ -467,6 +469,7 @@ pub enum Screen<'a> {
         diff: &'a (u64, Option<Result<String, String>>),
         scroll: u16,
         selected_hunk: usize,
+        side_by_side: bool,
         worktree_entry: Option<&'a Entry>,
     },
     CommitDetails {
@@ -663,8 +666,17 @@ pub fn render(
             diff,
             scroll,
             selected_hunk,
+            side_by_side,
             worktree_entry,
-        } => render_diff(frame, diff, scroll, selected_hunk, worktree_entry, border),
+        } => render_diff(
+            frame,
+            diff,
+            scroll,
+            selected_hunk,
+            side_by_side,
+            worktree_entry,
+            border,
+        ),
         Screen::CommitDetails { details, selection } => {
             render_commit_details(frame, details, selection, border)
         }
@@ -1509,6 +1521,7 @@ fn render_diff(
     diff: &(u64, Option<Result<String, String>>),
     scroll: u16,
     selected_hunk: usize,
+    side_by_side: bool,
     worktree_entry: Option<&Entry>,
     border: ratatui::symbols::border::Set<'static>,
 ) {
@@ -1529,6 +1542,7 @@ fn render_diff(
     let hints = if worktree_entry.is_some() {
         let compact = frame.area().width <= 80;
         let mut hints = vec![
+            ("v", if compact { "view" } else { "toggle view" }),
             ("s", if compact { "stage" } else { "stage hunk" }),
             ("u", if compact { "unstage" } else { "unstage hunk" }),
             ("S", "stage all"),
@@ -1539,14 +1553,18 @@ fn render_diff(
         }
         hints
     } else {
-        vec![("Up/Down or j/k", "scroll"), ("Esc/h", "back")]
+        vec![
+            ("v", "toggle view"),
+            ("Up/Down or j/k", "scroll"),
+            ("Esc/h", "back"),
+        ]
     };
     let sections = Layout::vertical([
         Constraint::Min(1),
         Constraint::Length(hint_row_count(&hints, frame.area().width)),
     ])
     .split(frame.area());
-    if frame.area().width >= 120 && matches!(diff.1, Some(Ok(_))) {
+    if side_by_side && matches!(diff.1, Some(Ok(_))) {
         let panes = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(sections[0]);
         let rows = crate::diff::numbered_side_by_side(message);
@@ -1606,12 +1624,12 @@ fn render_diff(
                 .block(page_block(
                     if selectable_hunks {
                         format!(
-                            "DIFF · HUNK {}/{}",
+                            "UNIFIED · HUNK {}/{}",
                             selected_hunk.saturating_add(1),
                             hunk_count
                         )
                     } else {
-                        "DIFF".to_owned()
+                        "UNIFIED".to_owned()
                     },
                     border,
                 )),
