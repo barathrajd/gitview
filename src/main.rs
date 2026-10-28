@@ -1,4 +1,7 @@
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{
+    self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEvent, KeyEventKind,
+    KeyModifiers,
+};
 use crossterm_keybind::{KeyBind, KeyBindTrait};
 use gitview::{
     app::{AppAction, AppState, BranchAction, View},
@@ -11,6 +14,39 @@ use std::{
     sync::mpsc,
     time::{Duration, Instant},
 };
+
+struct BracketedPasteMode {
+    enabled: bool,
+}
+
+impl BracketedPasteMode {
+    fn enable() -> io::Result<Self> {
+        crossterm::execute!(io::stdout(), EnableBracketedPaste)?;
+        Ok(Self { enabled: true })
+    }
+
+    fn disable(&mut self) -> io::Result<()> {
+        if self.enabled {
+            crossterm::execute!(io::stdout(), DisableBracketedPaste)?;
+            self.enabled = false;
+        }
+        Ok(())
+    }
+
+    fn resume(&mut self) -> io::Result<()> {
+        if !self.enabled {
+            crossterm::execute!(io::stdout(), EnableBracketedPaste)?;
+            self.enabled = true;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for BracketedPasteMode {
+    fn drop(&mut self) {
+        let _ = self.disable();
+    }
+}
 
 #[derive(KeyBind)]
 enum Navigation {
@@ -81,16 +117,27 @@ fn run() -> Result<(), String> {
     let root = gitview::repository::parse_root(&output.stdout);
     let mut terminal =
         ratatui::try_init().map_err(|e| format!("Could not initialize terminal: {e}"))?;
+    let mut paste_mode = match BracketedPasteMode::enable() {
+        Ok(mode) => mode,
+        Err(error) => {
+            ratatui::restore();
+            return Err(format!("Could not enable bracketed paste: {error}"));
+        }
+    };
     let result = app(
         &mut terminal,
+        &mut paste_mode,
         &root,
         ascii,
         profile_label,
         &config_dir,
         &mut profiles,
     );
+    let paste_result = paste_mode.disable();
     ratatui::restore();
-    result.map_err(|e| format!("Terminal error: {e}"))
+    result.map_err(|e| format!("Terminal error: {e}"))?;
+    paste_result.map_err(|error| format!("Could not disable bracketed paste: {error}"))?;
+    Ok(())
 }
 
 fn print_shell_integration() {
@@ -135,6 +182,7 @@ fn reload_profile_context(
 
 fn edit_profile_registry(
     terminal: &mut DefaultTerminal,
+    paste_mode: &mut BracketedPasteMode,
     root: &std::path::Path,
     config_dir: &std::path::Path,
     profiles: &mut Vec<gitview::config::FolderProfile>,
@@ -154,10 +202,14 @@ fn edit_profile_registry(
         return Ok(());
     };
 
+    paste_mode.disable()?;
     ratatui::restore();
     let editor_result = Command::new(editor).arg(&registry_path).status();
     match ratatui::try_init() {
-        Ok(restored) => *terminal = restored,
+        Ok(restored) => {
+            *terminal = restored;
+            paste_mode.resume()?;
+        }
         Err(error) => {
             return Err(io::Error::other(format!(
                 "Could not restore terminal: {error}"
@@ -180,6 +232,7 @@ fn edit_profile_registry(
 
 fn app(
     terminal: &mut DefaultTerminal,
+    paste_mode: &mut BracketedPasteMode,
     root: &std::path::Path,
     ascii: bool,
     mut profile_label: String,
@@ -231,10 +284,11 @@ fn app(
     let mut branch_input: Option<String> = None;
     let mut branch_feedback = String::new();
     let mut commit_message: Option<String> = None;
-    let mut commit_confirm: Option<String> = None;
+    let mut commit_description = String::new();
+    let mut commit_description_focused = false;
     let mut commit_expected: Option<gitview::commit::CommitPreview> = None;
     let mut commit_feedback = String::new();
-    let (commit_sender, commit_receiver) = mpsc::channel::<(String, Result<(), String>)>();
+    let (commit_sender, commit_receiver) = mpsc::channel::<(String, String, Result<(), String>)>();
     let mut discard_confirm: Option<gitview::worktree::DiscardPreview> = None;
     let (discard_sender, discard_receiver) = mpsc::channel::<Result<(), String>>();
     let mut mutation_pending = false;
@@ -507,12 +561,13 @@ fn app(
                 let _ = sender.send((id, gitview::branches::load_branches(&path)));
             });
         }
-        while let Ok((message, result)) = commit_receiver.try_recv() {
+        while let Ok((message, description, result)) = commit_receiver.try_recv() {
             mutation_pending = false;
-            commit_confirm = None;
             match result {
                 Ok(()) => {
                     commit_message = None;
+                    commit_description.clear();
+                    commit_description_focused = false;
                     commit_expected = None;
                     commit_feedback = "Commit created.".into();
                     history_request += 1;
@@ -537,6 +592,7 @@ fn app(
                 Err(error) => {
                     commit_feedback = error;
                     commit_message = Some(message);
+                    commit_description = description;
                     commit_expected = gitview::commit::preview_commit(root).ok();
                 }
             }
@@ -561,8 +617,6 @@ fn app(
         terminal.draw(|frame| {
             let help_page = if profiles_view {
                 ui::HelpPage::Profiles
-            } else if commit_confirm.is_some() {
-                ui::HelpPage::CommitConfirmation
             } else if commit_message.is_some() {
                 ui::HelpPage::CommitMessage
             } else if branch_view && branch_input.is_some() {
@@ -592,14 +646,6 @@ fn app(
                     registry_path: &profile_registry_path,
                     feedback: &profile_feedback,
                 }
-            } else if let Some(message) = &commit_confirm {
-                Screen::CommitConfirmation {
-                    message,
-                    staged: commit_expected
-                        .as_ref()
-                        .map_or(&[], |preview| preview.entries.as_slice()),
-                    pending: mutation_pending,
-                }
             } else if let Some(preview) = &discard_confirm {
                 Screen::DiscardConfirmation {
                     entry: &preview.entry,
@@ -607,8 +653,15 @@ fn app(
                 }
             } else if let Some(message) = &commit_message {
                 Screen::CommitInput {
+                    repository: root,
+                    profile: &profile_label,
+                    branches: branches.as_ref(),
                     message,
+                    description: &commit_description,
+                    description_focused: commit_description_focused,
                     feedback: &commit_feedback,
+                    entries: status.as_ref(),
+                    pending: mutation_pending,
                 }
             } else if branch_view && branch_input.is_some() {
                 Screen::BranchInput(branch_input.as_deref().unwrap_or(""))
@@ -666,6 +719,18 @@ fn app(
             Err(mpsc::RecvTimeoutError::Timeout) => continue,
             Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
         };
+        if let Event::Paste(pasted) = &event {
+            if commit_message.is_some() && !mutation_pending && !help {
+                let pasted = normalize_commit_paste(pasted, commit_description_focused);
+                if commit_description_focused {
+                    commit_description.push_str(&pasted);
+                } else if let Some(message) = &mut commit_message {
+                    message.push_str(&pasted);
+                }
+                commit_feedback.clear();
+            }
+            continue;
+        }
         if let Event::Key(key) = event
             && key.kind == KeyEventKind::Press
         {
@@ -682,6 +747,7 @@ fn app(
                     KeyCode::Char('q') => return Ok(()),
                     KeyCode::Char('e') => edit_profile_registry(
                         terminal,
+                        paste_mode,
                         root,
                         config_dir,
                         profiles,
@@ -710,16 +776,29 @@ fn app(
                 continue;
             }
             if commit_message.is_some() {
+                if mutation_pending {
+                    continue;
+                }
                 match key.code {
                     KeyCode::Esc => {
                         commit_message = None;
+                        commit_description.clear();
+                        commit_description_focused = false;
                         commit_expected = None;
                         commit_feedback.clear();
                     }
                     KeyCode::Char('?') => help = true,
+                    KeyCode::Tab => commit_description_focused = !commit_description_focused,
                     KeyCode::Backspace => {
-                        if let Some(message) = &mut commit_message {
+                        if commit_description_focused {
+                            commit_description.pop();
+                        } else if let Some(message) = &mut commit_message {
                             message.pop();
+                        }
+                    }
+                    KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        if commit_description_focused {
+                            commit_description.push('\n');
                         }
                     }
                     KeyCode::Enter | KeyCode::Char('\r' | '\n') => {
@@ -729,46 +808,36 @@ fn app(
                         } else if commit_expected.is_none() {
                             commit_feedback = "Stage changes before committing.".into();
                         } else {
-                            commit_confirm = Some(message.to_owned());
-                            commit_message = None;
+                            let subject = message.to_owned();
+                            let description = commit_description.clone();
+                            let message = if description.trim().is_empty() {
+                                subject.clone()
+                            } else {
+                                format!("{}\n\n{}", subject.trim_end(), description.trim_end())
+                            };
+                            let staged = commit_expected.clone();
+                            let path = root.to_path_buf();
+                            let sender = commit_sender.clone();
+                            mutation_pending = true;
                             commit_feedback.clear();
+                            std::thread::spawn(move || {
+                                let result = staged
+                                    .as_ref()
+                                    .ok_or_else(|| "Staged changes are unavailable".to_owned())
+                                    .and_then(|preview| {
+                                        gitview::commit::create_commit(&path, &message, preview)
+                                    });
+                                let _ = sender.send((subject, description, result));
+                            });
                         }
                     }
                     KeyCode::Char(character) if !character.is_control() => {
-                        if let Some(message) = &mut commit_message {
+                        if commit_description_focused {
+                            commit_description.push(character);
+                        } else if let Some(message) = &mut commit_message {
                             message.push(character);
                         }
                         commit_feedback.clear();
-                    }
-                    _ => {}
-                }
-                continue;
-            }
-            if let Some(message) = commit_confirm.as_ref() {
-                if mutation_pending {
-                    continue;
-                }
-                match key.code {
-                    KeyCode::Char('?') => help = true,
-                    KeyCode::Char('y') => {
-                        mutation_pending = true;
-                        let message = message.clone();
-                        let staged = commit_expected.clone();
-                        let path = root.to_path_buf();
-                        let sender = commit_sender.clone();
-                        std::thread::spawn(move || {
-                            let result = staged
-                                .as_ref()
-                                .ok_or_else(|| "Staged changes are unavailable".to_owned())
-                                .and_then(|preview| {
-                                    gitview::commit::create_commit(&path, &message, preview)
-                                });
-                            let _ = sender.send((message, result));
-                        });
-                    }
-                    KeyCode::Char('n') | KeyCode::Esc => {
-                        commit_message = Some(message.clone());
-                        commit_confirm = None;
                     }
                     _ => {}
                 }
@@ -1044,6 +1113,8 @@ fn app(
                         Ok(preview) => {
                             commit_expected = Some(preview);
                             commit_feedback.clear();
+                            commit_description.clear();
+                            commit_description_focused = false;
                             commit_message = Some(String::new());
                         }
                         Err(error) => {
@@ -1411,6 +1482,19 @@ fn navigation_key(key: KeyEvent) -> KeyCode {
     }
 }
 
+fn normalize_commit_paste(pasted: &str, multiline: bool) -> String {
+    pasted
+        .chars()
+        .filter_map(|character| match character {
+            '\r' => None,
+            '\n' if multiline => Some('\n'),
+            '\n' | '\t' => Some(' '),
+            character if character.is_control() => None,
+            character => Some(character),
+        })
+        .collect()
+}
+
 fn update_search_results(
     history: Option<&Result<Vec<String>, String>>,
     query: &str,
@@ -1478,6 +1562,18 @@ mod tests {
         assert_eq!(
             navigation_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
             KeyCode::Down
+        );
+    }
+
+    #[test]
+    fn commit_paste_keeps_description_newlines_and_flattens_subject_lines() {
+        assert_eq!(
+            normalize_commit_paste("feat: add editor\r\nwith paste", false),
+            "feat: add editor with paste"
+        );
+        assert_eq!(
+            normalize_commit_paste("First line\r\nSecond\tline", true),
+            "First line\nSecond line"
         );
     }
 

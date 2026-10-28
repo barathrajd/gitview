@@ -83,9 +83,13 @@ remains deferred.
   files are removed. Open a file diff with **Enter** to select hunks with **[**
   and **]**; **s/u** stage or unstage the selected hunk, and **S/U** act on the
   whole file.
-- Press **c** in the working-tree view to enter a commit message, review the
-  staged file list, and confirm the commit. Gitview commits only the staged
-  changes; it preserves unstaged edits and Git's configured hooks and signing.
+- Press **c** in the working-tree view to enter a commit message. The editor
+  keeps the read-only worktree beside a short subject and optional description.
+  Press **Tab** to switch fields and **Ctrl+J** to add a description line. You
+  can paste into either field; pasted subject line breaks become spaces, while
+  description line breaks are preserved. Press **Enter** once to commit the
+  staged changes; Gitview preserves unstaged edits and Git's configured hooks
+  and signing.
 - Press **b** to browse local branches. Select one and press **Enter**, or press
   **c** to create a branch from the current commit. Confirm with **y** or cancel
   with **n** or **Esc**.

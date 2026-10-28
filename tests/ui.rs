@@ -66,36 +66,55 @@ fn contextual_help_opens_as_a_page_specific_overlay() {
 }
 
 #[test]
-fn commit_dialogs_show_the_message_and_exact_staged_file_list() {
+fn commit_message_shows_staged_and_unstaged_files_before_single_enter_commit() {
     let input = draw(
         Screen::CommitInput {
+            repository: Path::new("/repo/gitview"),
+            profile: "Primary",
+            branches: None,
             message: "Fix the parser",
+            description: "Explain the behavior change\nAdd regression context",
+            description_focused: true,
             feedback: "",
-        },
-        50,
-        10,
-    );
-    assert!(input.contains("COMMIT MESSAGE"));
-    assert!(input.contains("Fix the parser"));
-    assert!(input.contains("review staged files"));
-
-    let staged = vec![Entry {
-        section: Section::Staged,
-        path: OsString::from("src/parser.rs"),
-        original: None,
-    }];
-    let confirm = draw(
-        Screen::CommitConfirmation {
-            message: "Fix the parser",
-            staged: &staged,
+            entries: Some(&Ok(vec![
+                Entry {
+                    section: Section::Staged,
+                    path: OsString::from("src/ready.rs"),
+                    original: None,
+                },
+                Entry {
+                    section: Section::Unstaged,
+                    path: OsString::from("src/wip.rs"),
+                    original: None,
+                },
+                Entry {
+                    section: Section::Untracked,
+                    path: OsString::from("notes.txt"),
+                    original: None,
+                },
+            ])),
             pending: false,
         },
-        60,
-        16,
+        100,
+        18,
     );
-    assert!(confirm.contains("CONFIRM COMMIT"));
-    assert!(confirm.contains("src/parser.rs"));
-    assert!(confirm.contains("Fix the parser"));
+    assert!(input.contains("COMMIT MESSAGE"));
+    assert!(input.contains("COMMIT DESCRIPTION"));
+    assert!(input.contains("Fix the parser"));
+    assert!(input.contains("Explain the behavior change"));
+    assert!(input.contains("Add regression context"));
+    assert!(input.contains("GITVIEW"));
+    assert!(input.contains("/repo/gitview"));
+    assert!(input.contains("WORKTREE"));
+    assert!(input.contains("READ ONLY"));
+    assert!(input.contains("STAGED CHANGES"));
+    assert!(input.contains("CHANGES"));
+    assert!(input.contains("src/ready.rs"));
+    assert!(input.contains("src/wip.rs"));
+    assert!(input.contains("notes.txt"));
+    assert!(input.contains("commit"));
+    assert!(input.contains("Ctrl+J"));
+    assert!(!input.contains("CONFIRM COMMIT"));
 }
 
 #[test]

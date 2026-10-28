@@ -290,13 +290,11 @@ pub fn render_help_overlay(
     ];
     const COMMIT_MESSAGE: &[(&str, &str)] = &[
         ("Type", "Write a commit message"),
-        ("Enter", "Review staged files"),
+        ("Tab", "Switch subject and description"),
+        ("Ctrl+J", "Add a description line"),
+        ("Enter", "Create commit"),
         ("Backspace", "Delete a character"),
         ("Esc", "Cancel commit"),
-    ];
-    const COMMIT_CONFIRMATION: &[(&str, &str)] = &[
-        ("y", "Create this commit"),
-        ("n, Esc", "Edit message or cancel"),
     ];
     const WORKTREE_DIFF: &[(&str, &str)] = &[
         ("[, ]", "Select previous or next hunk"),
@@ -337,7 +335,6 @@ pub fn render_help_overlay(
         HelpPage::BranchConfirmation => ("Confirm branch", BRANCH_CONFIRMATION),
         HelpPage::Commit => ("Commit", COMMIT),
         HelpPage::CommitMessage => ("Commit message", COMMIT_MESSAGE),
-        HelpPage::CommitConfirmation => ("Commit confirmation", COMMIT_CONFIRMATION),
         HelpPage::WorktreeDiff => ("Working tree diff", WORKTREE_DIFF),
         HelpPage::CommitDiff => ("Commit diff", COMMIT_DIFF),
         HelpPage::Search => ("Search", SEARCH),
@@ -426,12 +423,14 @@ pub enum Screen<'a> {
         action: Option<&'a BranchAction>,
     },
     CommitInput {
+        repository: &'a Path,
+        profile: &'a str,
+        branches: Option<&'a Result<Branches, String>>,
         message: &'a str,
+        description: &'a str,
+        description_focused: bool,
         feedback: &'a str,
-    },
-    CommitConfirmation {
-        message: &'a str,
-        staged: &'a [Entry],
+        entries: Option<&'a Result<Vec<Entry>, String>>,
         pending: bool,
     },
     DiscardConfirmation {
@@ -490,7 +489,6 @@ pub enum HelpPage {
     BranchConfirmation,
     Commit,
     CommitMessage,
-    CommitConfirmation,
     WorktreeDiff,
     CommitDiff,
     Search,
@@ -558,64 +556,31 @@ pub fn render(
             };
             render_key_hints(frame, areas[1], hints);
         }
-        Screen::CommitInput { message, feedback } => {
-            let mut lines = Vec::new();
-            if !feedback.is_empty() {
-                lines.push(Line::styled(
-                    feedback,
-                    Style::default().fg(Color::Rgb(251, 191, 36)),
-                ));
-            }
-            lines.push(Line::raw(format!("{message}_")));
-            let areas =
-                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
-            frame.render_widget(
-                Paragraph::new(Text::from(lines))
-                    .wrap(Wrap { trim: false })
-                    .block(page_block("COMMIT MESSAGE", border)),
-                areas[0],
-            );
-            render_key_hints(
-                frame,
-                areas[1],
-                &[("Enter", "review staged files"), ("Esc", "cancel")],
-            );
-        }
-        Screen::CommitConfirmation {
+        Screen::CommitInput {
+            repository,
+            profile,
+            branches,
             message,
-            staged,
+            description,
+            description_focused,
+            feedback,
+            entries,
             pending,
-        } => {
-            let mut lines = if pending {
-                vec![Line::raw("Creating commit...")]
-            } else {
-                vec![
-                    Line::raw(format!("Message: {message}")),
-                    Line::raw(format!("\n{} staged file(s):", staged.len())),
-                ]
-            };
-            if !pending {
-                lines.extend(
-                    staged
-                        .iter()
-                        .map(|entry| Line::raw(format!("  {}", entry.path.to_string_lossy()))),
-                );
-            }
-            let areas =
-                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
-            frame.render_widget(
-                Paragraph::new(Text::from(lines))
-                    .wrap(Wrap { trim: true })
-                    .block(page_block("CONFIRM COMMIT", border)),
-                areas[0],
-            );
-            let hints = if pending {
-                &[("Working", "commit in progress")][..]
-            } else {
-                &[("y", "commit"), ("n/Esc", "edit or cancel")][..]
-            };
-            render_key_hints(frame, areas[1], hints);
-        }
+        } => render_commit_workspace(
+            frame,
+            CommitWorkspace {
+                repository,
+                profile,
+                branches,
+                message,
+                description,
+                description_focused,
+                feedback,
+                entries,
+                pending,
+            },
+            border,
+        ),
         Screen::DiscardConfirmation { entry, pending } => {
             let action = match entry.section {
                 crate::worktree::Section::Unstaged => "Restore this file to its staged version?",
@@ -778,6 +743,162 @@ fn render_profiles(
     );
 }
 
+struct CommitWorkspace<'a> {
+    repository: &'a Path,
+    profile: &'a str,
+    branches: Option<&'a Result<Branches, String>>,
+    message: &'a str,
+    description: &'a str,
+    description_focused: bool,
+    feedback: &'a str,
+    entries: Option<&'a Result<Vec<Entry>, String>>,
+    pending: bool,
+}
+
+fn render_repository_header(
+    frame: &mut Frame<'_>,
+    area: ratatui::layout::Rect,
+    repository: &Path,
+    profile: &str,
+    branches: Option<&Result<Branches, String>>,
+    border: ratatui::symbols::border::Set<'static>,
+) {
+    let branch = match branches {
+        Some(Ok(data)) => match &data.head {
+            HeadState::Attached(name) => name.to_string_lossy().into_owned(),
+            HeadState::Detached => "detached HEAD".to_owned(),
+            HeadState::Unborn(name) => format!("{} (unborn)", name.to_string_lossy()),
+        },
+        Some(Err(_)) => "branch unavailable".to_owned(),
+        None => "loading branch".to_owned(),
+    };
+    let header = Line::from(vec![
+        Span::styled(
+            " GITVIEW ",
+            Style::default()
+                .fg(Color::Rgb(12, 24, 30))
+                .bg(ACCENT)
+                .bold(),
+        ),
+        Span::styled(
+            format!("  {}  ", repository.display()),
+            Style::default().fg(Color::Rgb(226, 232, 240)).bold(),
+        ),
+        Span::styled(format!(" branch: {branch}"), Style::default().fg(MUTED)),
+        Span::styled(format!("  account: {profile}"), Style::default().fg(MUTED)),
+    ]);
+    frame.render_widget(
+        Paragraph::new(header).block(
+            Block::bordered()
+                .border_set(border)
+                .border_style(Style::default().fg(BORDER)),
+        ),
+        area,
+    );
+}
+
+fn render_commit_workspace(
+    frame: &mut Frame<'_>,
+    workspace: CommitWorkspace<'_>,
+    border: ratatui::symbols::border::Set<'static>,
+) {
+    let sections = Layout::vertical([
+        Constraint::Length(3),
+        Constraint::Min(4),
+        Constraint::Length(1),
+    ])
+    .split(frame.area());
+    render_repository_header(
+        frame,
+        sections[0],
+        workspace.repository,
+        workspace.profile,
+        workspace.branches,
+        border,
+    );
+    let columns = Layout::horizontal([Constraint::Percentage(42), Constraint::Percentage(58)])
+        .split(sections[1]);
+    let mut read_only_selection = ListState::default();
+    render_worktree_panel(
+        frame,
+        columns[0],
+        "WORKTREE · READ ONLY",
+        workspace.entries,
+        &mut read_only_selection,
+        false,
+        border,
+    );
+    let mut message_lines = Vec::new();
+    if !workspace.feedback.is_empty() {
+        message_lines.push(Line::styled(
+            workspace.feedback,
+            Style::default().fg(Color::Rgb(251, 191, 36)),
+        ));
+    }
+    if workspace.pending {
+        message_lines.push(Line::raw("Creating commit..."));
+    } else {
+        message_lines.push(Line::raw(format!("{}_", workspace.message)));
+    }
+    let editor = Layout::vertical([Constraint::Length(5), Constraint::Min(3)]).split(columns[1]);
+    frame.render_widget(
+        Paragraph::new(Text::from(message_lines))
+            .wrap(Wrap { trim: false })
+            .block(page_block(
+                if workspace.description_focused {
+                    "COMMIT MESSAGE"
+                } else {
+                    "COMMIT MESSAGE · ACTIVE"
+                },
+                border,
+            )),
+        editor[0],
+    );
+    let description = if workspace.pending {
+        "Commit in progress...".to_owned()
+    } else if workspace.description.is_empty() {
+        if workspace.description_focused {
+            "_".to_owned()
+        } else {
+            "Optional commit description. Press Tab to edit.".to_owned()
+        }
+    } else {
+        format!(
+            "{}{}",
+            workspace.description,
+            if workspace.description_focused {
+                "_"
+            } else {
+                ""
+            }
+        )
+    };
+    frame.render_widget(
+        Paragraph::new(description)
+            .wrap(Wrap { trim: true })
+            .block(page_block(
+                if workspace.description_focused {
+                    "COMMIT DESCRIPTION · ACTIVE"
+                } else {
+                    "COMMIT DESCRIPTION · OPTIONAL"
+                },
+                border,
+            )),
+        editor[1],
+    );
+    let hints = if workspace.pending {
+        &[("Working", "commit in progress")][..]
+    } else {
+        &[
+            ("Tab", "switch subject/description"),
+            ("Ctrl+J", "new description line"),
+            ("Enter", "commit"),
+            ("Esc", "cancel"),
+        ][..]
+    };
+    render_key_hints(frame, sections[2], hints);
+}
+
 fn render_cockpit(
     frame: &mut Frame<'_>,
     cockpit: Cockpit<'_>,
@@ -824,38 +945,7 @@ fn render_cockpit(
     ])
     .split(frame.area());
 
-    let branch = match branches {
-        Some(Ok(data)) => match &data.head {
-            HeadState::Attached(name) => name.to_string_lossy().into_owned(),
-            HeadState::Detached => "detached HEAD".to_owned(),
-            HeadState::Unborn(name) => format!("{} (unborn)", name.to_string_lossy()),
-        },
-        Some(Err(_)) => "branch unavailable".to_owned(),
-        None => "loading branch".to_owned(),
-    };
-    let header = Line::from(vec![
-        Span::styled(
-            " GITVIEW ",
-            Style::default()
-                .fg(Color::Rgb(12, 24, 30))
-                .bg(ACCENT)
-                .bold(),
-        ),
-        Span::styled(
-            format!("  {}  ", repository.display()),
-            Style::default().fg(Color::Rgb(226, 232, 240)).bold(),
-        ),
-        Span::styled(format!(" branch: {branch}"), Style::default().fg(MUTED)),
-        Span::styled(format!("  account: {profile}"), Style::default().fg(MUTED)),
-    ]);
-    frame.render_widget(
-        Paragraph::new(header).block(
-            Block::bordered()
-                .border_set(border)
-                .border_style(Style::default().fg(BORDER)),
-        ),
-        sections[0],
-    );
+    render_repository_header(frame, sections[0], repository, profile, branches, border);
 
     if frame.area().width < 88 {
         match focused {
@@ -865,6 +955,7 @@ fn render_cockpit(
             View::WorkingTree => render_worktree_panel(
                 frame,
                 sections[1],
+                "WORKTREE",
                 status,
                 working_tree_selection,
                 true,
@@ -877,6 +968,7 @@ fn render_cockpit(
         render_worktree_panel(
             frame,
             panes[0],
+            "WORKTREE",
             status,
             working_tree_selection,
             focused == View::WorkingTree,
@@ -900,6 +992,7 @@ fn render_cockpit(
         render_worktree_panel(
             frame,
             panes[0],
+            "WORKTREE",
             status,
             working_tree_selection,
             focused == View::WorkingTree,
@@ -950,6 +1043,7 @@ fn render_cockpit(
 fn render_worktree_panel(
     frame: &mut Frame<'_>,
     area: ratatui::layout::Rect,
+    title: &'static str,
     status: Option<&Result<Vec<Entry>, String>>,
     selection: &mut ListState,
     focused: bool,
@@ -966,7 +1060,7 @@ fn render_worktree_panel(
     render_panel_list(
         frame,
         area,
-        "WORKTREE",
+        title,
         items,
         &mut display_selection,
         focused,

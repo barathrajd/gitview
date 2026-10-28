@@ -8,7 +8,7 @@ pub struct CommitPreview {
     staged_diff: Vec<u8>,
 }
 
-/// Capture staged paths and index object IDs for the commit confirmation view.
+/// Capture staged paths and index object IDs for the commit editor.
 pub fn preview_commit(root: &Path) -> Result<CommitPreview, String> {
     let entries: Vec<_> = worktree::load_status(root)?
         .into_iter()
@@ -23,7 +23,7 @@ pub fn preview_commit(root: &Path) -> Result<CommitPreview, String> {
     })
 }
 
-/// Commit exactly the staged set shown for confirmation.
+/// Commit exactly the staged set shown in the editor.
 pub fn create_commit(root: &Path, message: &str, expected: &CommitPreview) -> Result<(), String> {
     if message.trim().is_empty() {
         return Err("Commit message cannot be empty".into());
@@ -33,7 +33,7 @@ pub fn create_commit(root: &Path, message: &str, expected: &CommitPreview) -> Re
     }
 
     if preview_commit(root)? != *expected {
-        return Err("Staged changes changed; review them and confirm again".into());
+        return Err("Staged changes changed; review them and press Enter again".into());
     }
 
     let mut child = process::git_command()

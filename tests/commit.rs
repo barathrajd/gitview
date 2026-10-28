@@ -76,6 +76,27 @@ fn creates_a_commit_from_the_confirmed_index_and_keeps_unstaged_edits() {
 }
 
 #[test]
+fn keeps_the_optional_description_as_the_commit_body() {
+    let repo = Repo::new();
+    fs::write(repo.path().join("notes.txt"), "body\n").unwrap();
+    repo.git(&["add", "--", "notes.txt"]);
+    let expected = preview_commit(repo.path()).unwrap();
+
+    create_commit(
+        repo.path(),
+        "feat: add commit descriptions\n\nExplain the behavior and context.",
+        &expected,
+    )
+    .unwrap();
+
+    let body = String::from_utf8(repo.git(&["log", "-1", "--format=%B"])).unwrap();
+    assert_eq!(
+        body.trim_end(),
+        "feat: add commit descriptions\n\nExplain the behavior and context."
+    );
+}
+
+#[test]
 fn refuses_to_commit_when_the_staged_set_changed_after_confirmation() {
     let repo = Repo::new();
     fs::write(repo.path().join("first.txt"), "first\n").unwrap();
