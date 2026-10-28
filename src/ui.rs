@@ -126,12 +126,12 @@ const HELP_ROWS: &[(&str, &str, &str, &str)] = &[
     ),
 ];
 
-const ACCENT: Color = Color::Rgb(94, 234, 212);
+pub(crate) const ACCENT: Color = Color::Rgb(94, 234, 212);
 const BORDER: Color = Color::Rgb(71, 85, 105);
-const MUTED: Color = Color::Rgb(148, 163, 184);
+pub(crate) const MUTED: Color = Color::Rgb(148, 163, 184);
 const BAR_BACKGROUND: Color = Color::Rgb(30, 41, 59);
 
-fn page_block(
+pub(crate) fn page_block(
     title: impl Into<Line<'static>>,
     border: ratatui::symbols::border::Set<'static>,
 ) -> Block<'static> {
@@ -139,6 +139,13 @@ fn page_block(
         .border_set(border)
         .border_style(Style::default().fg(BORDER))
         .title(title.into().style(Style::default().fg(ACCENT).bold()))
+}
+
+pub(crate) fn selection_style() -> Style {
+    Style::default()
+        .bg(Color::Rgb(25, 43, 52))
+        .fg(Color::Rgb(241, 245, 249))
+        .bold()
 }
 
 fn hint_rows<'a>(
@@ -166,7 +173,11 @@ fn hint_rows<'a>(
     rows
 }
 
-fn render_key_hints(frame: &mut Frame<'_>, area: ratatui::layout::Rect, hints: &[(&str, &str)]) {
+pub(crate) fn render_key_hints(
+    frame: &mut Frame<'_>,
+    area: ratatui::layout::Rect,
+    hints: &[(&str, &str)],
+) {
     render_key_hints_with_spacing(frame, area, hints, area.width <= 80);
 }
 
@@ -227,7 +238,7 @@ fn render_key_hints_with_spacing(
     );
 }
 
-fn hint_row_count(hints: &[(&str, &str)], width: u16) -> u16 {
+pub(crate) fn hint_row_count(hints: &[(&str, &str)], width: u16) -> u16 {
     u16::try_from(hint_rows(hints, width, width <= 80).len()).unwrap_or(u16::MAX)
 }
 
@@ -1799,12 +1810,7 @@ fn render_branches(
     let list = List::new(lines.into_iter().map(ListItem::new).collect::<Vec<_>>())
         .block(page_block(heading, border))
         .highlight_symbol("› ")
-        .highlight_style(
-            Style::default()
-                .bg(Color::Rgb(25, 43, 52))
-                .fg(Color::Rgb(241, 245, 249))
-                .bold(),
-        );
+        .highlight_style(selection_style());
     frame.render_stateful_widget(list, areas[0], selection);
     frame.render_widget(
         Paragraph::new(feedback).wrap(Wrap { trim: false }),

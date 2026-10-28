@@ -4,7 +4,8 @@ use ratatui::{
     Frame,
     layout::{Constraint, Layout},
     style::{Color, Style},
-    widgets::{Block, Paragraph, Wrap},
+    text::{Line, Span, Text},
+    widgets::{Paragraph, Wrap},
 };
 use std::{
     path::{Path, PathBuf},
@@ -140,23 +141,56 @@ impl TagPage {
         true
     }
     pub fn render(&self, frame: &mut Frame<'_>, border: ratatui::symbols::border::Set<'static>) {
-        let areas =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).split(frame.area());
-        let (title, text, hints) = if let Some(text) = &self.verification {
+        use crate::ui::{
+            ACCENT, MUTED, hint_row_count, page_block, render_key_hints, selection_style,
+        };
+        let hints: &[(&str, &str)] = if self.pending {
+            &[("Working", "operation in progress")]
+        } else if self.verification.is_some() {
+            &[("j/k", "scroll"), ("Esc", "back")]
+        } else if self.input.is_some() {
+            &[("Enter", "review target"), ("Esc", "cancel")]
+        } else if self.confirm.is_some() {
+            &[("y", "confirm"), ("n/Esc", "cancel")]
+        } else {
+            &[
+                ("j/k", "select"),
+                ("c", "create"),
+                ("d", "delete"),
+                ("v", "verify"),
+                ("r", "refresh"),
+                ("?", "help"),
+                ("Esc", "branches"),
+            ]
+        };
+        let areas = Layout::vertical([
+            Constraint::Min(1),
+            Constraint::Length(hint_row_count(hints, frame.area().width)),
+        ])
+        .split(frame.area());
+        let (title, body) = if let Some(text) = &self.verification {
             (
                 "TAG SIGNATURE VERIFICATION",
-                if self.pending {
-                    "Verifying reviewed tag object...".into()
+                Text::from(if self.pending {
+                    "Verifying reviewed tag object...".to_owned()
                 } else {
                     text.clone()
-                },
-                "j/k scroll · Esc back",
+                }),
             )
         } else if let Some(input) = &self.input {
             (
                 "CREATE LIGHTWEIGHT TAG",
-                format!("Tag name: {input}_\n\n{}", self.feedback),
-                "Enter review target · Esc cancel",
+                Text::from(vec![
+                    Line::from(vec![
+                        Span::styled("Tag name: ", Style::default().fg(MUTED)),
+                        Span::styled(format!("{input}_"), Style::default().fg(ACCENT)),
+                    ]),
+                    Line::raw(""),
+                    Line::styled(
+                        self.feedback.clone(),
+                        Style::default().fg(Color::Rgb(251, 191, 36)),
+                    ),
+                ]),
             )
         } else if let Some(action) = &self.confirm {
             let text = match action {
@@ -172,22 +206,25 @@ impl TagPage {
                 ),
                 _ => String::new(),
             };
-            ("CONFIRM TAG OPERATION", text, "y confirm · n/Esc cancel")
+            ("CONFIRM TAG OPERATION", Text::from(text))
         } else {
-            let mut text = if self.pending {
-                "Loading tags / operation in progress...\n".into()
-            } else {
-                String::new()
-            };
+            let mut lines = Vec::new();
+            if self.pending {
+                lines.push(Line::styled(
+                    "Loading tags / operation in progress...",
+                    Style::default().fg(MUTED),
+                ));
+            }
             if self.entries.is_empty() && !self.pending {
-                text.push_str("No local tags.\n");
+                lines.push(Line::styled("No local tags.", Style::default().fg(MUTED)));
             }
             let visible = usize::from(areas[0].height.saturating_sub(6)).max(1);
             let start = self.selected.saturating_sub(visible.saturating_sub(1));
             for (index, tag) in self.entries.iter().enumerate().skip(start).take(visible) {
-                text.push_str(&format!(
-                    "{} {}  [{}]  {}\n",
-                    if index == self.selected { ">" } else { " " },
+                let selected = index == self.selected;
+                let text = format!(
+                    "{} {}  [{}]  {}",
+                    if selected { "›" } else { " " },
                     tag.name.to_string_lossy(),
                     if tag.kind == "tag" {
                         "annotated"
@@ -195,17 +232,27 @@ impl TagPage {
                         "lightweight"
                     },
                     tag.object
+                );
+                lines.push(Line::styled(
+                    text,
+                    if selected {
+                        selection_style()
+                    } else {
+                        Style::default()
+                    },
                 ));
             }
-            text.push_str(&format!("\n{}", self.feedback));
-            (
-                "LOCAL TAGS",
-                text,
-                "j/k select · c create · d delete · v verify\nr refresh · ? help · Esc return to branches",
-            )
+            lines.push(Line::raw(""));
+            lines.extend(self.feedback.lines().map(|line| {
+                Line::styled(
+                    line.to_owned(),
+                    Style::default().fg(Color::Rgb(251, 191, 36)),
+                )
+            }));
+            ("LOCAL TAGS", Text::from(lines))
         };
         frame.render_widget(
-            Paragraph::new(text)
+            Paragraph::new(body)
                 .wrap(Wrap { trim: false })
                 .scroll((
                     if self.verification.is_some() {
@@ -215,14 +262,9 @@ impl TagPage {
                     },
                     0,
                 ))
-                .block(
-                    Block::bordered()
-                        .border_set(border)
-                        .title(title)
-                        .border_style(Style::default().fg(Color::Cyan)),
-                ),
+                .block(page_block(title, border)),
             areas[0],
         );
-        frame.render_widget(Paragraph::new(hints), areas[1]);
+        render_key_hints(frame, areas[1], hints);
     }
 }

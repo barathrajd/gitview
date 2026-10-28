@@ -3,7 +3,9 @@ use crossterm::event::KeyCode;
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
-    widgets::{Block, Paragraph, Wrap},
+    style::{Color, Style},
+    text::{Line, Span, Text},
+    widgets::{Paragraph, Wrap},
 };
 use std::{path::Path, sync::mpsc};
 
@@ -152,70 +154,125 @@ impl ComparisonPage {
             );
             return;
         }
-        let areas =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).split(frame.area());
-        let (title, text, hints) = if self.mode == Mode::Input {
-            let fields = self
+        use crate::ui::{
+            ACCENT, MUTED, hint_row_count, page_block, render_key_hints, selection_style,
+        };
+        let hints: &[(&str, &str)] = if self.pending {
+            &[("Working", "loading comparison"), ("Esc", "return")]
+        } else if self.mode == Mode::Input {
+            &[
+                ("Tab/Shift+Tab", "field"),
+                ("Enter", "compare"),
+                ("Esc", "return"),
+            ]
+        } else {
+            &[
+                ("Enter", "open diff"),
+                ("j/k", "scroll"),
+                ("Esc", "edit comparison"),
+                ("H", "history"),
+            ]
+        };
+        let areas = Layout::vertical([
+            Constraint::Min(1),
+            Constraint::Length(hint_row_count(hints, frame.area().width)),
+        ])
+        .split(frame.area());
+        let (title, body) = if self.mode == Mode::Input {
+            let mut lines = self
                 .fields
                 .iter()
                 .enumerate()
                 .map(|(index, value)| {
-                    format!(
-                        "{} {}: {}{}",
-                        if index == self.field { ">" } else { " " },
-                        [
-                            "Base revision",
-                            "Target revision",
-                            "Literal path (optional)"
-                        ][index],
-                        value,
-                        if index == self.field { "_" } else { "" }
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("\n");
-            (
-                "COMPARE COMMIT SNAPSHOTS",
-                format!(
-                    "{fields}\n\nTarget minus base. Revisions must resolve locally to commits.\nA path restricts both summary and patch. No fetch is performed.\n\n{}",
-                    if self.pending {
-                        "Loading comparison..."
+                    let active = index == self.field;
+                    let style = if active {
+                        selection_style()
                     } else {
-                        &self.feedback
-                    }
-                ),
-                "Tab/Shift+Tab field · Enter compare · Esc return",
-            )
+                        Style::default()
+                    };
+                    Line::from(vec![
+                        Span::styled(
+                            format!(
+                                "{} {}: ",
+                                if active { "›" } else { " " },
+                                [
+                                    "Base revision",
+                                    "Target revision",
+                                    "Literal path (optional)"
+                                ][index]
+                            ),
+                            style.fg(if active { ACCENT } else { MUTED }),
+                        ),
+                        Span::styled(format!("{value}{}", if active { "_" } else { "" }), style),
+                    ])
+                    .style(style)
+                })
+                .collect::<Vec<_>>();
+            lines.push(Line::raw(""));
+            lines.push(Line::styled(
+                "Target minus base. Revisions must resolve locally to commits.",
+                Style::default().fg(MUTED),
+            ));
+            lines.push(Line::styled(
+                "A path restricts both summary and patch. No fetch is performed.",
+                Style::default().fg(MUTED),
+            ));
+            lines.push(Line::raw(""));
+            lines.extend(
+                (if self.pending {
+                    "Loading comparison..."
+                } else {
+                    &self.feedback
+                })
+                .lines()
+                .map(|line| {
+                    Line::styled(
+                        line.to_owned(),
+                        Style::default().fg(Color::Rgb(251, 191, 36)),
+                    )
+                }),
+            );
+            ("COMPARE COMMIT SNAPSHOTS", Text::from(lines))
         } else if let Some(result) = &self.result {
-            (
-                "COMPARISON SUMMARY",
-                format!(
-                    "Base: {}\nTarget: {}\nPath: {}\n\n{}",
-                    result.base,
-                    result.target,
+            let mut lines = Vec::new();
+            for (label, value) in [
+                ("Base", result.base.clone()),
+                ("Target", result.target.clone()),
+                (
+                    "Path",
                     result
                         .path
                         .as_ref()
-                        .map(|p| p.to_string_lossy().into_owned())
+                        .map(|path| path.to_string_lossy().into_owned())
                         .unwrap_or_else(|| "all paths".into()),
-                    if result.summary.is_empty() {
-                        "No differences."
-                    } else {
-                        &result.summary
-                    }
                 ),
-                "Enter open diff · j/k scroll\nEsc edit comparison · H history",
-            )
+            ] {
+                lines.push(Line::from(vec![
+                    Span::styled(format!("{label}: "), Style::default().fg(MUTED)),
+                    Span::styled(value, Style::default().fg(ACCENT)),
+                ]));
+            }
+            lines.push(Line::raw(""));
+            lines.extend(
+                (if result.summary.is_empty() {
+                    "No differences."
+                } else {
+                    &result.summary
+                })
+                .lines()
+                .map(|line| Line::raw(line.to_owned())),
+            );
+            ("COMPARISON SUMMARY", Text::from(lines))
         } else {
-            ("COMPARISON", self.feedback.clone(), "Esc return")
+            ("COMPARISON", Text::from(self.feedback.clone()))
         };
         frame.render_widget(
-            Paragraph::new(text)
+            Paragraph::new(body)
                 .wrap(Wrap { trim: false })
                 .scroll((self.scroll, 0))
-                .block(Block::bordered().border_set(border).title(title)),
+                .block(page_block(title, border)),
             areas[0],
         );
-        frame.render_widget(Paragraph::new(hints), areas[1]);
+        render_key_hints(frame, areas[1], hints);
     }
 }
