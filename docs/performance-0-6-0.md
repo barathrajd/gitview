@@ -204,6 +204,65 @@ cargo build --release --locked
 python3 scripts/check-ordinary-diff.py
 ```
 
+## Large ordinary diffs and retained layouts
+
+The next diagnostic covers a 122 KB text diff, a 958 KB text diff with 4,990
+added lines, and a 900 KB diff with two 450,000-character source lines. These
+fixtures exercise supported output sizes, but don't represent every language
+or the complete repository/workflow matrix.
+
+Ordinary layouts now retain at most four variants at one width and use an
+8 MiB owned-allocation estimate to evict older variants. The estimate includes
+row/span vector capacities, owned text capacities, and hunk positions. It
+excludes allocator metadata and prepared syntax data. One active layout remains
+available when it alone exceeds the budget; the budget doesn't truncate content.
+An evicted variant is rebuilt when selected. Blank alignment rows, empty line
+number gutters, and fixed markers also avoid unnecessary owned allocations.
+The comparison page's separate cache remains pending review.
+
+Explicit optimized-build diagnostics check a 100 ms first-layout budget and
+50 ms p95 across 100 warm actions at both terminal sizes. These are in-memory
+renderer checks, including recomputation after eviction; they exclude Git and
+terminal I/O. Run them separately from the regular correctness suite:
+
+```sh
+cargo test --release --locked --test ordinary_diff_performance \
+  measures_supported_limit_layouts -- --ignored --nocapture --test-threads=1
+cargo test --release --locked --test ordinary_diff_performance \
+  measures_diff_cache_lifecycle -- --ignored --nocapture --test-threads=1
+cargo build --release --locked
+python3 scripts/check-diff-cache-memory.py
+```
+
+The renderer-only lifecycle diagnostic warms ten cycles, then measures 100
+open/drop cycles with four variants and 140x35 / 80x24 / 140x35 resizing.
+Its initial settled RSS growth was 16,432 KiB, exceeding the 10,240 KiB budget.
+The allocation changes and eviction reduce retained data, but repeated
+renderer-only runs still exceed that RSS budget. This diagnostic remains a
+known failure; it doesn't establish a memory leak or a passing release gate.
+
+The final optimized frame diagnostic passes: p95 is 22.37 ms / 10.54 ms for
+958 KB at 140x35 / 80x24, and 7.55 ms / 8.74 ms for the long-line fixture.
+The 122 KB case measures 0.324 ms / 0.138 ms. Each value covers 100 actions;
+first-use and resize samples are recorded separately in the raw evidence.
+Eviction trades some recomputation for lower retention, so these results aren't
+a claim that every toggle remains a cache hit.
+
+The native PTY script separately exercises a real Gitview process on 2,490
+replaced text lines. It warms ten cycles, samples 100 cycles, and settles on the
+same closed-view state before and after. It verifies that the index and working
+diff remain unchanged. Native RSS and renderer-only RSS must be reported
+separately because their allocation and execution contexts differ. The native
+sample passes: settled RSS grows from 66,880 KiB to 71,728 KiB, or 4,848 KiB,
+against a 10,240 KiB budget. The working diff is 941,342 bytes. This one passing
+native fixture doesn't close the whole-TUI memory gate or erase the failing
+renderer-only diagnostic.
+
+The [large-diff evidence](performance/macos-large-diff-cache.txt) includes fixture
+sizes, frame timings, failed renderer RSS checks, native RSS measurements,
+toolchain, revision, and binary identity. All evidence comes from the macOS
+implementation worktree; clean-revision and Linux evidence remain required.
+
 ## Review status and remaining work
 
 The following checks remain required before release:

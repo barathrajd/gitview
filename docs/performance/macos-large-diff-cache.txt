@@ -1,0 +1,194 @@
+Platform: macOS-27.0.1-arm64-arm-64bit-Mach-O
+Revision: 090250def7b0fa397355cd4a43b4e6973601eef6 (dirty implementation worktree)
+Rust: rustc 1.99.1 (58cf8f9c3 2026-10-13)
+Git: git version 2.56.0
+Native binary SHA-256: 64f5033825c958209ea93f35d9da4cc5bf17de55567e32012ccb531c89bf7c65
+
+Initial renderer-only RSS (FAIL)
+   Compiling gitview v0.5.0 (/Users/barathrajdevarajan/Developer/OpenSource/gitview)
+    Finished `release` profile [optimized] target(s) in 0.39s
+     Running tests/ordinary_diff_performance.rs (target/release/deps/ordinary_diff_performance-7dea1ea3eaa4ce8d)
+
+running 1 test
+test measures_diff_cache_lifecycle ... cache lifecycle cycle=10 rss_kib=64240
+cache lifecycle cycle=20 rss_kib=70752
+cache lifecycle cycle=30 rss_kib=70752
+cache lifecycle cycle=40 rss_kib=80672
+cache lifecycle cycle=50 rss_kib=80672
+cache lifecycle cycle=60 rss_kib=80672
+cache lifecycle cycle=70 rss_kib=80672
+cache lifecycle cycle=80 rss_kib=80672
+cache lifecycle cycle=90 rss_kib=80672
+cache lifecycle cycle=100 rss_kib=80672
+Cache lifecycle: cycles=100 warm_rss_kib=64240 final_rss_kib=80672 peak_settled_rss_kib=80672 growth_kib=16432 budget_kib=10240
+
+thread 'measures_diff_cache_lifecycle' (9253699) panicked at tests/ordinary_diff_performance.rs:354:5:
+settled cache memory exceeded the performance plan budget
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    measures_diff_cache_lifecycle
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 9.02s
+
+error: test failed, to rerun pass `--test ordinary_diff_performance`
+
+Allocation-only first RSS run (PASS; repeat failed)
+   Compiling gitview v0.5.0 (/Users/barathrajdevarajan/Developer/OpenSource/gitview)
+    Finished `release` profile [optimized] target(s) in 2.86s
+     Running tests/ordinary_diff_performance.rs (target/release/deps/ordinary_diff_performance-7dea1ea3eaa4ce8d)
+
+running 1 test
+test measures_diff_cache_lifecycle ... cache lifecycle cycle=10 rss_kib=68608
+cache lifecycle cycle=20 rss_kib=68640
+cache lifecycle cycle=30 rss_kib=68640
+cache lifecycle cycle=40 rss_kib=68640
+cache lifecycle cycle=50 rss_kib=68656
+cache lifecycle cycle=60 rss_kib=68656
+cache lifecycle cycle=70 rss_kib=68656
+cache lifecycle cycle=80 rss_kib=68656
+cache lifecycle cycle=90 rss_kib=68656
+cache lifecycle cycle=100 rss_kib=68656
+Cache lifecycle: cycles=100 warm_rss_kib=68384 final_rss_kib=68656 peak_settled_rss_kib=68656 growth_kib=272 budget_kib=10240
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 8.79s
+
+
+Allocation-only repeat (FAIL)
+    Finished `release` profile [optimized] target(s) in 0.05s
+     Running tests/ordinary_diff_performance.rs (target/release/deps/ordinary_diff_performance-7dea1ea3eaa4ce8d)
+
+running 1 test
+test measures_diff_cache_lifecycle ... cache lifecycle cycle=10 rss_kib=59040
+cache lifecycle cycle=20 rss_kib=66640
+cache lifecycle cycle=30 rss_kib=67856
+cache lifecycle cycle=40 rss_kib=69520
+cache lifecycle cycle=50 rss_kib=69520
+cache lifecycle cycle=60 rss_kib=69520
+cache lifecycle cycle=70 rss_kib=69520
+cache lifecycle cycle=80 rss_kib=69520
+cache lifecycle cycle=90 rss_kib=69520
+cache lifecycle cycle=100 rss_kib=69520
+Cache lifecycle: cycles=100 warm_rss_kib=53792 final_rss_kib=69520 peak_settled_rss_kib=69520 growth_kib=15728 budget_kib=10240
+
+thread 'measures_diff_cache_lifecycle' (9285721) panicked at tests/ordinary_diff_performance.rs:354:5:
+settled cache memory exceeded the performance plan budget
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    measures_diff_cache_lifecycle
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 9.61s
+
+error: test failed, to rerun pass `--test ordinary_diff_performance`
+
+Byte-budget renderer-only RSS (FAIL)
+   Compiling gitview v0.5.0 (/Users/barathrajdevarajan/Developer/OpenSource/gitview)
+    Finished `release` profile [optimized] target(s) in 2.78s
+     Running tests/ordinary_diff_performance.rs (target/release/deps/ordinary_diff_performance-7dea1ea3eaa4ce8d)
+
+running 1 test
+test measures_diff_cache_lifecycle ... cache lifecycle cycle=10 rss_kib=47456
+cache lifecycle cycle=20 rss_kib=54672
+cache lifecycle cycle=30 rss_kib=54672
+cache lifecycle cycle=40 rss_kib=54672
+cache lifecycle cycle=50 rss_kib=63904
+cache lifecycle cycle=60 rss_kib=63904
+cache lifecycle cycle=70 rss_kib=63936
+cache lifecycle cycle=80 rss_kib=63936
+cache lifecycle cycle=90 rss_kib=63936
+cache lifecycle cycle=100 rss_kib=63936
+Cache lifecycle: cycles=100 warm_rss_kib=47440 final_rss_kib=63936 peak_settled_rss_kib=63936 growth_kib=16496 budget_kib=10240
+
+thread 'measures_diff_cache_lifecycle' (9313214) panicked at tests/ordinary_diff_performance.rs:354:5:
+settled cache memory exceeded the performance plan budget
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    measures_diff_cache_lifecycle
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 8.58s
+
+error: test failed, to rerun pass `--test ordinary_diff_performance`
+
+Final optimized frame diagnostics (PASS)
+   Compiling gitview v0.5.0 (/Users/barathrajdevarajan/Developer/OpenSource/gitview)
+    Finished `release` profile [optimized] target(s) in 3.66s
+     Running tests/ordinary_diff_performance.rs (target/release/deps/ordinary_diff_performance-7dea1ea3eaa4ce8d)
+
+running 1 test
+test measures_supported_limit_layouts ... medium: bytes=122090 prepare=2.519625ms
+medium 140x35 raw=false split=true first=1.988042ms
+medium 140x35 raw=true split=true first=1.004875ms
+medium 140x35 raw=false split=false first=1.741291ms
+medium 140x35 raw=true split=false first=1.012458ms
+medium 140x35 warm samples=100 p50=222.167µs p95=323.834µs
+medium 80x24 raw=false split=true first=2.291375ms
+medium 80x24 raw=true split=true first=967.375µs
+medium 80x24 raw=false split=false first=1.580208ms
+medium 80x24 raw=true split=false first=970.291µs
+medium 80x24 warm samples=100 p50=85.917µs p95=138.125µs
+stress: bytes=958170 prepare=2.318584ms
+stress 140x35 raw=false split=true first=13.61375ms
+stress 140x35 raw=true split=true first=6.612375ms
+stress 140x35 raw=false split=false first=12.915084ms
+stress 140x35 raw=true split=false first=5.843333ms
+stress 140x35 warm samples=100 p50=8.106167ms p95=22.369792ms
+stress 80x24 raw=false split=true first=10.289666ms
+stress 80x24 raw=true split=true first=5.258583ms
+stress 80x24 raw=false split=false first=9.612416ms
+stress 80x24 raw=true split=false first=5.189ms
+stress 80x24 warm samples=100 p50=6.068625ms p95=10.542584ms
+long-line: bytes=900091 prepare=153.042µs
+long-line 140x35 raw=false split=true first=7.159083ms
+long-line 140x35 raw=true split=true first=3.244458ms
+long-line 140x35 raw=false split=false first=6.551417ms
+long-line 140x35 raw=true split=false first=2.793583ms
+long-line 140x35 warm samples=100 p50=3.908375ms p95=7.549291ms
+long-line 80x24 raw=false split=true first=8.692875ms
+long-line 80x24 raw=true split=true first=3.725959ms
+long-line 80x24 raw=false split=false first=7.475875ms
+long-line 80x24 raw=true split=false first=3.417375ms
+long-line 80x24 warm samples=100 p50=4.237209ms p95=8.744541ms
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 2.84s
+
+
+Native PTY lifecycle (PASS)
+cycle=10 rss_kib=66960
+cycle=20 rss_kib=66976
+cycle=30 rss_kib=66976
+cycle=40 rss_kib=66976
+cycle=50 rss_kib=71392
+cycle=60 rss_kib=71392
+cycle=70 rss_kib=71392
+cycle=80 rss_kib=71392
+cycle=90 rss_kib=71728
+cycle=100 rss_kib=71728
+{
+  "fixture": "2490 replaced text lines",
+  "patch_bytes": 941342,
+  "dimensions": [
+    "140x35",
+    "80x24"
+  ],
+  "warm_cycles": 10,
+  "measured_cycles": 100,
+  "warm_rss_kib": 66880,
+  "final_rss_kib": 71728,
+  "peak_sampled_settled_rss_kib": 71728,
+  "growth_kib": 4848,
+  "budget_kib": 10240,
+  "passed": true
+}

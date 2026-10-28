@@ -14,6 +14,7 @@ use ratatui::{
     widgets::{Block, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table, Wrap},
 };
 use std::{
+    borrow::Cow,
     cell::RefCell,
     ops::Range,
     path::{Path, PathBuf},
@@ -2637,6 +2638,9 @@ fn aligned_raw_diff_lines(
 }
 
 fn numbered_wrapped_line(number: Option<u32>, text: &str, style: Style) -> Line<'static> {
+    if number.is_none() && text.is_empty() {
+        return Line::default();
+    }
     Line::from(vec![
         Span::styled(format_number(number), Style::default().fg(MUTED)),
         Span::raw(" "),
@@ -2687,7 +2691,7 @@ fn ide_unified_code_lines(
     source: &IdeDiffLine,
     old_number: Option<u32>,
     new_number: Option<u32>,
-    marker: &str,
+    marker: &'static str,
     content_width: usize,
 ) -> Vec<Line<'static>> {
     let wrapped = wrap_styled_line(source, content_width);
@@ -2720,7 +2724,7 @@ fn ide_unified_code_lines(
                 ),
                 Span::styled(" ", with_background(Style::default())),
                 Span::styled(
-                    if index == 0 { marker } else { " " }.to_owned(),
+                    if index == 0 { marker } else { " " },
                     with_background(marker_style),
                 ),
                 Span::styled(" ", with_background(Style::default())),
@@ -2740,6 +2744,12 @@ fn ide_line(
     number: Option<u32>,
     wrapped: Option<&Vec<(String, Style)>>,
 ) -> Line<'static> {
+    if number.is_none()
+        && source.background.is_none()
+        && wrapped.is_none_or(|spans| spans.is_empty())
+    {
+        return Line::default();
+    }
     let background = source.background;
     let with_background = |style: Style| match background {
         Some(color) if style.bg.is_none() => style.bg(color),
@@ -2941,8 +2951,10 @@ fn styled_numbered_unified(old: Option<u32>, new: Option<u32>, text: &str) -> Li
     ])
 }
 
-fn format_number(number: Option<u32>) -> String {
-    number.map_or_else(|| "     ".to_owned(), |number| format!("{number:>5}"))
+fn format_number(number: Option<u32>) -> Cow<'static, str> {
+    number.map_or(Cow::Borrowed("     "), |number| {
+        Cow::Owned(format!("{number:>5}"))
+    })
 }
 
 pub(crate) struct PreparedComparisonFile {
@@ -3012,6 +3024,8 @@ pub(crate) fn comparison_file_lines(
     (left, right)
 }
 
+const ORDINARY_LAYOUT_CACHE_BYTES: usize = 8 * 1024 * 1024;
+
 struct OrdinaryLayout {
     width: u16,
     raw: bool,
@@ -3019,7 +3033,27 @@ struct OrdinaryLayout {
     left: Vec<Line<'static>>,
     right: Vec<Line<'static>>,
     positions: Vec<usize>,
+    bytes: usize,
 }
+
+fn retained_line_bytes(lines: &[Line<'static>], capacity: usize) -> usize {
+    capacity * std::mem::size_of::<Line<'static>>()
+        + lines
+            .iter()
+            .map(|line| {
+                line.spans.capacity() * std::mem::size_of::<Span<'static>>()
+                    + line
+                        .spans
+                        .iter()
+                        .map(|span| match &span.content {
+                            Cow::Owned(text) => text.capacity(),
+                            Cow::Borrowed(_) => 0,
+                        })
+                        .sum::<usize>()
+            })
+            .sum::<usize>()
+}
+
 /// Immutable diff content prepared by a background loader, with four layouts at one width.
 pub struct PreparedDiff {
     text: String,
@@ -3064,6 +3098,17 @@ impl PreparedDiff {
             let (left, right) =
                 comparison_file_lines(&self.text, &self.prepared, content_width, raw, split);
             let positions = diff_hunk_line_positions(&self.text, width, raw, split);
+            let bytes = retained_line_bytes(&left, left.capacity())
+                + retained_line_bytes(&right, right.capacity())
+                + positions.capacity() * std::mem::size_of::<usize>();
+            // Preserve the active layout even if it alone exceeds the budget.
+            // Superseded layouts are expendable; their content can be rebuilt.
+            while !layouts.is_empty()
+                && layouts.iter().map(|layout| layout.bytes).sum::<usize>() + bytes
+                    > ORDINARY_LAYOUT_CACHE_BYTES
+            {
+                layouts.remove(0);
+            }
             layouts.push(OrdinaryLayout {
                 width,
                 raw,
@@ -3071,11 +3116,21 @@ impl PreparedDiff {
                 left,
                 right,
                 positions,
+                bytes,
             });
             layouts.len() - 1
         };
         drop(layouts);
         std::cell::Ref::map(self.layouts.borrow(), |layouts| &layouts[index])
+    }
+    #[cfg(feature = "test-support")]
+    pub fn layout_cache_usage(&self) -> (usize, usize, usize) {
+        let layouts = self.layouts.borrow();
+        (
+            layouts.len(),
+            layouts.iter().map(|layout| layout.bytes).sum(),
+            layouts.last().map_or(0, |layout| layout.bytes),
+        )
     }
     pub fn hunk_positions(&self, width: u16, raw: bool, split: bool) -> Vec<usize> {
         self.layout(width, raw, split).positions.clone()

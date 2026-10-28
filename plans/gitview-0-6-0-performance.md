@@ -119,8 +119,14 @@ change is selected, and no unverified library-performance claim is assumed.
    retain wrapped rows and hunk positions; only visible rows are drawn. Native
    400-line diagnostics, both terminal sizes, and four-variant hunk staging pass.
    Unified IDE replacement rows now include additions as well as removals.
-   Medium/stress fixtures, retention budgets, long lines, and lifecycle cycles
-   remain pending before this milestone can close.
+   Large plain-text and long-line diagnostics now exercise the supported diff
+   sizes and both terminal dimensions. Ordinary layouts evict older variants
+   above an 8 MiB owned-allocation estimate, retaining one active layout if it
+   alone exceeds the budget. Blank gutters and alignment rows avoid redundant
+   allocations. Renderer-only RSS lifecycle checks still exceed the budget;
+   native lifecycle evidence is recorded separately in the performance report.
+   Comparison cache bounds, other languages, the complete stress matrix, and
+   memory investigation remain pending before this milestone can close.
 4. **Idle and large-list fixes (in progress):** unchanged main-loop frames are
    skipped; page completions and status updates request a redraw. Native
    small-fixture idle measurements pass; large lists and memory cycles remain
