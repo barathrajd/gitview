@@ -7,30 +7,46 @@ truth.
 
 ## Develop and build
 
-Use Node.js 24 and npm from this directory.
+Use Bun 1.3.5 and Node.js 24 from this directory.
 
-1. Install the locked dependencies with `npm ci`.
-2. Start the local site with `npm run dev`.
-3. Build static output with `npm run build`.
-4. Preview the build with `npm run preview`.
+1. Install the locked dependencies with `bun install --frozen-lockfile`.
+2. Start the local site with `bun run dev`.
+3. Build static output with `bun run build`.
+4. Preview the build with `bun run preview`.
 
 The deployment workflow builds this folder when website files change on
 `main`, and it can also be started manually from GitHub Actions. GitHub Pages
 must use **GitHub Actions** as its publishing source.
 
-## Connect the custom domain
+## Deploy to the default GitHub Pages URL
 
-GitHub recommends saving the domain in repository settings before adding its
-DNS record. This order reduces the risk of another account claiming an
-unconfigured subdomain. See [GitHub's custom-domain instructions](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site).
+The initial deployment uses the repository URL
+`https://barathrajd.github.io/gitview/` so you can confirm the site before
+connecting the custom domain.
 
 1. Open the repository's **Settings → Pages**.
 2. Set the publishing source to **GitHub Actions**.
-3. Enter `gitview.barathrajdevarajan.dev` under **Custom domain** and save it.
-4. In the domain provider's DNS form, add a CNAME with name `gitview` and
+3. Push a website change to `main` or start **Deploy website** from Actions.
+4. Open the published URL from the successful Pages deployment.
+
+This deployment uses `/gitview` as the site base because the default project
+URL includes the repository name.
+
+## Connect the custom domain after the first deployment
+
+After confirming the site at the default URL, add the domain in Pages
+settings, then configure DNS. GitHub recommends this order to reduce the risk
+of another account claiming an unconfigured subdomain. See
+[GitHub's custom-domain instructions](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site).
+
+1. Open **Settings → Pages** and enter
+   `gitview.barathrajdevarajan.dev` under **Custom domain**. Save it.
+2. In the domain provider's DNS form, add a CNAME with name `gitview` and
    target `barathrajd.github.io`. Keep the provider's default TTL unless you
    have a reason to change it.
-5. After DNS propagates, return to **Settings → Pages** and enable **Enforce
+3. Tell the site maintainer after Pages accepts the custom domain. The site
+   base must switch from `/gitview` to `/` before the next deployment.
+4. After DNS propagates, return to **Settings → Pages** and enable **Enforce
    HTTPS** when GitHub makes it available.
 
 DNS propagation can take up to 24 hours. GitHub Actions publishing reads the

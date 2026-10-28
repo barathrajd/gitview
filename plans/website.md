@@ -33,8 +33,8 @@ The implementation is complete when these outcomes can be checked directly.
 - The page includes page title, description, canonical URL, Open Graph metadata,
   and a favicon; links point to the actual project repository, crate, and
   releases.
-- The web app and its dependencies live under `website/`; Cargo commands and
-  existing release automation continue to work from the repository root.
+- The web app and its Bun-managed dependencies live under `website/`; Cargo
+  commands and existing release automation continue to work from the root.
 
 ## In scope / Out of scope
 
@@ -72,16 +72,19 @@ Out of scope:
 
 ## Approach
 
-Create a self-contained static Astro project under `website/`, using the
-current stable Astro 7 line and Tailwind CSS v4 through its documented Vite
-plugin. Astro's official GitHub Pages guide supports prerendered static output
+Create a self-contained static Astro project under `website/`, using Bun 1.3.5
+with a committed `bun.lock`, the current stable Astro 7 line, and Tailwind CSS
+v4 through its documented Vite plugin. The initial GitHub Pages deploy uses
+the project path `/gitview` and `barathrajd.github.io`; once the custom domain
+is configured, remove that path and build with the custom domain as `site`.
+Astro's official GitHub Pages guide supports prerendered static output
 and Actions deployment. For this custom Actions workflow, configure the domain
 in repository Pages settings; GitHub documents that a deployed `CNAME` file is
 ignored for custom workflow publishing. Add DNS only after saving the domain in
 Pages settings. Tailwind's Astro guide documents the Vite plugin integration
 and global CSS import. [Astro GitHub Pages guide](https://docs.astro.build/en/guides/deploy/github/),
 [Tailwind Astro guide](https://tailwindcss.com/docs/installation/framework-guides/astro),
-and [GitHub custom-domain guide](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site).
+the [Astro Bun guide](https://docs.astro.build/en/recipes/bun/), and [GitHub custom-domain guide](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site).
 Use the [Astro 7 release line](https://github.com/withastro/astro/releases)
 and the official integration guidance as the version references at build time.
 
@@ -108,9 +111,10 @@ part of the final experience.
 3. [x] Add the feature grid and interactive installation guide with Cargo as the
    primary path, a macOS Apple Silicon release option, accessible tabs, and
    clipboard feedback. Verify links and keyboard interaction.
-4. [x] Add the footer, GitHub Pages workflow, and deployment checklist. Verify
-   the static build and deployment configuration. To publish, set the custom
-   domain in Pages settings before adding the DNS CNAME to the target subdomain.
+4. [ ] Add the footer, Bun-based GitHub Pages workflow, and deployment
+   checklist. Deploy at the default project URL first. After the user adds the
+   custom domain in Pages settings, switch the site base and redeploy before
+   adding the DNS CNAME to the target subdomain.
 
 ## Risks & open questions
 
@@ -121,6 +125,9 @@ site source.
   this repository's Pages settings, then add the subdomain CNAME pointing to
   `barathrajd.github.io`. GitHub Actions custom publishing ignores a `CNAME`
   file, so the domain setting is the source of truth.
+- **Two-stage base path — owner: site maintainer.** The default project URL
+  needs `/gitview`; after Pages accepts the custom domain, remove the workflow's
+  `GITVIEW_DEFAULT_PAGES_DOMAIN` setting and redeploy with the root base path.
 - **Release support can change — owner: site maintainer.** Keep install
   instructions and platform claims grounded in `README.md` and `RELEASE.md`,
   and update them when release artifacts change.
