@@ -30,9 +30,13 @@ The implementation is complete when these outcomes can be checked directly.
   Feature descriptions cover diffs, staging, and commit creation and amend, as
   shipped in 0.5.0, without implying remote operations or interactive rebase
   support.
-- A "Coming in 0.6.0" section describes each 0.6.0 workflow with a screenshot of
-  the real binary, is labeled planned and not yet released, and keeps the
-  install instructions on 0.5.0 until the release is published. It states that
+- The home page stays high level: one terminal screenshot in the hero, the
+  six-card feature summary, and the install guide, with links to the other pages.
+- A `/features/` page shows each workflow with a screenshot of the real binary.
+  Its "Coming in 0.6.0" section is labeled planned and not yet released, and the
+  install instructions stay on 0.5.0 until the release is published.
+- A `/changelog/` page lists every release from 0.2.1, with the planned 0.6.0
+  clearly marked, summarized from `RELEASE.md` in `website/src/data/releases.ts`. It states that
   Linux packaging moves to the next release and that remotes, merge, and export
   stay out.
 - The install tabs and copy command work with keyboard and pointer input, and
@@ -124,7 +128,10 @@ part of the final experience.
    checklist. Deploy at the default project URL first, then switch to the
    custom domain and root base after the user adds the domain in Pages settings.
 
-5. [x] Add the "Coming in 0.6.0" section with one screenshot per planned
+5. [x] Add the "Coming in 0.6.0" section to a separate `/features/` page, and a
+   `/changelog/` page for all releases, so the home page keeps one hero
+   screenshot and only the high-level feature cards. Links use a base-path
+   helper so they work at the root and under `/gitview`. Add one screenshot per planned
    workflow: repository setup (real command output), path operations, commit and
    amend, history filter/search/comparison, branches and tags, object
    description, and help. Each screen is captured from the real development
@@ -133,7 +140,8 @@ part of the final experience.
    screen is drawn by hand. Label the section planned, keep the install guide on
    0.5.0, and add a README section that matches. After 0.6.0 is published,
    recapture the screens from the released binary, retitle the section as
-   shipped, and update the install guide and version badge.
+   shipped, and update the install guide and version badge. Add each new
+   release to `releases.ts` when it ships.
 
 ## Risks & open questions
 

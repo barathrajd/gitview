@@ -50,6 +50,7 @@ const features = [
   },
 ];
 
+import { href } from "../lib/base";
 ---
 
 <section id="features" class="relative px-5 py-24 sm:px-8 sm:py-32">
@@ -95,6 +96,11 @@ const features = [
           <div class="absolute bottom-0 left-8 right-8 h-px origin-left scale-x-0 bg-gradient-to-r from-emerald-300/40 to-transparent transition-transform duration-500 group-hover:scale-x-100" aria-hidden="true"></div>
         </article>
       ))}
+    </div>
+
+    <div class="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
+      <a href={href("features/")} class="inline-flex items-center gap-2 font-medium text-emerald-300 transition hover:text-emerald-200">See every feature with screenshots <span aria-hidden="true">→</span></a>
+      <a href={href("changelog/")} class="inline-flex items-center gap-2 text-slate-400 transition hover:text-slate-200">Read the changelog <span aria-hidden="true">→</span></a>
     </div>
 
     <div class="mt-5 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-wider text-slate-600">
