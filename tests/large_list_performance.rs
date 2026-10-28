@@ -98,3 +98,36 @@ fn measures_cockpit_frames_with_large_lists() {
         "large-list frame p95 exceeded 50 ms: {worst}"
     );
 }
+
+#[test]
+#[ignore = "isolated release-build timing diagnostic; run with --ignored --nocapture"]
+fn measures_history_search_on_the_ui_thread() {
+    let mut worst = 0.0f64;
+    // History loads at most 200 rows; larger counts bound the cost if that grows.
+    for rows in [200, 10_000, 100_000] {
+        let history: Vec<String> = (0..rows)
+            .map(|index| {
+                format!(
+                    "* {index:07x} Fixture commit number {index} - Performance Fixture\u{1f}{index:040x}"
+                )
+            })
+            .collect();
+        let mut samples = Vec::new();
+        for query in ["a", "fixture commit", "number 99", "zzz-missing"]
+            .iter()
+            .cycle()
+            .take(100)
+        {
+            let start = Instant::now();
+            let matches = gitview::history::search_matches(&history, query);
+            samples.push(start.elapsed().as_secs_f64() * 1000.0);
+            std::hint::black_box(matches);
+        }
+        let value = p95(samples);
+        println!("history search rows={rows} p95_ms={value:.3}");
+        if rows <= 10_000 {
+            worst = worst.max(value);
+        }
+    }
+    assert!(worst <= 50.0, "history search p95 exceeded 50 ms: {worst}");
+}

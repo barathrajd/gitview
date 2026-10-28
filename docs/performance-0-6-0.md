@@ -316,9 +316,17 @@ extra refs) also settled at 0.5% of one core over 10 idle seconds, with 25
 terminal output bytes, and slow-preview feedback and cancel took about 12 ms
 (five samples). Its first startup sample took 689 ms and the other four took
 28 to 42 ms; the first run is cold, and the startup budget applies to the small
-fixture. These are single local runs, not p95 proof across 20 starts. Debounced
-search, tag, path-history, and object lists, native navigation latency, and
-Linux remain unmeasured.
+fixture. These are single local runs, not p95 proof across 20 starts.
+
+History search runs on the UI thread after a 180 ms debounce, over the loaded
+history rows. History loads at most 200 rows (`git log -n 200`). A second
+diagnostic, `measures_history_search_on_the_ui_thread` in the same test file,
+times `search_matches` over 100 mixed queries. One run gave p95 of 0.023 ms at
+200 rows, 0.79 ms at 10,000 rows, and 3.8 ms at 100,000 rows. That is well within
+the 100 ms UI-thread budget, so search needs no worker. The numbers cover
+matching only, not the debounce timer, rendering, or terminal I/O. Tag,
+path-history, and object lists, native navigation latency, and Linux remain
+unmeasured.
 
 ## Review status and remaining work
 
