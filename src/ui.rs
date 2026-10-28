@@ -361,7 +361,7 @@ pub fn render_help_overlay(
         ("Type", "Write a commit message"),
         ("Tab", "Switch subject and description"),
         ("Ctrl+J", "Add a description line"),
-        ("Ctrl+E", "Edit message in configured Git editor"),
+        ("Ctrl+E", "Edit in Git editor; saving commits"),
         ("Enter", "Create commit"),
         ("Backspace", "Delete a character"),
         ("Esc", "Cancel commit"),

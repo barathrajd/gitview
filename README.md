@@ -131,7 +131,9 @@ gitview clone <repository> [directory]
   keeps the read-only worktree beside a short subject and optional description.
   Press **Tab** to switch fields and **Ctrl+J** to add a description line. Press
   **Ctrl+E** to edit the subject and description in your configured Git editor.
-  Save and exit to return to the form, then review and press **Enter** to commit.
+  Save and exit to commit the edited message without pressing **Enter** again.
+  If you exit without changing it, or save an empty subject, you return to the
+  form. Amending still asks for confirmation.
   Gitview uses Git's editor selection (`GIT_EDITOR`, `core.editor`, `VISUAL`,
   `EDITOR`, or Git's fallback). Executable paths and quoted arguments work;
   shell expressions are unsupported. Editor failures keep the original message.

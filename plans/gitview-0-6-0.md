@@ -74,8 +74,10 @@ the user approves the final release candidate.
    Git's normal safety checks remain enabled for destructive path operations.
 3. **Commit editor handoff (complete):** Ctrl+E resolves Git's configured
    editor, invokes quoted executable arguments without shell evaluation, pauses
-   the input reader, and restores the terminal and reviewed commit form. The
-   original staged snapshot remains required by Enter-to-commit. Editor failure
+   the input reader, and restores the terminal. Saving a changed message with a
+   non-empty subject commits it without a second Enter; an unchanged save returns
+   to the form, and amend keeps its confirmation. The original staged snapshot
+   remains required. Editor failure
    keeps the original message. Verified with an interactive pseudo-terminal.
 4. **Branches and tags (complete):** confirmed branch rename and deletion
    are implemented with stale-tip and checkout checks and Git safeguards.

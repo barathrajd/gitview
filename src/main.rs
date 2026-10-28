@@ -1466,6 +1466,7 @@ fn app(
                 if mutation_pending {
                     continue;
                 }
+                let mut submit = false;
                 match key.code {
                     KeyCode::Esc => {
                         commit_message = None;
@@ -1502,10 +1503,19 @@ fn app(
                                 terminal.clear()?;
                                 match result {
                                     Ok(edited) => {
+                                        submit = commit_after_editor(
+                                            commit_message.as_deref().unwrap_or_default(),
+                                            &commit_description,
+                                            &edited,
+                                        );
                                         let (subject, description) = split_commit_message(&edited);
                                         commit_message = Some(subject);
                                         commit_description = description;
-                                        commit_feedback = "Returned from editor; review the message before committing.".into();
+                                        commit_feedback = if submit {
+                                            String::new()
+                                        } else {
+                                            "Returned from editor; review the message before committing.".into()
+                                        };
                                     }
                                     Err(error) => commit_feedback = error,
                                 }
@@ -1525,44 +1535,7 @@ fn app(
                             commit_description.push('\n');
                         }
                     }
-                    KeyCode::Enter | KeyCode::Char('\r' | '\n') => {
-                        let message = commit_message.as_deref().unwrap_or_default();
-                        if message.trim().is_empty() {
-                            commit_feedback = "Enter a commit message.".into();
-                        } else if (commit_amend && amend_expected.is_none())
-                            || (!commit_amend && commit_expected.is_none())
-                        {
-                            commit_feedback = if commit_amend {
-                                "Amend preview unavailable; reopen the composer to review changes."
-                                    .into()
-                            } else {
-                                "Commit preview unavailable; reopen the composer to review staged changes.".into()
-                            };
-                        } else {
-                            let subject = message.to_owned();
-                            let description = commit_description.clone();
-                            if commit_amend {
-                                amend_confirm = true;
-                                commit_feedback.clear();
-                            } else {
-                                let message = combined_commit_message(&subject, &description);
-                                let staged = commit_expected.clone();
-                                let path = root.to_path_buf();
-                                let sender = commit_sender.clone();
-                                mutation_pending = true;
-                                commit_feedback.clear();
-                                std::thread::spawn(move || {
-                                    let result = staged
-                                        .as_ref()
-                                        .ok_or_else(|| "Staged changes are unavailable".to_owned())
-                                        .and_then(|preview| {
-                                            gitview::commit::create_commit(&path, &message, preview)
-                                        });
-                                    let _ = sender.send((subject, description, false, result));
-                                });
-                            }
-                        }
-                    }
+                    KeyCode::Enter | KeyCode::Char('\r' | '\n') => submit = true,
                     KeyCode::Char(character) if !character.is_control() => {
                         if commit_description_focused {
                             commit_description.push(character);
@@ -1572,6 +1545,44 @@ fn app(
                         commit_feedback.clear();
                     }
                     _ => {}
+                }
+                if submit {
+                    let message = commit_message.as_deref().unwrap_or_default();
+                    if message.trim().is_empty() {
+                        commit_feedback = "Enter a commit message.".into();
+                    } else if (commit_amend && amend_expected.is_none())
+                        || (!commit_amend && commit_expected.is_none())
+                    {
+                        commit_feedback = if commit_amend {
+                            "Amend preview unavailable; reopen the composer to review changes."
+                                .into()
+                        } else {
+                            "Commit preview unavailable; reopen the composer to review staged changes.".into()
+                        };
+                    } else {
+                        let subject = message.to_owned();
+                        let description = commit_description.clone();
+                        if commit_amend {
+                            amend_confirm = true;
+                            commit_feedback.clear();
+                        } else {
+                            let message = combined_commit_message(&subject, &description);
+                            let staged = commit_expected.clone();
+                            let path = root.to_path_buf();
+                            let sender = commit_sender.clone();
+                            mutation_pending = true;
+                            commit_feedback.clear();
+                            std::thread::spawn(move || {
+                                let result = staged
+                                    .as_ref()
+                                    .ok_or_else(|| "Staged changes are unavailable".to_owned())
+                                    .and_then(|preview| {
+                                        gitview::commit::create_commit(&path, &message, preview)
+                                    });
+                                let _ = sender.send((subject, description, false, result));
+                            });
+                        }
+                    }
                 }
                 continue;
             }
@@ -2422,6 +2433,15 @@ fn combined_commit_message(subject: &str, description: &str) -> String {
     }
 }
 
+/// Whether a message saved from the external editor should be committed
+/// directly: its subject isn't empty and it differs from the reviewed draft.
+fn commit_after_editor(subject: &str, description: &str, edited: &str) -> bool {
+    let (edited_subject, edited_description) = split_commit_message(edited);
+    !edited_subject.trim().is_empty()
+        && combined_commit_message(&edited_subject, &edited_description)
+            != combined_commit_message(subject, description)
+}
+
 fn split_commit_message(message: &str) -> (String, String) {
     match message.split_once('\n') {
         Some((subject, description)) => (
@@ -2524,6 +2544,17 @@ mod tests {
             combined_commit_message(&subject, &description),
             "fix: preserve files\n\nExplain the safety rule."
         );
+    }
+
+    #[test]
+    fn saved_editor_changes_with_a_subject_commit_without_a_second_enter() {
+        assert!(commit_after_editor("", "", "feat: add editor\n"));
+        assert!(commit_after_editor("old", "body", "new subject\n\nbody\n"));
+        // Quitting without changes, or saving an empty subject, returns to the form.
+        assert!(!commit_after_editor("old", "", "old\n"));
+        assert!(!commit_after_editor("old", "body", "old\n\nbody\n"));
+        assert!(!commit_after_editor("old", "", "\n"));
+        assert!(!commit_after_editor("", "", ""));
     }
 
     #[test]
