@@ -15,7 +15,7 @@ GitHub Pages without changing the Rust CLI or its release process.
 The implementation is complete when these outcomes can be checked directly.
 
 - The site builds as a static Astro site and deploys from GitHub Actions to
-  GitHub Pages using the custom domain configuration.
+  GitHub Pages with the custom domain configured in repository settings.
 - The page has responsive navigation, a product hero, a CSS-rendered Gitview
   terminal preview, current feature summaries, installation instructions, and
   a footer with source and release links.
@@ -51,8 +51,8 @@ In scope:
   video or heavy client-side framework.
 - Install choices for Cargo and the macOS Apple Silicon release archive,
   with copyable commands and links to GitHub source and releases.
-- A GitHub Pages Actions workflow, custom-domain `CNAME`, and deployment
-  documentation or checklist for the required repository and DNS settings.
+- A GitHub Pages Actions workflow and deployment checklist for the required
+  repository and DNS settings.
 - Responsive layout, semantic HTML, reduced-motion support, accessible
   keyboard behavior, and SEO/social metadata.
 
@@ -74,11 +74,14 @@ Out of scope:
 
 Create a self-contained static Astro project under `website/`, using the
 current stable Astro 7 line and Tailwind CSS v4 through its documented Vite
-plugin. Astro's official GitHub Pages guide supports prerendered static output,
-an Actions deployment, and custom domains; its custom-domain setup uses a
-`public/CNAME` file and DNS configuration. Tailwind's Astro guide documents
-the Vite plugin integration and global CSS import. [Astro GitHub Pages guide](https://docs.astro.build/en/guides/deploy/github/)
-and [Tailwind Astro guide](https://tailwindcss.com/docs/installation/framework-guides/astro).
+plugin. Astro's official GitHub Pages guide supports prerendered static output
+and Actions deployment. For this custom Actions workflow, configure the domain
+in repository Pages settings; GitHub documents that a deployed `CNAME` file is
+ignored for custom workflow publishing. Add DNS only after saving the domain in
+Pages settings. Tailwind's Astro guide documents the Vite plugin integration
+and global CSS import. [Astro GitHub Pages guide](https://docs.astro.build/en/guides/deploy/github/),
+[Tailwind Astro guide](https://tailwindcss.com/docs/installation/framework-guides/astro),
+and [GitHub custom-domain guide](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site).
 Use the [Astro 7 release line](https://github.com/withastro/astro/releases)
 and the official integration guidance as the version references at build time.
 
@@ -97,7 +100,7 @@ Each milestone leaves the site in a buildable state and adds one verifiable
 part of the final experience.
 
 1. [x] Scaffold and build the isolated Astro/Tailwind site with shared layout,
-   global theme, SEO metadata, and custom-domain configuration. Verify the
+   global theme, SEO metadata, and the site's canonical domain. Verify the
    static output builds from `website/`.
 2. Publish the product story in a responsive hero and terminal preview that
    show supported history, worktree, diff, and staging workflows. Review all
@@ -105,19 +108,19 @@ part of the final experience.
 3. Add the feature grid and interactive installation guide with Cargo as the
    primary path, a macOS Apple Silicon release option, accessible tabs, and
    clipboard feedback. Verify links and keyboard interaction.
-4. Add the footer, GitHub Pages workflow, and custom-domain file. Verify the
-   Actions build and deployment configuration; complete the DNS and Pages
-   settings to publish at the target subdomain.
+4. Add the footer, GitHub Pages workflow, and deployment checklist. Verify the
+   Actions build and deployment configuration; set the custom domain in Pages
+   settings before adding the DNS CNAME to publish at the target subdomain.
 
 ## Risks & open questions
 
 The remaining release dependency is configuring the custom domain outside the
 site source.
 
-- **Custom-domain activation — owner: user.** GitHub Pages needs DNS records
-  for the subdomain and Pages enabled for this repository. The workflow and
-  `CNAME` can be committed independently; publish after the DNS and repository
-  settings are in place.
+- **Custom-domain activation — owner: user.** First save the custom domain in
+  this repository's Pages settings, then add the subdomain CNAME pointing to
+  `barathrajd.github.io`. GitHub Actions custom publishing ignores a `CNAME`
+  file, so the domain setting is the source of truth.
 - **Release support can change — owner: site maintainer.** Keep install
   instructions and platform claims grounded in `README.md` and `RELEASE.md`,
   and update them when release artifacts change.
