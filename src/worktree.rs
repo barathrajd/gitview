@@ -29,6 +29,36 @@ pub struct UntrackPreview {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RemovePathPreview {
+    path: std::ffi::OsString,
+    fingerprint: Vec<u8>,
+}
+
+impl RemovePathPreview {
+    pub fn path(&self) -> &std::ffi::OsStr {
+        &self.path
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MovePathPreview {
+    source: std::ffi::OsString,
+    destination: std::ffi::OsString,
+    source_fingerprint: Vec<u8>,
+    destination_fingerprint: Vec<u8>,
+}
+
+impl MovePathPreview {
+    pub fn source(&self) -> &std::ffi::OsStr {
+        &self.source
+    }
+
+    pub fn destination(&self) -> &std::ffi::OsStr {
+        &self.destination
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IgnoreRule {
     pub source: String,
     pub line: String,
@@ -151,7 +181,8 @@ fn run_action(
 }
 
 pub fn preview_discard(root: &Path, entry: &Entry) -> Result<DiscardPreview, String> {
-    if entry.section == Section::Staged {
+    let staged_rename = entry.section == Section::Staged && entry.original.is_some();
+    if entry.section == Section::Staged && !staged_rename {
         return Err("Select an unstaged or untracked file to discard".into());
     }
     if !load_status(root)?.iter().any(|current| current == entry) {
@@ -159,7 +190,11 @@ pub fn preview_discard(root: &Path, entry: &Entry) -> Result<DiscardPreview, Str
     }
     Ok(DiscardPreview {
         entry: entry.clone(),
-        fingerprint: discard_fingerprint(root, entry)?,
+        fingerprint: if staged_rename {
+            rename_discard_fingerprint(root, entry)?
+        } else {
+            discard_fingerprint(root, entry)?
+        },
     })
 }
 
@@ -168,13 +203,81 @@ pub fn discard(root: &Path, preview: &DiscardPreview) -> Result<(), String> {
     if !load_status(root)?.iter().any(|current| current == entry) {
         return Err("File status changed; refresh and select it again".into());
     }
-    if discard_fingerprint(root, entry)? != preview.fingerprint {
+    let staged_rename = entry.section == Section::Staged && entry.original.is_some();
+    let fingerprint = if staged_rename {
+        rename_discard_fingerprint(root, entry)?
+    } else {
+        discard_fingerprint(root, entry)?
+    };
+    if fingerprint != preview.fingerprint {
         return Err("File contents changed after confirmation; review it again".into());
     }
     match entry.section {
+        Section::Staged if staged_rename => discard_staged_rename(root, entry),
         Section::Staged => Err("Select an unstaged or untracked file to discard".into()),
         Section::Unstaged => run_action(root, &["restore", "--worktree"], &entry.path, None),
         Section::Untracked => run_action(root, &["clean", "-f"], &entry.path, None),
+    }
+}
+
+fn rename_discard_fingerprint(root: &Path, entry: &Entry) -> Result<Vec<u8>, String> {
+    let original = entry
+        .original
+        .as_deref()
+        .ok_or("The selected staged path is not a rename")?;
+    let mut fingerprint = Vec::new();
+    for args in [
+        &[
+            "status",
+            "--porcelain=v2",
+            "-z",
+            "--untracked-files=all",
+            "--",
+        ][..],
+        &["diff", "--raw", "-z", "--no-renames", "--"][..],
+        &["diff", "--cached", "--raw", "-z", "--no-renames", "--"][..],
+        &["ls-files", "--stage", "-z", "--"][..],
+    ] {
+        let output = process::git_command()
+            .current_dir(root)
+            .arg("--literal-pathspecs")
+            .args(args)
+            .arg(original)
+            .arg(&entry.path)
+            .output()
+            .map_err(|error| format!("Could not inspect renamed paths: {error}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "Could not inspect renamed paths: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
+        }
+        fingerprint.extend(output.stdout);
+        fingerprint.push(0xff);
+    }
+    Ok(fingerprint)
+}
+
+fn discard_staged_rename(root: &Path, entry: &Entry) -> Result<(), String> {
+    let original = entry
+        .original
+        .as_deref()
+        .ok_or("The selected staged path is not a rename")?;
+    let output = process::git_command()
+        .current_dir(root)
+        .arg("--literal-pathspecs")
+        .args(["restore", "--source=HEAD", "--staged", "--worktree", "--"])
+        .arg(original)
+        .arg(&entry.path)
+        .output()
+        .map_err(|error| format!("Could not restore renamed paths: {error}"))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "Git operation failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ))
     }
 }
 
@@ -203,6 +306,159 @@ pub fn untrack(root: &Path, preview: &UntrackPreview) -> Result<(), String> {
         return Err("The staged file changed after confirmation; review it again".into());
     }
     run_action(root, &["rm", "--cached", "--force"], &entry.path, None)
+}
+
+pub fn preview_remove_path(root: &Path, path: &Path) -> Result<RemovePathPreview, String> {
+    validate_repository_relative_path(path)?;
+    let path = path.as_os_str();
+    tracked_path(root, path)?;
+    Ok(RemovePathPreview {
+        path: path.to_os_string(),
+        fingerprint: remove_path_fingerprint(root, path)?,
+    })
+}
+
+/// Remove one tracked path and stage its deletion. Git's normal `rm` safety
+/// checks remain enabled, so unstaged edits are never force-removed.
+pub fn remove_path(root: &Path, preview: &RemovePathPreview) -> Result<(), String> {
+    tracked_path(root, &preview.path)?;
+    if remove_path_fingerprint(root, &preview.path)? != preview.fingerprint {
+        return Err("File state changed after confirmation; review it again".into());
+    }
+    run_action(root, &["rm"], &preview.path, None)
+}
+
+pub fn preview_move_path(
+    root: &Path,
+    source: &Path,
+    destination: &Path,
+) -> Result<MovePathPreview, String> {
+    validate_repository_relative_path(source)?;
+    validate_repository_relative_path(destination)?;
+    if source == destination {
+        return Err("Choose a different destination path".into());
+    }
+    tracked_path(root, source.as_os_str())?;
+    if is_tracked_path(root, destination.as_os_str())? {
+        return Err("The destination path is already tracked".into());
+    }
+    let source_fingerprint = remove_path_fingerprint(root, source.as_os_str())?;
+    if source_fingerprint.first() != Some(&0xff) {
+        return Err(
+            "The source has uncommitted changes; review or commit them before moving".into(),
+        );
+    }
+    Ok(MovePathPreview {
+        source: source.as_os_str().to_os_string(),
+        destination: destination.as_os_str().to_os_string(),
+        destination_fingerprint: remove_path_fingerprint(root, destination.as_os_str())?,
+        source_fingerprint,
+    })
+}
+
+pub fn move_path(root: &Path, preview: &MovePathPreview) -> Result<(), String> {
+    tracked_path(root, &preview.source)?;
+    if is_tracked_path(root, &preview.destination)? {
+        return Err("The destination path is already tracked".into());
+    }
+    if remove_path_fingerprint(root, &preview.source)? != preview.source_fingerprint
+        || remove_path_fingerprint(root, &preview.destination)? != preview.destination_fingerprint
+    {
+        return Err("A path changed after confirmation; review the move again".into());
+    }
+    let mut command = process::git_command();
+    command
+        .current_dir(root)
+        .arg("--literal-pathspecs")
+        .arg("mv")
+        .arg("--")
+        .arg(&preview.source)
+        .arg(&preview.destination);
+    let output = command
+        .output()
+        .map_err(|error| format!("Could not run Git: {error}"))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "Git operation failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ))
+    }
+}
+
+fn validate_repository_relative_path(path: &Path) -> Result<(), String> {
+    if path.as_os_str().is_empty() {
+        return Err("Enter a repository-relative path".into());
+    }
+    if path.is_absolute()
+        || path.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        })
+    {
+        return Err("Use a repository-relative path without `..` components".into());
+    }
+    Ok(())
+}
+
+fn tracked_path(root: &Path, path: &std::ffi::OsStr) -> Result<(), String> {
+    if is_tracked_path(root, path)? {
+        Ok(())
+    } else {
+        Err("The selected path is not tracked in this repository".into())
+    }
+}
+
+fn is_tracked_path(root: &Path, path: &std::ffi::OsStr) -> Result<bool, String> {
+    let output = process::git_command()
+        .current_dir(root)
+        .arg("--literal-pathspecs")
+        .args(["ls-files", "--error-unmatch", "-z", "--"])
+        .arg(path)
+        .output()
+        .map_err(|error| format!("Could not inspect tracked path: {error}"))?;
+    if output.status.success() {
+        Ok(!output.stdout.is_empty())
+    } else if output.status.code() == Some(1) {
+        Ok(false)
+    } else {
+        Err(format!(
+            "Could not inspect tracked path: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ))
+    }
+}
+
+fn remove_path_fingerprint(root: &Path, path: &std::ffi::OsStr) -> Result<Vec<u8>, String> {
+    let mut fingerprint = Vec::new();
+    for args in [
+        &["status", "--porcelain=v2", "-z", "--"][..],
+        &["diff", "--raw", "-z", "--no-renames", "--"][..],
+        &["diff", "--cached", "--raw", "-z", "--no-renames", "--"][..],
+        &["ls-files", "--stage", "-z", "--"][..],
+    ] {
+        let output = process::git_command()
+            .current_dir(root)
+            .arg("--literal-pathspecs")
+            .args(args)
+            .arg(path)
+            .output()
+            .map_err(|error| format!("Could not inspect tracked path: {error}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "Could not inspect tracked path: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
+        }
+        fingerprint.extend(output.stdout);
+        fingerprint.push(0xff);
+    }
+    Ok(fingerprint)
 }
 
 pub fn ignore_rule(root: &Path, entry: &Entry) -> Result<Option<IgnoreRule>, String> {

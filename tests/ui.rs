@@ -177,6 +177,62 @@ fn ignore_path_prompt_accepts_arbitrary_repository_relative_paths() {
 }
 
 #[test]
+fn tracked_path_removal_prompt_and_confirmation_show_the_exact_path() {
+    let prompt = draw(
+        Screen::RemovePathInput {
+            path: "src/old file.rs",
+            feedback: "",
+        },
+        80,
+        18,
+    );
+    assert!(prompt.contains("REMOVE TRACKED PATH"));
+    assert!(prompt.contains("src/old file.rs"));
+
+    let confirmation = draw(
+        Screen::RemovePathConfirmation {
+            path: std::ffi::OsStr::new("src/old file.rs"),
+            pending: false,
+        },
+        80,
+        18,
+    );
+    assert!(confirmation.contains("CONFIRM TRACKED PATH REMOVAL"));
+    assert!(confirmation.contains("src/old file.rs"));
+    assert!(confirmation.contains("normal safety checks"));
+}
+
+#[test]
+fn tracked_path_move_prompt_and_confirmation_show_both_paths() {
+    let prompt = draw(
+        Screen::MovePathInput {
+            source: "src/old file.rs",
+            destination: "src/new file.rs",
+            destination_focused: true,
+            feedback: "",
+        },
+        80,
+        18,
+    );
+    assert!(prompt.contains("MOVE TRACKED PATH"));
+    assert!(prompt.contains("src/old file.rs"));
+    assert!(prompt.contains("src/new file.rs"));
+
+    let confirmation = draw(
+        Screen::MovePathConfirmation {
+            source: std::ffi::OsStr::new("src/old file.rs"),
+            destination: std::ffi::OsStr::new("src/new file.rs"),
+            pending: false,
+        },
+        80,
+        18,
+    );
+    assert!(confirmation.contains("CONFIRM PATH MOVE"));
+    assert!(confirmation.contains("src/old file.rs"));
+    assert!(confirmation.contains("src/new file.rs"));
+}
+
+#[test]
 fn amend_confirmation_explains_the_history_rewrite_and_shows_old_and_new_messages() {
     let entries = vec![Entry {
         section: Section::Staged,
@@ -227,6 +283,24 @@ fn discard_dialog_names_the_selected_file_and_requires_confirmation() {
     assert!(rendered.contains("Permanently delete this untracked file?"));
     assert!(rendered.contains("discard file"));
     assert!(rendered.contains("cancel"));
+
+    let rename = Entry {
+        section: Section::Staged,
+        path: OsString::from("new name.rs"),
+        original: Some(OsString::from("old name.rs")),
+    };
+    let rendered = draw(
+        Screen::DiscardConfirmation {
+            entry: &rename,
+            pending: false,
+        },
+        80,
+        14,
+    );
+    assert!(rendered.contains("Permanently discard this staged rename"));
+    assert!(rendered.contains("old name.rs"));
+    assert!(rendered.contains("new name.rs"));
+    assert!(rendered.contains("unstaged content"));
 }
 
 #[test]

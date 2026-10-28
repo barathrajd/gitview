@@ -154,6 +154,65 @@ fn discards_unstaged_edits_without_reverting_a_staged_rename() {
 }
 
 #[test]
+fn discards_a_confirmed_staged_rename_and_restores_the_original_path() {
+    let repo = Repo::new();
+    repo.commit_file("old name.txt", "original content\n");
+    fs::rename(
+        repo.path().join("old name.txt"),
+        repo.path().join("new name.txt"),
+    )
+    .unwrap();
+    repo.git(&["add", "-A"]);
+    fs::write(repo.path().join("new name.txt"), "unreviewed edit\n").unwrap();
+    let entry = worktree::load_status(repo.path())
+        .unwrap()
+        .into_iter()
+        .find(|entry| entry.section == worktree::Section::Staged)
+        .unwrap();
+    assert_eq!(
+        entry.original.as_deref(),
+        Some(std::ffi::OsStr::new("old name.txt"))
+    );
+    let preview = worktree::preview_discard(repo.path(), &entry).unwrap();
+
+    worktree::discard(repo.path(), &preview).unwrap();
+
+    assert_eq!(
+        fs::read(repo.path().join("old name.txt")).unwrap(),
+        b"original content\n"
+    );
+    assert!(!repo.path().join("new name.txt").exists());
+    assert!(worktree::load_status(repo.path()).unwrap().is_empty());
+}
+
+#[test]
+fn refuses_to_discard_a_staged_rename_after_either_path_changes() {
+    let repo = Repo::new();
+    repo.commit_file("old name.txt", "original content\n");
+    fs::rename(
+        repo.path().join("old name.txt"),
+        repo.path().join("new name.txt"),
+    )
+    .unwrap();
+    repo.git(&["add", "-A"]);
+    let entry = worktree::load_status(repo.path())
+        .unwrap()
+        .into_iter()
+        .find(|entry| entry.section == worktree::Section::Staged)
+        .unwrap();
+    let preview = worktree::preview_discard(repo.path(), &entry).unwrap();
+    fs::write(repo.path().join("new name.txt"), "newer edit\n").unwrap();
+
+    let error = worktree::discard(repo.path(), &preview).unwrap_err();
+
+    assert!(error.contains("changed"));
+    assert_eq!(
+        fs::read(repo.path().join("new name.txt")).unwrap(),
+        b"newer edit\n"
+    );
+}
+
+#[test]
 fn stops_tracking_a_confirmed_path_and_keeps_its_working_copy() {
     let repo = Repo::new();
     repo.commit_file("remove me.txt", "tracked content\n");

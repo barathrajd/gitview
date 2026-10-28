@@ -92,12 +92,20 @@ gitview clone <repository> [directory]
   **S** stages all changes, **U** unstages all staged changes, and **r**
   refreshes status. Press **d** to review and confirm discarding one unstaged or
   untracked file; tracked files return to their staged version, and untracked
-  files are removed. Open a file diff with **Enter** to select hunks with **[**
+  files are removed. On a staged rename, **d** restores the original path and
+  removes the renamed path, including staged and unstaged edits to both paths.
+  Open a file diff with **Enter** to select hunks with **[**
   and **]**; **s/u** stage or unstage the selected hunk, and **S/U** act on the
   whole file. Press **i** to inspect the selected path's ignore rule or **I**
   to enter any repository-relative path, including an ignored file absent from
   the worktree list. Press **x** to stop tracking the selected file while
   keeping its working copy; this stages its deletion for the next commit.
+  Press **R** to enter any tracked repository-relative path, review its exact
+  removal, and confirm staging its deletion; Git's normal refusal checks remain
+  enabled for files with uncommitted edits.
+  Press **M** to move a clean tracked file: enter source and destination paths,
+  review the rename, then confirm. Git stages the rename and refuses an
+  existing destination.
 - Press **c** in the working-tree view to enter a commit message. The editor
   keeps the read-only worktree beside a short subject and optional description.
   Press **Tab** to switch fields and **Ctrl+J** to add a description line. You
@@ -199,13 +207,13 @@ isolated profile and split-hunk fixture.
 ## Current limitations
 
 Gitview currently focuses on history and working-tree review, file and hunk
-staging, confirmed discard of selected unstaged and untracked files, commit
-creation from a reviewed staged file set, local branch browsing and creation,
-and folder-scoped Git config profiles. Commit editor handoff, tag and remote
-management, moving working-tree paths, discarding renamed paths,
-conflict resolution, stash, rebase, and submodule workflows are not
-implemented. See the [Git CLI capability matrix](docs/git-cli-capability-matrix.md)
-for current coverage and planned work.
+staging, confirmed discard of selected unstaged and untracked files and staged
+renames, tracked path removal and moves, commit creation from a reviewed staged
+file set, local branch browsing and creation, and folder-scoped Git config
+profiles. Commit editor handoff, tag and remote management, conflict resolution,
+stash, rebase, and submodule workflows are not implemented. See the
+[Git CLI capability matrix](docs/git-cli-capability-matrix.md) for current
+coverage and planned work.
 
 History is limited to 200 commits. Diffs are limited to 1 MB or 5,000 lines and
 indicate truncation; binary changes show Git's binary notice. IDE diffs show

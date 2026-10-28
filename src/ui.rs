@@ -56,6 +56,8 @@ pub const HELP: &str = concat!(
     "c                   Commit in worktree / create branch in branch list\n",
     "i                   Inspect the selected path's ignore rule\n",
     "I                   Inspect an arbitrary repository-relative path\n",
+    "R                   Remove and stage deletion of a tracked path\n",
+    "M                   Move a clean tracked path and stage its rename\n",
     "x                   Stop tracking the selected path and keep its working copy\n",
     "n                   Cancel branch operation            Backspace           Edit search query\n",
     "Diff: [/] selects hunks; s stages an unstaged hunk and u unstages a staged hunk.\n",
@@ -87,6 +89,12 @@ const HELP_ROWS: &[(&str, &str, &str, &str)] = &[
     (
         "I",
         "Inspect ignore rule for a path",
+        "R",
+        "Remove tracked path and stage deletion",
+    ),
+    (
+        "M",
+        "Move clean tracked path and stage rename",
         "d",
         "Discard selected unstaged or untracked file",
     ),
@@ -285,6 +293,8 @@ pub fn render_help_overlay(
         ("x", "Stop tracking selected file and keep working copy"),
         ("i", "Inspect ignore rule for selected path"),
         ("I", "Inspect ignore rule for an entered path"),
+        ("R", "Remove a tracked path and stage its deletion"),
+        ("M", "Move a clean tracked path and stage its rename"),
         ("s", "Stage selected file"),
         ("u", "Unstage selected file"),
         ("S", "Stage all working tree changes"),
@@ -473,6 +483,25 @@ pub enum Screen<'a> {
         path: &'a str,
         feedback: &'a str,
     },
+    RemovePathInput {
+        path: &'a str,
+        feedback: &'a str,
+    },
+    RemovePathConfirmation {
+        path: &'a std::ffi::OsStr,
+        pending: bool,
+    },
+    MovePathInput {
+        source: &'a str,
+        destination: &'a str,
+        destination_focused: bool,
+        feedback: &'a str,
+    },
+    MovePathConfirmation {
+        source: &'a std::ffi::OsStr,
+        destination: &'a std::ffi::OsStr,
+        pending: bool,
+    },
     BranchConfirmation {
         pending: bool,
         action: Option<&'a BranchAction>,
@@ -620,6 +649,116 @@ pub fn render(
                 &[("Enter", "inspect path"), ("Esc", "cancel")],
             );
         }
+        Screen::RemovePathInput { path, feedback } => {
+            let text = format!(
+                "Tracked repository-relative path: {path}_\n\n{}",
+                if feedback.is_empty() {
+                    "Git will refuse removal if it would lose uncommitted work."
+                } else {
+                    feedback
+                }
+            );
+            let areas =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
+            frame.render_widget(
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: false })
+                    .block(page_block("REMOVE TRACKED PATH", border)),
+                areas[0],
+            );
+            render_key_hints(
+                frame,
+                areas[1],
+                &[("Enter", "review removal"), ("Esc", "cancel")],
+            );
+        }
+        Screen::RemovePathConfirmation { path, pending } => {
+            let text = if pending {
+                "Removing the tracked path and staging its deletion...".to_owned()
+            } else {
+                format!(
+                    "Remove this tracked path and stage its deletion?\n\n{}\n\nGit's normal safety checks remain enabled.",
+                    path.to_string_lossy()
+                )
+            };
+            let areas =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
+            frame.render_widget(
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: false })
+                    .block(page_block("CONFIRM TRACKED PATH REMOVAL", border)),
+                areas[0],
+            );
+            let hints = if pending {
+                &[("Working", "removal in progress")][..]
+            } else {
+                &[("y", "remove and stage deletion"), ("n/Esc", "cancel")][..]
+            };
+            render_key_hints(frame, areas[1], hints);
+        }
+        Screen::MovePathInput {
+            source,
+            destination,
+            destination_focused,
+            feedback,
+        } => {
+            let source_cursor = if destination_focused { "" } else { "_" };
+            let destination_cursor = if destination_focused { "_" } else { "" };
+            let message = if feedback.is_empty() {
+                "Only clean tracked sources can be moved. Git will stage the rename."
+            } else {
+                feedback
+            };
+            let text = format!(
+                "Source: {source}{source_cursor}\nDestination: {destination}{destination_cursor}\n\n{message}"
+            );
+            let areas =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
+            frame.render_widget(
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: false })
+                    .block(page_block("MOVE TRACKED PATH", border)),
+                areas[0],
+            );
+            render_key_hints(
+                frame,
+                areas[1],
+                &[
+                    ("Tab", "switch fields"),
+                    ("Enter", "continue/review"),
+                    ("Esc", "cancel"),
+                ],
+            );
+        }
+        Screen::MovePathConfirmation {
+            source,
+            destination,
+            pending,
+        } => {
+            let text = if pending {
+                "Moving the tracked path and staging its rename...".to_owned()
+            } else {
+                format!(
+                    "Move this tracked file and stage its rename?\n\n{}\n→ {}\n\nOnly the confirmed clean source will be moved.",
+                    source.to_string_lossy(),
+                    destination.to_string_lossy()
+                )
+            };
+            let areas =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
+            frame.render_widget(
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: false })
+                    .block(page_block("CONFIRM PATH MOVE", border)),
+                areas[0],
+            );
+            let hints = if pending {
+                &[("Working", "move in progress")][..]
+            } else {
+                &[("y", "move and stage rename"), ("n/Esc", "cancel")][..]
+            };
+            render_key_hints(frame, areas[1], hints);
+        }
         Screen::BranchConfirmation { pending, action } => {
             let text = if pending {
                 "Running branch operation...".to_owned()
@@ -703,10 +842,21 @@ pub fn render(
             let action = match entry.section {
                 crate::worktree::Section::Unstaged => "Restore this file to its staged version?",
                 crate::worktree::Section::Untracked => "Permanently delete this untracked file?",
+                crate::worktree::Section::Staged if entry.original.is_some() => {
+                    "Permanently discard this staged rename and restore its original path?"
+                }
                 crate::worktree::Section::Staged => "Staged files cannot be discarded.",
             };
             let text = if pending {
                 "Applying discard operation...".to_owned()
+            } else if entry.section == crate::worktree::Section::Staged
+                && let Some(original) = &entry.original
+            {
+                format!(
+                    "{action}\n\n{} → {}\n\nStaged and unstaged content at these paths will be replaced by HEAD.",
+                    original.to_string_lossy(),
+                    entry.path.to_string_lossy()
+                )
             } else {
                 format!("{action}\n\n{}", entry.path.to_string_lossy())
             };

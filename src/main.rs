@@ -316,6 +316,13 @@ fn app(
     let mut branch_input: Option<String> = None;
     let mut branch_feedback = String::new();
     let mut ignore_path_input: Option<String> = None;
+    let mut remove_path_input: Option<String> = None;
+    let mut remove_confirm: Option<gitview::worktree::RemovePathPreview> = None;
+    let mut move_path_input = false;
+    let mut move_source = String::new();
+    let mut move_destination = String::new();
+    let mut move_destination_focused = false;
+    let mut move_confirm: Option<gitview::worktree::MovePathPreview> = None;
     let mut commit_message: Option<String> = None;
     let mut commit_description = String::new();
     let mut commit_description_focused = false;
@@ -330,6 +337,8 @@ fn app(
     let (discard_sender, discard_receiver) = mpsc::channel::<Result<(), String>>();
     let mut untrack_confirm: Option<gitview::worktree::UntrackPreview> = None;
     let (untrack_sender, untrack_receiver) = mpsc::channel::<Result<(), String>>();
+    let (remove_sender, remove_receiver) = mpsc::channel::<Result<(), String>>();
+    let (move_sender, move_receiver) = mpsc::channel::<Result<(), String>>();
     let (ignore_sender, ignore_receiver) =
         mpsc::channel::<Result<Option<gitview::worktree::IgnoreRule>, String>>();
     let mut mutation_pending = false;
@@ -684,6 +693,41 @@ fn app(
                 let _ = sender.send((id, gitview::worktree::load_status(&path)));
             });
         }
+        while let Ok(result) = remove_receiver.try_recv() {
+            mutation_pending = false;
+            remove_confirm = None;
+            commit_feedback = match result {
+                Ok(()) => "Removed the tracked path and staged its deletion.".into(),
+                Err(error) => error,
+            };
+            status_request += 1;
+            let id = status_request;
+            status_mutation = Some(id);
+            let sender = status_sender.clone();
+            let path = root.to_path_buf();
+            status = None;
+            std::thread::spawn(move || {
+                let _ = sender.send((id, gitview::worktree::load_status(&path)));
+            });
+        }
+        while let Ok(result) = move_receiver.try_recv() {
+            mutation_pending = false;
+            move_confirm = None;
+            move_path_input = false;
+            commit_feedback = match result {
+                Ok(()) => "Moved the tracked path and staged its rename.".into(),
+                Err(error) => error,
+            };
+            status_request += 1;
+            let id = status_request;
+            status_mutation = Some(id);
+            let sender = status_sender.clone();
+            let path = root.to_path_buf();
+            status = None;
+            std::thread::spawn(move || {
+                let _ = sender.send((id, gitview::worktree::load_status(&path)));
+            });
+        }
         while let Ok(result) = ignore_receiver.try_recv() {
             commit_feedback = match result {
                 Ok(Some(rule)) => {
@@ -707,6 +751,10 @@ fn app(
                 ui::HelpPage::AmendConfirmation
             } else if commit_message.is_some() {
                 ui::HelpPage::CommitMessage
+            } else if move_path_input || move_confirm.is_some() {
+                ui::HelpPage::WorkingTree
+            } else if remove_path_input.is_some() || remove_confirm.is_some() {
+                ui::HelpPage::WorkingTree
             } else if ignore_path_input.is_some() {
                 ui::HelpPage::IgnorePathInput
             } else if branch_view && branch_input.is_some() {
@@ -735,6 +783,29 @@ fn app(
                     active_profile: &profile_label,
                     registry_path: &profile_registry_path,
                     feedback: &profile_feedback,
+                }
+            } else if move_path_input {
+                Screen::MovePathInput {
+                    source: &move_source,
+                    destination: &move_destination,
+                    destination_focused: move_destination_focused,
+                    feedback: &commit_feedback,
+                }
+            } else if let Some(preview) = &move_confirm {
+                Screen::MovePathConfirmation {
+                    source: preview.source(),
+                    destination: preview.destination(),
+                    pending: mutation_pending,
+                }
+            } else if let Some(path) = &remove_path_input {
+                Screen::RemovePathInput {
+                    path,
+                    feedback: &commit_feedback,
+                }
+            } else if let Some(preview) = &remove_confirm {
+                Screen::RemovePathConfirmation {
+                    path: preview.path(),
+                    pending: mutation_pending,
                 }
             } else if let Some(path) = &ignore_path_input {
                 Screen::IgnorePathInput {
@@ -836,6 +907,18 @@ fn app(
             Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
         };
         if let Event::Paste(pasted) = &event {
+            if move_path_input && !help {
+                if move_destination_focused {
+                    move_destination.push_str(pasted);
+                } else {
+                    move_source.push_str(pasted);
+                }
+            }
+            if let Some(path) = &mut remove_path_input
+                && !help
+            {
+                path.push_str(pasted);
+            }
             if let Some(path) = &mut ignore_path_input
                 && !help
             {
@@ -918,6 +1001,84 @@ fn app(
                             );
                             let _ = sender.send(result);
                         });
+                    }
+                    KeyCode::Char(ch) if !ch.is_control() => path_text.push(ch),
+                    _ => {}
+                }
+                continue;
+            }
+            if move_path_input {
+                match key.code {
+                    KeyCode::Char('?') => help = true,
+                    KeyCode::Esc => {
+                        move_path_input = false;
+                        move_source.clear();
+                        move_destination.clear();
+                        commit_feedback.clear();
+                    }
+                    KeyCode::Tab => move_destination_focused = !move_destination_focused,
+                    KeyCode::Backspace => {
+                        if move_destination_focused {
+                            move_destination.pop();
+                        } else {
+                            move_source.pop();
+                        }
+                    }
+                    KeyCode::Enter if !move_destination_focused => {
+                        if move_source.is_empty() {
+                            commit_feedback = "Enter the tracked source path first.".into();
+                        } else {
+                            move_destination_focused = true;
+                            commit_feedback.clear();
+                        }
+                    }
+                    KeyCode::Enter => {
+                        match gitview::worktree::preview_move_path(
+                            root,
+                            std::path::Path::new(&move_source),
+                            std::path::Path::new(&move_destination),
+                        ) {
+                            Ok(preview) => {
+                                move_path_input = false;
+                                move_confirm = Some(preview);
+                                commit_feedback.clear();
+                            }
+                            Err(error) => commit_feedback = error,
+                        }
+                    }
+                    KeyCode::Char(ch) if !ch.is_control() => {
+                        if move_destination_focused {
+                            move_destination.push(ch);
+                        } else {
+                            move_source.push(ch);
+                        }
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+            if let Some(path_text) = remove_path_input.as_mut() {
+                match key.code {
+                    KeyCode::Char('?') => help = true,
+                    KeyCode::Esc => {
+                        remove_path_input = None;
+                        commit_feedback.clear();
+                    }
+                    KeyCode::Backspace => {
+                        path_text.pop();
+                    }
+                    KeyCode::Enter => {
+                        match gitview::worktree::preview_remove_path(
+                            root,
+                            std::path::Path::new(path_text),
+                        ) {
+                            Ok(preview) => {
+                                remove_path_input = None;
+                                remove_confirm = Some(preview);
+                                commit_feedback.clear();
+                            }
+                            Err(error) => commit_feedback = error,
+                        }
                     }
                     KeyCode::Char(ch) if !ch.is_control() => path_text.push(ch),
                     _ => {}
@@ -1066,6 +1227,46 @@ fn app(
                         });
                     }
                     KeyCode::Char('n') | KeyCode::Esc => untrack_confirm = None,
+                    _ => {}
+                }
+                continue;
+            }
+            if let Some(preview) = remove_confirm.as_ref() {
+                if mutation_pending {
+                    continue;
+                }
+                match key.code {
+                    KeyCode::Char('?') => help = true,
+                    KeyCode::Char('y') => {
+                        mutation_pending = true;
+                        let preview = preview.clone();
+                        let path = root.to_path_buf();
+                        let sender = remove_sender.clone();
+                        std::thread::spawn(move || {
+                            let _ = sender.send(gitview::worktree::remove_path(&path, &preview));
+                        });
+                    }
+                    KeyCode::Char('n') | KeyCode::Esc => remove_confirm = None,
+                    _ => {}
+                }
+                continue;
+            }
+            if let Some(preview) = move_confirm.as_ref() {
+                if mutation_pending {
+                    continue;
+                }
+                match key.code {
+                    KeyCode::Char('?') => help = true,
+                    KeyCode::Char('y') => {
+                        mutation_pending = true;
+                        let preview = preview.clone();
+                        let path = root.to_path_buf();
+                        let sender = move_sender.clone();
+                        std::thread::spawn(move || {
+                            let _ = sender.send(gitview::worktree::move_path(&path, &preview));
+                        });
+                    }
+                    KeyCode::Char('n') | KeyCode::Esc => move_confirm = None,
                     _ => {}
                 }
                 continue;
@@ -1388,6 +1589,17 @@ fn app(
                     }
                     AppAction::StartIgnorePathInput => {
                         ignore_path_input = Some(String::new());
+                        commit_feedback.clear();
+                    }
+                    AppAction::StartRemovePathInput => {
+                        remove_path_input = Some(String::new());
+                        commit_feedback.clear();
+                    }
+                    AppAction::StartMovePathInput => {
+                        move_source.clear();
+                        move_destination.clear();
+                        move_destination_focused = false;
+                        move_path_input = true;
                         commit_feedback.clear();
                     }
                     AppAction::StageAll => {

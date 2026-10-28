@@ -148,6 +148,24 @@ fn uppercase_i_starts_an_arbitrary_ignore_path_prompt() {
 }
 
 #[test]
+fn uppercase_r_starts_a_tracked_path_removal_prompt() {
+    let mut app = AppState::default();
+    assert_eq!(
+        app.handle_key(KeyCode::Char('R'), false),
+        Some(AppAction::StartRemovePathInput)
+    );
+}
+
+#[test]
+fn uppercase_m_starts_a_tracked_path_move_prompt() {
+    let mut app = AppState::default();
+    assert_eq!(
+        app.handle_key(KeyCode::Char('M'), false),
+        Some(AppAction::StartMovePathInput)
+    );
+}
+
+#[test]
 fn list_movement_preserves_selection_and_clamps_to_available_rows() {
     assert_eq!(move_down(None, 4), Some(1));
     assert_eq!(move_down(Some(2), 3), Some(2));

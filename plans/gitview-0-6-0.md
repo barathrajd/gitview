@@ -68,10 +68,10 @@ the user approves the final release candidate.
 1. **Repository setup (complete):** add `gitview init` and `gitview clone`
    commands with destination validation, Git clone progress/error display,
    and tests for paths with spaces and existing destinations.
-2. **Worktree paths (in progress):** arbitrary repository-relative
-   ignore-rule lookup is implemented; finish ordinary removal and move plus
-   safe handling of rename discard. Confirm destructive changes and preserve
-   Git safeguards.
+2. **Worktree paths (complete):** arbitrary repository-relative ignore-rule
+   lookup, confirmed tracked-path removal, confirmed moves of clean tracked
+   files, and staged-rename discard with stale-state checks are implemented.
+   Git's normal safety checks remain enabled for destructive path operations.
 3. **Commit editor handoff:** resolve configured editor invocation, suspend
    and restore the terminal reliably, reopen the reviewed commit form, and
    reject stale staged state before the existing Enter-to-commit action.
