@@ -446,6 +446,21 @@ two more 100-cycle runs grew 1,248 KiB and 9,744 KiB, both within the budget but
 the second close to it. Four runs on the same fixture ranged from 1,248 to
 13,552 KiB, so the variance itself is the finding.
 
+I tested one explanation: that spawning a thread per Enter scatters allocations
+across allocator arenas. An experiment replaced it with one reused worker thread.
+Growth at 100 cycles, in KiB, over six runs each:
+
+| Variant | Runs | Mean |
+| --- | --- | --- |
+| Thread per Enter | 1,248; 9,744; 4,336; 256; 6,128; 2,240 | 4,000 |
+| Single reused worker | 7,520; 7,744; 10,736; 5,344; 2,752; 2,368 | 6,077 |
+
+The worker was not better, and one of its runs exceeded the 10,240 KiB budget.
+That doesn't support the per-thread explanation, so I reverted the experiment
+and kept the thread per Enter. Six runs per variant on a noisy measurement can't
+rank them reliably; they only show that the change doesn't remove the variance.
+The cause remains unknown.
+
 To separate retained data from allocator behavior, the `live_heap_returns_to_baseline_after_closing_a_comparison_page`
 diagnostic in `tests/comparison_cache_live_allocations.rs` opens, loads, renders
 four variants of, and drops the same 940 KB comparison 150 times in one
