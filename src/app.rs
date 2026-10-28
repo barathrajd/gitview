@@ -14,6 +14,7 @@ pub enum AppAction {
     StartSearch,
     StartPathHistory,
     OpenComparison,
+    InspectObject,
     OpenBranches,
     StageSelected,
     StageAll,
@@ -94,6 +95,7 @@ impl AppState {
 
         match (self.view, key) {
             (_, KeyCode::Char('b')) => Some(AppAction::OpenBranches),
+            (View::History, KeyCode::Char('o')) => Some(AppAction::InspectObject),
             (View::History, KeyCode::Char('D')) => Some(AppAction::OpenComparison),
             (View::History, KeyCode::Char('f')) => Some(AppAction::StartPathHistory),
             (View::History, KeyCode::Char('/')) => Some(AppAction::StartSearch),

@@ -47,6 +47,7 @@ pub const HELP: &str = concat!(
     "H                   Open history outside prompts\n",
     "W                   Open working tree outside prompts\n",
     "?                   Help outside prompts               b                   Browse local branches\n",
+    "o                   Inspect a local Git object\n",
     "f                   Filter history by a literal path; empty clears\n",
     "/                   Search commit history               s                   Stage selected file\n",
     "u                   Unstage selected file               r                   Refresh worktree\n",
@@ -290,6 +291,7 @@ pub fn render_help_overlay(
         ("Up/Down, j/k", "Move through commits"),
         ("Enter, l", "Open selected commit"),
         ("/", "Search commit history"),
+        ("o", "Inspect a local Git object"),
         ("D", "Compare commit snapshots and path summary"),
         ("f", "Filter history by literal path; empty clears"),
         ("b", "Browse local branches"),
@@ -495,6 +497,7 @@ pub struct Cockpit<'a> {
 }
 
 pub enum Screen<'a> {
+    Object(&'a crate::object_page::ObjectPage),
     Comparison(&'a crate::comparison_page::ComparisonPage),
     PathHistoryInput {
         path: &'a str,
@@ -644,6 +647,7 @@ pub fn render(
     // next one, including when switching from a wide pane layout to a dialog.
     frame.render_widget(Clear, frame.area());
     match screen {
+        Screen::Object(page) => page.render(frame, border),
         Screen::Comparison(page) => page.render(frame, border),
         Screen::PathHistoryInput { path } => render_message_page(
             frame,
@@ -1386,6 +1390,7 @@ fn render_cockpit(
             ("Enter/l", "details"),
             ("f", "path history"),
             ("D", "compare"),
+            ("o", "object"),
             ("b", "branches"),
             ("p", "profiles"),
             ("/", "search"),

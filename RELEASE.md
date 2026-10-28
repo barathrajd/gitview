@@ -12,16 +12,16 @@ export remain outside this release.
 
 Features:
 
-- Complete repository and worktree workflows — in progress; `gitview init` and
-  `gitview clone` are implemented, with further worktree gaps remaining. See the
-  [0.6.0 plan](plans/gitview-0-6-0.md) and
-  [capability roadmap](plans/git-cli-capability-roadmap-2026.md).
-- Complete commit and history workflows — planned; see the
-  [0.6.0 plan](plans/gitview-0-6-0.md) and
-  [capability roadmap](plans/git-cli-capability-roadmap-2026.md).
-- Complete local branch/tag and diff/inspection workflows — planned; see the
-  [0.6.0 plan](plans/gitview-0-6-0.md) and
-  [capability roadmap](plans/git-cli-capability-roadmap-2026.md).
+- Repository and worktree implementation milestones are complete: init/clone,
+  ignore inspection, path removal/moves, and staged-rename discard. Release
+  acceptance review remains pending; see the [0.6.0 plan](plans/gitview-0-6-0.md).
+- Commit and history implementation milestones are complete: editor handoff,
+  path filtering, fixed-revision comparisons, and patch summaries. Release
+  acceptance review remains pending.
+- Local branch/tag and diff/inspection implementation milestones are complete:
+  branch rename/delete/previous checkout, lightweight tag creation and local
+  tag verification/deletion, comparisons, and object inspection. Annotated and
+  signed tag creation remain unavailable. Release acceptance review is pending.
 - Publish crates.io, macOS ARM64, and Linux x86_64 artifacts with checksums
   and native installer selection — planned; see the
   [0.6.0 plan](plans/gitview-0-6-0.md).

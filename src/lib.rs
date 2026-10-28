@@ -8,6 +8,8 @@ pub mod details;
 pub mod diff;
 pub mod editor;
 pub mod history;
+pub mod object;
+pub mod object_page;
 pub mod process;
 pub mod repository;
 pub mod tag_page;

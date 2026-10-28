@@ -98,6 +98,12 @@ gitview clone <repository> [directory]
   form; **H** returns to history from the results. Branches and remote refs
   already stored locally work as revisions; no fetch is performed. A root
   commit has no parent, so choose an explicit base for that comparison.
+- Press **o** while history is focused to inspect a local Git object. Enter a
+  commit, tag, tree, or blob revision, such as `HEAD`, `HEAD^{tree}`, or
+  `HEAD:src/main.rs`. The result shows the fixed object ID, type, size, and
+  bounded preview; commits also show Git's nearest-tag description. Binary
+  blobs show a notice. Use **j/k** to scroll, **e/Esc** to edit the revision,
+  and **H** to return to history.
 - **Tab** switches between history and the working tree. **/** opens debounced
   history search. **Up/Down** selects a result, **Enter** opens its details,
   **Backspace** edits the query, and **Esc** returns to history.

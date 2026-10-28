@@ -15,11 +15,13 @@ fn draw(screen: Screen<'_>, width: u16) -> Buffer {
 fn new_pages_match_existing_title_border_and_keycap_colors() {
     let baseline = draw(Screen::BranchInput("example"), 80);
     let comparison = ComparisonPage::open("HEAD", None);
+    let object = gitview::object_page::ObjectPage::open("HEAD");
     let root = tempfile::tempdir().unwrap();
     let tags = TagPage::open(root.path());
     for width in [60, 80, 140] {
         for buffer in [
             draw(Screen::Comparison(&comparison), width),
+            draw(Screen::Object(&object), width),
             draw(Screen::Tags(&tags), width),
         ] {
             assert_eq!(buffer[(0, 0)].symbol(), "+");
