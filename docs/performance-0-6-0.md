@@ -411,8 +411,47 @@ All three pass. The pages run in order in one process, so each warm value
 includes memory left by the earlier pages. Comparison grew the most, using about
 42% of its budget without flattening in this run, so a longer run is needed
 before calling it a plateau. This is one local run on one small fixture. It doesn't
-cover the 940 KB comparison fixture, the uncancellable load threads, Linux, or a
-clean revision.
+cover the uncancellable load threads, Linux, or a clean revision.
+
+### Large comparison fixture
+
+The same script accepts `--pages`, `--lines`, and `--cycles`. This command uses
+4,900 replaced lines of about 190 characters, a roughly 940 KB comparison
+patch, for 300 measured cycles:
+
+```sh
+python3 scripts/check-page-memory.py --pages comparison --lines 4900 --cycles 300
+```
+
+The script judges the plan's 100-cycle budget and reports longer-run growth
+separately. Two runs on macOS ARM64 disagreed:
+
+| Run | Warm RSS | Growth at 100 cycles | Growth at 300 cycles | Budget |
+| --- | --- | --- | --- | --- |
+| 1 | 44,528 KiB | 3,696 KiB | 11,360 KiB | 10,240 KiB |
+| 2 | 43,536 KiB | 13,552 KiB | 16,688 KiB | 10,240 KiB |
+
+Run 1 passed at 100 cycles and exceeded the budget at 300. Run 2 **failed the
+100-cycle budget**. In both, RSS rose in steps and stayed flat for long stretches
+(run 2 held 57,696 KiB for about 100 cycles), but I haven't shown that it stops
+rising. This is an open finding on the large fixture, not a passing check.
+
+To separate retained data from allocator behavior, the `live_heap_returns_to_baseline_after_closing_a_comparison_page`
+diagnostic in `tests/comparison_cache_live_allocations.rs` opens, loads, renders
+four variants of, and drops the same 940 KB comparison 150 times in one
+process with a counting allocator:
+
+```sh
+cargo test --release --locked --features test-support \
+  --test comparison_cache_live_allocations live_heap -- --ignored --nocapture --test-threads=1
+```
+
+Live heap after each close stayed between 565 and 588 KiB, while RSS stepped from
+34,208 to 53,408 KiB by cycle 100 and 56,576 KiB at cycle 150. This shows a
+closed comparison page releases its data and the RSS steps coincide with the
+allocator holding freed memory. It doesn't prove the native process behaves the
+same way, and the budget stays at 10,240 KiB. The test excludes Git, the load
+threads' real timing, and terminal I/O.
 
 ## Review status and remaining work
 
@@ -428,8 +467,8 @@ The following checks remain required before release:
 - Cover navigation, debounced search, native large-list navigation, signed-tag/key
   verification behavior, object inspection, mutation progress, and external
   editor/hook/signing responsiveness.
-- Run medium/stress fixtures, longer comparison memory runs, and request
-  lifecycle checks.
+- Resolve or explain the large-comparison native RSS finding, run medium/stress
+  fixtures, and complete request lifecycle checks.
 - Collect native Linux evidence and report Git-child CPU separately.
 - Clear the release Clippy gate and complete the existing release gates.
 

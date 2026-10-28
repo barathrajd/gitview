@@ -138,7 +138,9 @@ change is selected, and no unverified library-performance claim is assumed.
    10,000 tags and the object page at its output limit also render within a
    millisecond. Native list navigation measures at most 4.7 ms p95 on the
    stress fixture; native open/close cycles of the tag, object, and comparison pages stay
-   within the RSS budget (comparison grew 4.3 MiB, not yet shown flat). Continue
+   within the RSS budget on the small fixture. On a 940 KB comparison, native
+   RSS exceeded the budget in one of two 100-cycle runs; live heap stays flat,
+   so this is an open finding to explain, not a passing gate. Continue
    to use measured evidence to avoid unchanged redraw/preparation work and
    excessive request/clone volume. Preserve timers,
    status-watch freshness, live startup data, debounced search, and navigation.
