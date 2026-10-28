@@ -90,6 +90,10 @@ remains deferred.
   description line breaks are preserved. Press **Enter** once to commit the
   staged changes; Gitview preserves unstaged edits and Git's configured hooks
   and signing.
+- Press **a** in the working-tree view to amend `HEAD`. Gitview preloads the
+  existing subject and description; **Enter** opens a warning that shows the
+  old and replacement messages, and **y** confirms the rewrite. The reviewed
+  staged changes are included, while unstaged edits remain in the worktree.
 - Press **b** to browse local branches. Select one and press **Enter**, or press
   **c** to create a branch from the current commit. Confirm with **y** or cancel
   with **n** or **Esc**.
@@ -146,8 +150,8 @@ finished.
 Gitview currently focuses on history and working-tree review, file and hunk
 staging, confirmed discard of selected unstaged and untracked files, commit
 creation from a reviewed staged file set, local branch browsing and creation,
-and folder-scoped Git config profiles. Commit amendment and editor handoff, tag
-and remote management, moving working-tree paths, discarding renamed paths,
+and folder-scoped Git config profiles. Commit editor handoff, tag and remote
+management, moving working-tree paths, discarding renamed paths,
 conflict resolution, stash, rebase, and submodule workflows are not
 implemented. See the [Git CLI capability matrix](docs/git-cli-capability-matrix.md)
 for current coverage and planned work.

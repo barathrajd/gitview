@@ -8,17 +8,35 @@ pub struct CommitPreview {
     staged_diff: Vec<u8>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AmendPreview {
+    pub entries: Vec<worktree::Entry>,
+    pub head: String,
+    pub message: String,
+    staged_diff: Vec<u8>,
+}
+
 /// Capture staged paths and index object IDs for the commit editor.
 pub fn preview_commit(root: &Path) -> Result<CommitPreview, String> {
-    let entries: Vec<_> = worktree::load_status(root)?
-        .into_iter()
-        .filter(|entry| entry.section == worktree::Section::Staged)
-        .collect();
+    let entries = staged_entries(root)?;
     if entries.is_empty() {
         return Err("Stage changes before creating a commit".into());
     }
     Ok(CommitPreview {
         entries,
+        staged_diff: staged_diff(root)?,
+    })
+}
+
+/// Capture HEAD and the staged index shown before an amend warning.
+pub fn preview_amend(root: &Path) -> Result<AmendPreview, String> {
+    let head = git_output(root, &["rev-parse", "--verify", "HEAD"])
+        .map_err(|_| "Create the first commit before amending".to_owned())?;
+    let message = git_output(root, &["log", "-1", "--format=%B"])?;
+    Ok(AmendPreview {
+        entries: staged_entries(root)?,
+        head: String::from_utf8_lossy(&head).trim().to_owned(),
+        message: String::from_utf8_lossy(&message).trim_end().to_owned(),
         staged_diff: staged_diff(root)?,
     })
 }
@@ -36,9 +54,28 @@ pub fn create_commit(root: &Path, message: &str, expected: &CommitPreview) -> Re
         return Err("Staged changes changed; review them and press Enter again".into());
     }
 
-    let mut child = process::git_command()
-        .current_dir(root)
-        .args(["commit", "--file=-"])
+    write_commit(root, message, false)
+}
+
+/// Amend HEAD only if HEAD and the staged index still match the warning preview.
+pub fn amend_commit(root: &Path, message: &str, expected: &AmendPreview) -> Result<(), String> {
+    if message.trim().is_empty() {
+        return Err("Commit message cannot be empty".into());
+    }
+    if preview_amend(root)? != *expected {
+        return Err("HEAD or staged changes changed; review the amend warning again".into());
+    }
+    write_commit(root, message, true)
+}
+
+fn write_commit(root: &Path, message: &str, amend: bool) -> Result<(), String> {
+    let mut command = process::git_command();
+    command.current_dir(root).arg("commit");
+    if amend {
+        command.arg("--amend");
+    }
+    let mut child = command
+        .arg("--file=-")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -66,6 +103,29 @@ pub fn create_commit(root: &Path, message: &str, expected: &CommitPreview) -> Re
         } else {
             format!("Git commit failed: {detail}")
         })
+    }
+}
+
+fn staged_entries(root: &Path) -> Result<Vec<worktree::Entry>, String> {
+    Ok(worktree::load_status(root)?
+        .into_iter()
+        .filter(|entry| entry.section == worktree::Section::Staged)
+        .collect())
+}
+
+fn git_output(root: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
+    let output = process::git_command()
+        .current_dir(root)
+        .args(args)
+        .output()
+        .map_err(|error| format!("Could not run Git: {error}"))?;
+    if output.status.success() {
+        Ok(output.stdout)
+    } else {
+        Err(format!(
+            "Git command failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ))
     }
 }
 

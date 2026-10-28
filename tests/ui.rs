@@ -75,6 +75,7 @@ fn commit_message_shows_staged_and_unstaged_files_before_single_enter_commit() {
             message: "Fix the parser",
             description: "Explain the behavior change\nAdd regression context",
             description_focused: true,
+            amend: false,
             feedback: "",
             entries: Some(&Ok(vec![
                 Entry {
@@ -115,6 +116,57 @@ fn commit_message_shows_staged_and_unstaged_files_before_single_enter_commit() {
     assert!(input.contains("commit"));
     assert!(input.contains("Ctrl+J"));
     assert!(!input.contains("CONFIRM COMMIT"));
+
+    let amend = draw(
+        Screen::CommitInput {
+            repository: Path::new("/repo/gitview"),
+            profile: "Primary",
+            branches: None,
+            message: "Old commit subject",
+            description: "Existing commit body",
+            description_focused: false,
+            amend: true,
+            feedback: "",
+            entries: None,
+            pending: false,
+        },
+        100,
+        18,
+    );
+    assert!(amend.contains("AMEND MESSAGE"));
+    assert!(amend.contains("Old commit subject"));
+    assert!(amend.contains("Existing commit body"));
+}
+
+#[test]
+fn amend_confirmation_explains_the_history_rewrite_and_shows_old_and_new_messages() {
+    let entries = vec![Entry {
+        section: Section::Staged,
+        path: OsString::from("src/change.rs"),
+        original: None,
+    }];
+    let rendered = draw(
+        Screen::AmendConfirmation {
+            repository: Path::new("/repo/gitview"),
+            profile: "Primary",
+            branches: None,
+            entries: Some(&Ok(entries)),
+            head: "abcdef1234567890",
+            original_message: "Old subject",
+            new_message: "feat: new subject\n\nWhy the change matters",
+            pending: false,
+        },
+        120,
+        24,
+    );
+    assert!(rendered.contains("CONFIRM AMEND"));
+    assert!(rendered.contains("rewrites HEAD"));
+    assert!(rendered.contains("abcdef1234567890"));
+    assert!(rendered.contains("Old subject"));
+    assert!(rendered.contains("Why the change matters"));
+    assert!(rendered.contains("src/change.rs"));
+    assert!(rendered.contains("amend HEAD"));
+    assert!(rendered.contains("cancel"));
 }
 
 #[test]

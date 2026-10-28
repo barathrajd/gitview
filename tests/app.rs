@@ -35,7 +35,7 @@ fn capital_w_opens_working_tree_and_capital_s_stages_everything() {
         state.handle_key(KeyCode::Char('S'), false),
         Some(AppAction::StageAll)
     );
-    assert_eq!(state.handle_key(KeyCode::Char('a'), false), None);
+    assert_eq!(state.handle_key(KeyCode::Char('x'), false), None);
 }
 
 #[test]
@@ -87,6 +87,17 @@ fn lowercase_c_starts_a_commit_only_from_the_working_tree() {
     );
     assert_eq!(app.handle_tab(false), Some(AppAction::ReturnToHistory));
     assert_eq!(app.handle_key(KeyCode::Char('c'), false), None);
+}
+
+#[test]
+fn lowercase_a_starts_an_amend_only_from_the_working_tree() {
+    let mut app = AppState::default();
+    assert_eq!(
+        app.handle_key(KeyCode::Char('a'), false),
+        Some(AppAction::StartAmend)
+    );
+    assert_eq!(app.handle_tab(false), Some(AppAction::ReturnToHistory));
+    assert_eq!(app.handle_key(KeyCode::Char('a'), false), None);
 }
 
 #[test]

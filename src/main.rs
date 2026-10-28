@@ -286,9 +286,13 @@ fn app(
     let mut commit_message: Option<String> = None;
     let mut commit_description = String::new();
     let mut commit_description_focused = false;
+    let mut commit_amend = false;
+    let mut amend_confirm = false;
     let mut commit_expected: Option<gitview::commit::CommitPreview> = None;
+    let mut amend_expected: Option<gitview::commit::AmendPreview> = None;
     let mut commit_feedback = String::new();
-    let (commit_sender, commit_receiver) = mpsc::channel::<(String, String, Result<(), String>)>();
+    let (commit_sender, commit_receiver) =
+        mpsc::channel::<(String, String, bool, Result<(), String>)>();
     let mut discard_confirm: Option<gitview::worktree::DiscardPreview> = None;
     let (discard_sender, discard_receiver) = mpsc::channel::<Result<(), String>>();
     let mut mutation_pending = false;
@@ -561,15 +565,22 @@ fn app(
                 let _ = sender.send((id, gitview::branches::load_branches(&path)));
             });
         }
-        while let Ok((message, description, result)) = commit_receiver.try_recv() {
+        while let Ok((message, description, was_amend, result)) = commit_receiver.try_recv() {
             mutation_pending = false;
+            amend_confirm = false;
             match result {
                 Ok(()) => {
                     commit_message = None;
                     commit_description.clear();
                     commit_description_focused = false;
                     commit_expected = None;
-                    commit_feedback = "Commit created.".into();
+                    amend_expected = None;
+                    commit_amend = false;
+                    commit_feedback = if was_amend {
+                        "Commit amended; HEAD now has a new ID.".into()
+                    } else {
+                        "Commit created.".into()
+                    };
                     history_request += 1;
                     history = None;
                     let id = history_request;
@@ -593,7 +604,12 @@ fn app(
                     commit_feedback = error;
                     commit_message = Some(message);
                     commit_description = description;
-                    commit_expected = gitview::commit::preview_commit(root).ok();
+                    commit_amend = was_amend;
+                    if was_amend {
+                        amend_expected = gitview::commit::preview_amend(root).ok();
+                    } else {
+                        commit_expected = gitview::commit::preview_commit(root).ok();
+                    }
                 }
             }
         }
@@ -615,8 +631,14 @@ fn app(
             });
         }
         terminal.draw(|frame| {
+            let composed_message = combined_commit_message(
+                commit_message.as_deref().unwrap_or_default(),
+                &commit_description,
+            );
             let help_page = if profiles_view {
                 ui::HelpPage::Profiles
+            } else if amend_confirm {
+                ui::HelpPage::AmendConfirmation
             } else if commit_message.is_some() {
                 ui::HelpPage::CommitMessage
             } else if branch_view && branch_input.is_some() {
@@ -646,6 +668,19 @@ fn app(
                     registry_path: &profile_registry_path,
                     feedback: &profile_feedback,
                 }
+            } else if amend_confirm {
+                let preview = amend_expected.as_ref();
+                Screen::AmendConfirmation {
+                    repository: root,
+                    profile: &profile_label,
+                    branches: branches.as_ref(),
+                    entries: status.as_ref(),
+                    head: preview.map_or("unavailable", |preview| preview.head.as_str()),
+                    original_message: preview
+                        .map_or("Unavailable", |preview| preview.message.as_str()),
+                    new_message: &composed_message,
+                    pending: mutation_pending,
+                }
             } else if let Some(preview) = &discard_confirm {
                 Screen::DiscardConfirmation {
                     entry: &preview.entry,
@@ -659,6 +694,7 @@ fn app(
                     message,
                     description: &commit_description,
                     description_focused: commit_description_focused,
+                    amend: commit_amend,
                     feedback: &commit_feedback,
                     entries: status.as_ref(),
                     pending: mutation_pending,
@@ -720,7 +756,7 @@ fn app(
             Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
         };
         if let Event::Paste(pasted) = &event {
-            if commit_message.is_some() && !mutation_pending && !help {
+            if commit_message.is_some() && !amend_confirm && !mutation_pending && !help {
                 let pasted = normalize_commit_paste(pasted, commit_description_focused);
                 if commit_description_focused {
                     commit_description.push_str(&pasted);
@@ -775,6 +811,35 @@ fn app(
                 }
                 continue;
             }
+            if amend_confirm {
+                if mutation_pending {
+                    continue;
+                }
+                match key.code {
+                    KeyCode::Char('?') => help = true,
+                    KeyCode::Char('y') => {
+                        let subject = commit_message.clone().unwrap_or_default();
+                        let description = commit_description.clone();
+                        let message = combined_commit_message(&subject, &description);
+                        let expected = amend_expected.clone();
+                        let path = root.to_path_buf();
+                        let sender = commit_sender.clone();
+                        mutation_pending = true;
+                        std::thread::spawn(move || {
+                            let result = expected
+                                .as_ref()
+                                .ok_or_else(|| "Amend preview is unavailable".to_owned())
+                                .and_then(|preview| {
+                                    gitview::commit::amend_commit(&path, &message, preview)
+                                });
+                            let _ = sender.send((subject, description, true, result));
+                        });
+                    }
+                    KeyCode::Char('n') | KeyCode::Esc => amend_confirm = false,
+                    _ => {}
+                }
+                continue;
+            }
             if commit_message.is_some() {
                 if mutation_pending {
                     continue;
@@ -785,6 +850,8 @@ fn app(
                         commit_description.clear();
                         commit_description_focused = false;
                         commit_expected = None;
+                        amend_expected = None;
+                        commit_amend = false;
                         commit_feedback.clear();
                     }
                     KeyCode::Char('?') => help = true,
@@ -805,30 +872,37 @@ fn app(
                         let message = commit_message.as_deref().unwrap_or_default();
                         if message.trim().is_empty() {
                             commit_feedback = "Enter a commit message.".into();
-                        } else if commit_expected.is_none() {
-                            commit_feedback = "Stage changes before committing.".into();
+                        } else if (commit_amend && amend_expected.is_none())
+                            || (!commit_amend && commit_expected.is_none())
+                        {
+                            commit_feedback = if commit_amend {
+                                "Amend preview is unavailable; refresh and try again.".into()
+                            } else {
+                                "Stage changes before committing.".into()
+                            };
                         } else {
                             let subject = message.to_owned();
                             let description = commit_description.clone();
-                            let message = if description.trim().is_empty() {
-                                subject.clone()
+                            if commit_amend {
+                                amend_confirm = true;
+                                commit_feedback.clear();
                             } else {
-                                format!("{}\n\n{}", subject.trim_end(), description.trim_end())
-                            };
-                            let staged = commit_expected.clone();
-                            let path = root.to_path_buf();
-                            let sender = commit_sender.clone();
-                            mutation_pending = true;
-                            commit_feedback.clear();
-                            std::thread::spawn(move || {
-                                let result = staged
-                                    .as_ref()
-                                    .ok_or_else(|| "Staged changes are unavailable".to_owned())
-                                    .and_then(|preview| {
-                                        gitview::commit::create_commit(&path, &message, preview)
-                                    });
-                                let _ = sender.send((subject, description, result));
-                            });
+                                let message = combined_commit_message(&subject, &description);
+                                let staged = commit_expected.clone();
+                                let path = root.to_path_buf();
+                                let sender = commit_sender.clone();
+                                mutation_pending = true;
+                                commit_feedback.clear();
+                                std::thread::spawn(move || {
+                                    let result = staged
+                                        .as_ref()
+                                        .ok_or_else(|| "Staged changes are unavailable".to_owned())
+                                        .and_then(|preview| {
+                                            gitview::commit::create_commit(&path, &message, preview)
+                                        });
+                                    let _ = sender.send((subject, description, false, result));
+                                });
+                            }
                         }
                     }
                     KeyCode::Char(character) if !character.is_control() => {
@@ -1112,6 +1186,9 @@ fn app(
                     AppAction::StartCommit => match gitview::commit::preview_commit(root) {
                         Ok(preview) => {
                             commit_expected = Some(preview);
+                            amend_expected = None;
+                            amend_confirm = false;
+                            commit_amend = false;
                             commit_feedback.clear();
                             commit_description.clear();
                             commit_description_focused = false;
@@ -1120,6 +1197,20 @@ fn app(
                         Err(error) => {
                             commit_feedback = error;
                         }
+                    },
+                    AppAction::StartAmend => match gitview::commit::preview_amend(root) {
+                        Ok(preview) => {
+                            let (subject, description) = split_commit_message(&preview.message);
+                            amend_expected = Some(preview);
+                            commit_expected = None;
+                            amend_confirm = false;
+                            commit_amend = true;
+                            commit_feedback.clear();
+                            commit_description = description;
+                            commit_description_focused = false;
+                            commit_message = Some(subject);
+                        }
+                        Err(error) => commit_feedback = error,
                     },
                     AppAction::PreviewDiscardSelected => {
                         if let (Some(Ok(entries)), Some(index)) =
@@ -1495,6 +1586,24 @@ fn normalize_commit_paste(pasted: &str, multiline: bool) -> String {
         .collect()
 }
 
+fn combined_commit_message(subject: &str, description: &str) -> String {
+    if description.trim().is_empty() {
+        subject.to_owned()
+    } else {
+        format!("{}\n\n{}", subject.trim_end(), description.trim_end())
+    }
+}
+
+fn split_commit_message(message: &str) -> (String, String) {
+    match message.split_once('\n') {
+        Some((subject, description)) => (
+            subject.to_owned(),
+            description.trim_start_matches('\n').trim_end().to_owned(),
+        ),
+        None => (message.to_owned(), String::new()),
+    }
+}
+
 fn update_search_results(
     history: Option<&Result<Vec<String>, String>>,
     query: &str,
@@ -1574,6 +1683,18 @@ mod tests {
         assert_eq!(
             normalize_commit_paste("First line\r\nSecond\tline", true),
             "First line\nSecond line"
+        );
+    }
+
+    #[test]
+    fn splits_and_recombines_existing_commit_subject_and_description() {
+        let (subject, description) =
+            split_commit_message("fix: preserve files\n\nExplain the safety rule.\n");
+        assert_eq!(subject, "fix: preserve files");
+        assert_eq!(description, "Explain the safety rule.");
+        assert_eq!(
+            combined_commit_message(&subject, &description),
+            "fix: preserve files\n\nExplain the safety rule."
         );
     }
 

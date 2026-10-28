@@ -40,6 +40,7 @@ pub const HELP: &str = concat!(
     "S                   Stage all worktree changes\n",
     "U                   Unstage all staged changes\n",
     "p                   Git config profiles\n",
+    "a                   Amend the current commit in the worktree\n",
     "c                   Commit in worktree / create branch in branch list\n",
     "n                   Cancel branch operation            Backspace           Edit search query\n",
     "Diff: [/] selects hunks; s stages an unstaged hunk and u unstages a staged hunk.\n",
@@ -252,6 +253,7 @@ pub fn render_help_overlay(
         ("Up/Down, j/k", "Select a changed file"),
         ("Enter", "Open file diff"),
         ("c", "Commit staged files"),
+        ("a", "Amend the current commit"),
         ("d", "Discard selected unstaged or untracked file"),
         ("s", "Stage selected file"),
         ("u", "Unstage selected file"),
@@ -296,6 +298,13 @@ pub fn render_help_overlay(
         ("Backspace", "Delete a character"),
         ("Esc", "Cancel commit"),
     ];
+    const AMEND_CONFIRMATION: &[(&str, &str)] = &[
+        (
+            "y",
+            "Rewrite HEAD with the reviewed message and staged files",
+        ),
+        ("n, Esc", "Return to the amend editor"),
+    ];
     const WORKTREE_DIFF: &[(&str, &str)] = &[
         ("[, ]", "Select previous or next hunk"),
         ("s, u", "Stage or unstage selected hunk"),
@@ -335,6 +344,7 @@ pub fn render_help_overlay(
         HelpPage::BranchConfirmation => ("Confirm branch", BRANCH_CONFIRMATION),
         HelpPage::Commit => ("Commit", COMMIT),
         HelpPage::CommitMessage => ("Commit message", COMMIT_MESSAGE),
+        HelpPage::AmendConfirmation => ("Confirm amend", AMEND_CONFIRMATION),
         HelpPage::WorktreeDiff => ("Working tree diff", WORKTREE_DIFF),
         HelpPage::CommitDiff => ("Commit diff", COMMIT_DIFF),
         HelpPage::Search => ("Search", SEARCH),
@@ -429,8 +439,19 @@ pub enum Screen<'a> {
         message: &'a str,
         description: &'a str,
         description_focused: bool,
+        amend: bool,
         feedback: &'a str,
         entries: Option<&'a Result<Vec<Entry>, String>>,
+        pending: bool,
+    },
+    AmendConfirmation {
+        repository: &'a Path,
+        profile: &'a str,
+        branches: Option<&'a Result<Branches, String>>,
+        entries: Option<&'a Result<Vec<Entry>, String>>,
+        head: &'a str,
+        original_message: &'a str,
+        new_message: &'a str,
         pending: bool,
     },
     DiscardConfirmation {
@@ -489,6 +510,7 @@ pub enum HelpPage {
     BranchConfirmation,
     Commit,
     CommitMessage,
+    AmendConfirmation,
     WorktreeDiff,
     CommitDiff,
     Search,
@@ -563,6 +585,7 @@ pub fn render(
             message,
             description,
             description_focused,
+            amend,
             feedback,
             entries,
             pending,
@@ -575,8 +598,32 @@ pub fn render(
                 message,
                 description,
                 description_focused,
+                amend,
                 feedback,
                 entries,
+                pending,
+            },
+            border,
+        ),
+        Screen::AmendConfirmation {
+            repository,
+            profile,
+            branches,
+            entries,
+            head,
+            original_message,
+            new_message,
+            pending,
+        } => render_amend_confirmation(
+            frame,
+            AmendConfirmation {
+                repository,
+                profile,
+                branches,
+                entries,
+                head,
+                original_message,
+                new_message,
                 pending,
             },
             border,
@@ -750,8 +797,20 @@ struct CommitWorkspace<'a> {
     message: &'a str,
     description: &'a str,
     description_focused: bool,
+    amend: bool,
     feedback: &'a str,
     entries: Option<&'a Result<Vec<Entry>, String>>,
+    pending: bool,
+}
+
+struct AmendConfirmation<'a> {
+    repository: &'a Path,
+    profile: &'a str,
+    branches: Option<&'a Result<Branches, String>>,
+    entries: Option<&'a Result<Vec<Entry>, String>>,
+    head: &'a str,
+    original_message: &'a str,
+    new_message: &'a str,
     pending: bool,
 }
 
@@ -846,9 +905,17 @@ fn render_commit_workspace(
             .wrap(Wrap { trim: false })
             .block(page_block(
                 if workspace.description_focused {
-                    "COMMIT MESSAGE"
+                    if workspace.amend {
+                        "AMEND MESSAGE"
+                    } else {
+                        "COMMIT MESSAGE"
+                    }
                 } else {
-                    "COMMIT MESSAGE · ACTIVE"
+                    if workspace.amend {
+                        "AMEND MESSAGE · ACTIVE"
+                    } else {
+                        "COMMIT MESSAGE · ACTIVE"
+                    }
                 },
                 border,
             )),
@@ -878,9 +945,17 @@ fn render_commit_workspace(
             .wrap(Wrap { trim: true })
             .block(page_block(
                 if workspace.description_focused {
-                    "COMMIT DESCRIPTION · ACTIVE"
+                    if workspace.amend {
+                        "AMEND DESCRIPTION · ACTIVE"
+                    } else {
+                        "COMMIT DESCRIPTION · ACTIVE"
+                    }
                 } else {
-                    "COMMIT DESCRIPTION · OPTIONAL"
+                    if workspace.amend {
+                        "AMEND DESCRIPTION · OPTIONAL"
+                    } else {
+                        "COMMIT DESCRIPTION · OPTIONAL"
+                    }
                 },
                 border,
             )),
@@ -892,9 +967,84 @@ fn render_commit_workspace(
         &[
             ("Tab", "switch subject/description"),
             ("Ctrl+J", "new description line"),
-            ("Enter", "commit"),
+            (
+                "Enter",
+                if workspace.amend {
+                    "review warning"
+                } else {
+                    "commit"
+                },
+            ),
             ("Esc", "cancel"),
         ][..]
+    };
+    render_key_hints(frame, sections[2], hints);
+}
+
+fn render_amend_confirmation(
+    frame: &mut Frame<'_>,
+    confirmation: AmendConfirmation<'_>,
+    border: ratatui::symbols::border::Set<'static>,
+) {
+    let sections = Layout::vertical([
+        Constraint::Length(3),
+        Constraint::Min(4),
+        Constraint::Length(1),
+    ])
+    .split(frame.area());
+    render_repository_header(
+        frame,
+        sections[0],
+        confirmation.repository,
+        confirmation.profile,
+        confirmation.branches,
+        border,
+    );
+    let columns = Layout::horizontal([Constraint::Percentage(42), Constraint::Percentage(58)])
+        .split(sections[1]);
+    let mut read_only_selection = ListState::default();
+    render_worktree_panel(
+        frame,
+        columns[0],
+        "WORKTREE · REVIEWED",
+        confirmation.entries,
+        &mut read_only_selection,
+        false,
+        border,
+    );
+    let lines = if confirmation.pending {
+        vec![Line::raw("Amending HEAD...")]
+    } else {
+        vec![
+            Line::styled(
+                "This rewrites HEAD and changes its commit ID.",
+                Style::default().fg(Color::Rgb(251, 191, 36)).bold(),
+            ),
+            Line::styled(
+                "Already-pushed commits may need coordination.",
+                Style::default().fg(Color::Rgb(251, 191, 36)),
+            ),
+            Line::raw(format!("\nHEAD: {}", confirmation.head)),
+            Line::raw(format!(
+                "\nPrevious message:\n{}",
+                confirmation.original_message
+            )),
+            Line::raw(format!(
+                "\nReplacement message:\n{}",
+                confirmation.new_message
+            )),
+        ]
+    };
+    frame.render_widget(
+        Paragraph::new(Text::from(lines))
+            .wrap(Wrap { trim: true })
+            .block(page_block("CONFIRM AMEND", border)),
+        columns[1],
+    );
+    let hints = if confirmation.pending {
+        &[("Working", "amend in progress")][..]
+    } else {
+        &[("y", "amend HEAD"), ("n/Esc", "cancel")][..]
     };
     render_key_hints(frame, sections[2], hints);
 }
@@ -932,6 +1082,7 @@ fn render_cockpit(
             ("S", "stage all"),
             ("U", "unstage all"),
             ("c", "commit"),
+            ("a", "amend HEAD"),
             ("r", "refresh"),
             ("p", "profiles"),
         ],

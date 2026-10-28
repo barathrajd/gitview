@@ -228,7 +228,8 @@ of weakening its safety or acceptance criteria.
 2. **November 8–21 — finish Basic worktree and commit flow (in progress):**
    complete file navigation, discard confirmation, commit/amend, path
    operations, and working-tree regression coverage. Commit creation from a
-   reviewed staged set is implemented; amend, editor handoff, discard, and
+   reviewed staged set, confirmed amend with stale HEAD/index checks, file
+   navigation, and selected-path discard are implemented; editor handoff and
    path operations remain incomplete.
 3. **November 22–December 5 — finish Basic refs and sharing:** complete local
    branch/tag management, remote setup, explicit fetch, ahead/behind, pull, and
