@@ -68,6 +68,18 @@ release. Branch operations require `git switch`, introduced in Git 2.23; the
 minimum supported Git version has not yet been verified. Windows support
 remains deferred.
 
+## Initialize or clone a repository
+
+Use the CLI commands to create a repository or clone an explicitly selected
+source. Initialization defaults to the current directory; clone progress is
+shown by Git. Gitview refuses to initialize inside an existing repository and
+refuses to clone into a non-empty destination.
+
+```sh
+gitview init [directory]
+gitview clone <repository> [directory]
+```
+
 ## Controls
 
 - **Up/Down** or **j/k** navigate lists and scroll diffs. **Enter** or **l**
@@ -82,7 +94,10 @@ remains deferred.
   untracked file; tracked files return to their staged version, and untracked
   files are removed. Open a file diff with **Enter** to select hunks with **[**
   and **]**; **s/u** stage or unstage the selected hunk, and **S/U** act on the
-  whole file.
+  whole file. Press **i** to inspect the selected path's ignore rule or **I**
+  to enter any repository-relative path, including an ignored file absent from
+  the worktree list. Press **x** to stop tracking the selected file while
+  keeping its working copy; this stages its deletion for the next commit.
 - Press **c** in the working-tree view to enter a commit message. The editor
   keeps the read-only worktree beside a short subject and optional description.
   Press **Tab** to switch fields and **Ctrl+J** to add a description line. You

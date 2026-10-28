@@ -2,8 +2,10 @@
 
 ## Now
 
+- [Gitview 0.6.0](plans/gitview-0-6-0.md) — complete six partial Basic
+  workflows; target December 31, 2026.
 - [Git CLI capability roadmap](plans/git-cli-capability-roadmap-2026.md) —
-  complete planned Git workflows in the TUI before desktop apps.
+  track remaining Basic, Medium, and Advanced workflows beyond this release.
 
 ## Next
 

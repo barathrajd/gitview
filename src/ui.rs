@@ -55,6 +55,7 @@ pub const HELP: &str = concat!(
     "a                   Amend the current commit in the worktree\n",
     "c                   Commit in worktree / create branch in branch list\n",
     "i                   Inspect the selected path's ignore rule\n",
+    "I                   Inspect an arbitrary repository-relative path\n",
     "x                   Stop tracking the selected path and keep its working copy\n",
     "n                   Cancel branch operation            Backspace           Edit search query\n",
     "Diff: [/] selects hunks; s stages an unstaged hunk and u unstages a staged hunk.\n",
@@ -82,6 +83,12 @@ const HELP_ROWS: &[(&str, &str, &str, &str)] = &[
         "Inspect selected path ignore rule",
         "x",
         "Stop tracking and keep working copy",
+    ),
+    (
+        "I",
+        "Inspect ignore rule for a path",
+        "d",
+        "Discard selected unstaged or untracked file",
     ),
     (
         "c",
@@ -277,6 +284,7 @@ pub fn render_help_overlay(
         ("d", "Discard selected unstaged or untracked file"),
         ("x", "Stop tracking selected file and keep working copy"),
         ("i", "Inspect ignore rule for selected path"),
+        ("I", "Inspect ignore rule for an entered path"),
         ("s", "Stage selected file"),
         ("u", "Unstage selected file"),
         ("S", "Stage all working tree changes"),
@@ -301,6 +309,12 @@ pub fn render_help_overlay(
         ("Backspace", "Delete a character"),
         ("Enter", "Continue to confirmation"),
         ("Esc", "Cancel branch creation"),
+    ];
+    const IGNORE_PATH_INPUT: &[(&str, &str)] = &[
+        ("Type", "Enter a repository-relative path"),
+        ("Enter", "Inspect its ignore rule"),
+        ("Backspace", "Delete a character"),
+        ("Esc", "Cancel"),
     ];
     const BRANCH_CONFIRMATION: &[(&str, &str)] =
         &[("y", "Confirm operation"), ("n, Esc", "Cancel operation")];
@@ -367,6 +381,7 @@ pub fn render_help_overlay(
         HelpPage::WorkingTree => ("Working tree", WORKTREE),
         HelpPage::Branches => ("Branches", BRANCHES),
         HelpPage::BranchInput => ("Branch name", BRANCH_INPUT),
+        HelpPage::IgnorePathInput => ("Ignore-rule path", IGNORE_PATH_INPUT),
         HelpPage::BranchConfirmation => ("Confirm branch", BRANCH_CONFIRMATION),
         HelpPage::Commit => ("Commit", COMMIT),
         HelpPage::CommitMessage => ("Commit message", COMMIT_MESSAGE),
@@ -454,6 +469,10 @@ pub enum Screen<'a> {
     Cockpit(Cockpit<'a>),
     Help,
     BranchInput(&'a str),
+    IgnorePathInput {
+        path: &'a str,
+        feedback: &'a str,
+    },
     BranchConfirmation {
         pending: bool,
         action: Option<&'a BranchAction>,
@@ -547,6 +566,7 @@ pub enum HelpPage {
     CommitDiff,
     Search,
     Profiles,
+    IgnorePathInput,
 }
 
 struct HistoryScreen<'a> {
@@ -580,6 +600,25 @@ pub fn render(
                 areas[0],
             );
             render_key_hints(frame, areas[1], &[("Enter", "continue"), ("Esc", "cancel")]);
+        }
+        Screen::IgnorePathInput { path, feedback } => {
+            let text = format!(
+                "Repository-relative path: {path}_\n\n{}",
+                if feedback.is_empty() { "" } else { feedback }
+            );
+            let areas =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
+            frame.render_widget(
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: false })
+                    .block(page_block("INSPECT IGNORE RULE", border)),
+                areas[0],
+            );
+            render_key_hints(
+                frame,
+                areas[1],
+                &[("Enter", "inspect path"), ("Esc", "cancel")],
+            );
         }
         Screen::BranchConfirmation { pending, action } => {
             let text = if pending {

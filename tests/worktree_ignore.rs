@@ -89,3 +89,33 @@ fn reports_when_no_ignore_rule_matches_a_selected_path() {
             .is_none()
     );
 }
+
+#[test]
+fn reports_rules_for_arbitrary_ignored_paths_not_listed_in_status() {
+    let repo = Repo::new();
+    repo.commit_file(".gitignore", "build/output.log\n");
+    fs::create_dir(repo.path().join("build")).unwrap();
+    fs::write(repo.path().join("build/output.log"), "ignored\n").unwrap();
+
+    let rule = worktree::ignore_rule_for_path(repo.path(), Path::new("build/output.log"))
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(rule.source, ".gitignore");
+    assert_eq!(rule.line, "1");
+    assert_eq!(rule.pattern, "build/output.log");
+    assert!(worktree::load_status(repo.path()).unwrap().is_empty());
+}
+
+#[test]
+fn rejects_paths_that_escape_the_repository() {
+    let repo = Repo::new();
+
+    let parent_error =
+        worktree::ignore_rule_for_path(repo.path(), Path::new("../outside")).unwrap_err();
+    let absolute_error =
+        worktree::ignore_rule_for_path(repo.path(), &repo.path().join("outside")).unwrap_err();
+
+    assert!(parent_error.contains("repository-relative"));
+    assert!(absolute_error.contains("repository-relative"));
+}

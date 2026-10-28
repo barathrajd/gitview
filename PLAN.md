@@ -8,3 +8,4 @@ Gitview is a keyboard-first terminal interface for everyday Git review.
 - [git-cli-capability-roadmap-2026](plans/git-cli-capability-roadmap-2026.md) — tiered Git coverage.
 - [git-config-profiles](plans/git-config-profiles.md) — isolate account settings by repository folder.
 - [website](plans/website.md) — publish a truthful Gitview product and installation site.
+- [0.6.0](plans/gitview-0-6-0.md) — complete partial Basic workflows.

@@ -2,6 +2,48 @@
 
 This file is the single release plan and release-notes record for Gitview.
 
+## Upcoming
+
+### Gitview 0.6.0 — target December 31, 2026 (planned)
+
+Complete the six partially implemented Basic workflows: repository, worktree,
+commit, history, local branches/tags, and diff/inspection. Remotes, merge, and
+export remain outside this release.
+
+Features:
+
+- Complete repository and worktree workflows — in progress; `gitview init` and
+  `gitview clone` are implemented, with further worktree gaps remaining. See the
+  [0.6.0 plan](plans/gitview-0-6-0.md) and
+  [capability roadmap](plans/git-cli-capability-roadmap-2026.md).
+- Complete commit and history workflows — planned; see the
+  [0.6.0 plan](plans/gitview-0-6-0.md) and
+  [capability roadmap](plans/git-cli-capability-roadmap-2026.md).
+- Complete local branch/tag and diff/inspection workflows — planned; see the
+  [0.6.0 plan](plans/gitview-0-6-0.md) and
+  [capability roadmap](plans/git-cli-capability-roadmap-2026.md).
+- Publish crates.io, macOS ARM64, and Linux x86_64 artifacts with checksums
+  and native installer selection — planned; see the
+  [0.6.0 plan](plans/gitview-0-6-0.md).
+
+Release gate:
+
+- All included features pass their acceptance checks; excluded workflows stay
+  labeled incomplete.
+- Full tests, formatting, build, and Clippy pass on the supported CI toolchain.
+- macOS ARM64 and Linux x86_64 builds and archive checksums are verified.
+- The installer selects the matching archive and verifies its checksum on both
+  platforms.
+- Crate packaging dry run passes; `CHANGELOG.md`, release notes, and
+  installation instructions match the actual artifacts.
+- Confirm there is no persistent-data migration and document how to reinstall
+  0.5.x if users need to roll back.
+- Complete a focused security review of Git argument handling, path handling,
+  destructive actions, terminal restoration, and release workflows.
+- Review the repository instructions and satisfy the shared
+  [DoD](.agents/skills/release-plan/references/definition-of-done.md).
+- The user reviews and approves the release candidate before publishing.
+
 ## Released
 
 ### Gitview 0.5.0 — October 28, 2026

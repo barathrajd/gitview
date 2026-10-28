@@ -137,6 +137,17 @@ fn lowercase_i_inspects_ignore_rules_only_from_the_working_tree() {
 }
 
 #[test]
+fn uppercase_i_starts_an_arbitrary_ignore_path_prompt() {
+    let mut app = AppState::default();
+    assert_eq!(
+        app.handle_key(KeyCode::Char('I'), false),
+        Some(AppAction::StartIgnorePathInput)
+    );
+    app.handle_key(KeyCode::Char('H'), false);
+    assert_eq!(app.handle_key(KeyCode::Char('I'), false), None);
+}
+
+#[test]
 fn list_movement_preserves_selection_and_clamps_to_available_rows() {
     assert_eq!(move_down(None, 4), Some(1));
     assert_eq!(move_down(Some(2), 3), Some(2));

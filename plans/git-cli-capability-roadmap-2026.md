@@ -230,9 +230,9 @@ of weakening its safety or acceptance criteria.
    operations, and working-tree regression coverage. Commit creation from a
    reviewed staged set, confirmed amend with stale HEAD/index checks, file
    navigation, selected-path discard, and confirmed untracking that keeps the
-   working copy, plus ignore-rule inspection for selected changed paths, are
-   implemented; editor handoff, rename/move, ordinary path removal, and checking
-   ignore rules for arbitrary paths remain incomplete.
+   working copy, plus ignore-rule inspection for selected and arbitrary
+   repository-relative paths, are implemented; editor handoff, rename discard,
+   move, and ordinary path removal remain incomplete.
 3. **November 22–December 5 — finish Basic refs and sharing:** complete local
    branch/tag management, remote setup, explicit fetch, ahead/behind, pull, and
    push with preview and progress/error states.

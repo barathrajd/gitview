@@ -209,6 +209,25 @@ pub fn ignore_rule(root: &Path, entry: &Entry) -> Result<Option<IgnoreRule>, Str
     if !load_status(root)?.iter().any(|current| current == entry) {
         return Err("File status changed; refresh and select it again".into());
     }
+    ignore_rule_for_path(root, Path::new(&entry.path))
+}
+
+pub fn ignore_rule_for_path(root: &Path, path: &Path) -> Result<Option<IgnoreRule>, String> {
+    if path.as_os_str().is_empty() {
+        return Err("Enter a repository-relative path".into());
+    }
+    if path.is_absolute()
+        || path.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        })
+    {
+        return Err("Use a repository-relative path without `..` components".into());
+    }
     let mut command = process::git_command();
     command
         .current_dir(root)
@@ -225,7 +244,7 @@ pub fn ignore_rule(root: &Path, entry: &Entry) -> Result<Option<IgnoreRule>, Str
             .as_mut()
             .ok_or("Could not send the selected path to Git")?;
         input
-            .write_all(os_str_bytes(&entry.path))
+            .write_all(os_str_bytes(path.as_os_str()))
             .and_then(|()| input.write_all(&[0]))
             .map_err(|error| format!("Could not send the selected path to Git: {error}"))?;
     }

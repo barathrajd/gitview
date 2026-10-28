@@ -162,6 +162,21 @@ fn untrack_confirmation_explains_that_the_working_copy_is_kept() {
 }
 
 #[test]
+fn ignore_path_prompt_accepts_arbitrary_repository_relative_paths() {
+    let rendered = draw(
+        Screen::IgnorePathInput {
+            path: "build/generated file.log",
+            feedback: "",
+        },
+        80,
+        18,
+    );
+    assert!(rendered.contains("INSPECT IGNORE RULE"));
+    assert!(rendered.contains("build/generated file.log"));
+    assert!(rendered.contains("inspect path"));
+}
+
+#[test]
 fn amend_confirmation_explains_the_history_rewrite_and_shows_old_and_new_messages() {
     let entries = vec![Entry {
         section: Section::Staged,

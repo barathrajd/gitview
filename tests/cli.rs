@@ -1,4 +1,42 @@
-use std::process::Command;
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+    sync::atomic::{AtomicU64, Ordering},
+};
+
+static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
+
+struct TempDir(std::path::PathBuf);
+
+impl TempDir {
+    fn new(name: &str) -> Self {
+        let id = NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed);
+        let path =
+            std::env::temp_dir().join(format!("gitview-cli-{name}-{}-{id}", std::process::id()));
+        fs::create_dir_all(&path).unwrap();
+        Self(path)
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+fn git(root: &Path, args: &[&str]) {
+    let output = Command::new("git")
+        .current_dir(root)
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
 
 #[test]
 fn help_describes_usage_without_a_repository() {
@@ -8,7 +46,55 @@ fn help_describes_usage_without_a_repository() {
         .output()
         .unwrap();
     assert!(output.status.success());
-    assert!(String::from_utf8_lossy(&output.stdout).contains("Usage: gitview"));
+    let help = String::from_utf8_lossy(&output.stdout);
+    assert!(help.contains("Usage: gitview"));
+    assert!(help.contains("gitview init [directory]"));
+    assert!(help.contains("gitview clone <repository> [directory]"));
+}
+
+#[test]
+fn init_command_creates_a_repository_at_the_requested_path() {
+    let temp = TempDir::new("init");
+    let destination = temp.0.join("new repository");
+    let output = Command::new(env!("CARGO_BIN_EXE_gitview"))
+        .args(["init"])
+        .arg(&destination)
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(destination.join(".git").exists());
+}
+
+#[test]
+fn clone_command_clones_a_local_repository_to_a_path_with_spaces() {
+    let temp = TempDir::new("clone");
+    let source = temp.0.join("source");
+    fs::create_dir(&source).unwrap();
+    git(&source, &["init", "-q"]);
+    git(&source, &["config", "user.name", "Gitview Test"]);
+    git(&source, &["config", "user.email", "gitview@example.com"]);
+    fs::write(source.join("README.md"), "ready\n").unwrap();
+    git(&source, &["add", "README.md"]);
+    git(&source, &["commit", "-qm", "initial"]);
+    let destination = temp.0.join("cloned repository");
+    let output = Command::new(env!("CARGO_BIN_EXE_gitview"))
+        .arg("clone")
+        .arg(&source)
+        .arg(&destination)
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(destination.join("README.md")).unwrap(), b"ready\n");
 }
 
 #[test]

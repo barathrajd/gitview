@@ -80,13 +80,19 @@ fn run() -> Result<(), String> {
     }
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "Usage: gitview [--ascii] [--version]\n       gitview --shell-integration\n\nOpen the current Git repository. Use --ascii for plain terminal borders.\nFolder-specific Git config profiles are loaded automatically. Run --shell-integration for the optional zsh hook.\n\n{HELP}"
+            "Usage: gitview [--ascii] [--version]\n       gitview init [directory]\n       gitview clone <repository> [directory]\n       gitview --shell-integration\n\nOpen the current Git repository. Use init or clone to set up a repository.\nUse --ascii for plain terminal borders. Folder-specific Git config profiles are loaded automatically. Run --shell-integration for the optional zsh hook.\n\n{HELP}"
         );
         return Ok(());
     }
     if args.iter().any(|arg| arg == "--version" || arg == "-V") {
         println!("gitview {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
+    }
+    if args.first().is_some_and(|arg| arg == "init") {
+        return run_init(&args[1..]);
+    }
+    if args.first().is_some_and(|arg| arg == "clone") {
+        return run_clone(&args[1..]);
     }
     Navigation::init_and_load_file(None)
         .map_err(|e| format!("Could not initialize keybindings: {e}"))?;
@@ -137,6 +143,30 @@ fn run() -> Result<(), String> {
     ratatui::restore();
     result.map_err(|e| format!("Terminal error: {e}"))?;
     paste_result.map_err(|error| format!("Could not disable bracketed paste: {error}"))?;
+    Ok(())
+}
+
+fn run_init(args: &[std::ffi::OsString]) -> Result<(), String> {
+    if args.len() > 1 {
+        return Err("Usage: gitview init [directory]".into());
+    }
+    let directory = args.first().map(std::path::PathBuf::from).unwrap_or(
+        env::current_dir().map_err(|error| format!("Could not read current folder: {error}"))?,
+    );
+    gitview::repository::initialize(&directory)?;
+    println!("Initialized Git repository at {}", directory.display());
+    Ok(())
+}
+
+fn run_clone(args: &[std::ffi::OsString]) -> Result<(), String> {
+    if args.is_empty() || args.len() > 2 {
+        return Err("Usage: gitview clone <repository> [directory]".into());
+    }
+    let source = std::path::Path::new(&args[0]);
+    let destination = args.get(1).map(std::path::Path::new);
+    println!("Cloning {}...", source.display());
+    gitview::repository::clone_repository(source, destination)?;
+    println!("Clone complete.");
     Ok(())
 }
 
@@ -285,6 +315,7 @@ fn app(
     let mut branch_confirm: Option<BranchAction> = None;
     let mut branch_input: Option<String> = None;
     let mut branch_feedback = String::new();
+    let mut ignore_path_input: Option<String> = None;
     let mut commit_message: Option<String> = None;
     let mut commit_description = String::new();
     let mut commit_description_focused = false;
@@ -676,6 +707,8 @@ fn app(
                 ui::HelpPage::AmendConfirmation
             } else if commit_message.is_some() {
                 ui::HelpPage::CommitMessage
+            } else if ignore_path_input.is_some() {
+                ui::HelpPage::IgnorePathInput
             } else if branch_view && branch_input.is_some() {
                 ui::HelpPage::BranchInput
             } else if branch_view && branch_confirm.is_some() {
@@ -702,6 +735,11 @@ fn app(
                     active_profile: &profile_label,
                     registry_path: &profile_registry_path,
                     feedback: &profile_feedback,
+                }
+            } else if let Some(path) = &ignore_path_input {
+                Screen::IgnorePathInput {
+                    path,
+                    feedback: &commit_feedback,
                 }
             } else if amend_confirm {
                 let preview = amend_expected.as_ref();
@@ -798,6 +836,11 @@ fn app(
             Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
         };
         if let Event::Paste(pasted) = &event {
+            if let Some(path) = &mut ignore_path_input
+                && !help
+            {
+                path.push_str(pasted);
+            }
             if commit_message.is_some() && !amend_confirm && !mutation_pending && !help {
                 let pasted = normalize_commit_paste(pasted, commit_description_focused);
                 if commit_description_focused {
@@ -849,6 +892,34 @@ fn app(
                             profiles.len(),
                         ));
                     }
+                    _ => {}
+                }
+                continue;
+            }
+            if let Some(path_text) = ignore_path_input.as_mut() {
+                match key.code {
+                    KeyCode::Char('?') => help = true,
+                    KeyCode::Esc => {
+                        ignore_path_input = None;
+                        commit_feedback.clear();
+                    }
+                    KeyCode::Backspace => {
+                        path_text.pop();
+                    }
+                    KeyCode::Enter => {
+                        let user_path = path_text.clone();
+                        ignore_path_input = None;
+                        let sender = ignore_sender.clone();
+                        let root = root.to_path_buf();
+                        std::thread::spawn(move || {
+                            let result = gitview::worktree::ignore_rule_for_path(
+                                &root,
+                                std::path::Path::new(&user_path),
+                            );
+                            let _ = sender.send(result);
+                        });
+                    }
+                    KeyCode::Char(ch) if !ch.is_control() => path_text.push(ch),
                     _ => {}
                 }
                 continue;
@@ -1314,6 +1385,10 @@ fn app(
                                 let _ = sender.send(gitview::worktree::ignore_rule(&path, &entry));
                             });
                         }
+                    }
+                    AppAction::StartIgnorePathInput => {
+                        ignore_path_input = Some(String::new());
+                        commit_feedback.clear();
                     }
                     AppAction::StageAll => {
                         status_request += 1;
