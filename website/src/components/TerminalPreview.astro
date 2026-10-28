@@ -1,18 +1,7 @@
 ---
-import cockpit from "../assets/cockpit.svg?raw";
-const label = "Main screen: worktree, history, and inspector";
+import TerminalShot from "./TerminalShot.astro";
 ---
 
 <div class="mx-auto flex w-full max-w-[1180px] flex-col text-left">
-  <figure class="m-0 min-w-0">
-    <div
-      class="terminal-shell overflow-x-auto rounded-2xl border border-white/[0.11] bg-[#080e0c] shadow-[0_35px_100px_-35px_rgba(16,185,129,0.22)] ring-1 ring-black/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300"
-      tabindex="0"
-      role="group"
-      aria-label={`${label} (scrolls horizontally on narrow screens)`}
-    >
-      <div class="min-w-[900px]" set:html={cockpit} />
-    </div>
-    <figcaption class="mt-3 px-1 font-mono text-[10px] uppercase tracking-[0.14em] text-slate-600">{label}</figcaption>
-  </figure>
+  <TerminalShot name="cockpit" label="Main screen: worktree, history, and inspector" />
 </div>

@@ -3,8 +3,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import Navigation from "../components/Navigation.astro";
 import Release060 from "../components/Release060.astro";
 import Footer from "../components/Footer.astro";
-import cockpit from "../assets/cockpit.svg?raw";
-import diff from "../assets/diff.svg?raw";
+import TerminalShot from "../components/TerminalShot.astro";
 import { href } from "../lib/base";
 
 // Screens captured from the real binary on a throwaway sample repository.
@@ -12,13 +11,13 @@ const available = [
   {
     title: "One screen for status, history, and context",
     body: "The worktree groups staged, changed, and untracked files. History shows the commit graph with branch and tag labels, and the inspector shows the selected commit and a worktree summary. The footer lists the keys for the current pane.",
-    svg: cockpit,
+    name: "cockpit",
     label: "Main screen: worktree, history, and inspector",
   },
   {
     title: "Before and after, highlighted",
     body: "Open a file to review syntax-colored Before and After panes with aligned, wrapped lines and line numbers. Select a hunk and stage or unstage it, or switch to raw patch styling or a unified layout with one key.",
-    svg: diff,
+    name: "diff",
     label: "File diff: Before and After panes with syntax highlighting",
   },
 ];
@@ -53,17 +52,7 @@ const available = [
             <article>
               <h3 class="text-xl font-semibold tracking-tight text-slate-100">{item.title}</h3>
               <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-400">{item.body}</p>
-              <figure class="m-0 mt-6 min-w-0">
-                <div
-                  class="overflow-x-auto rounded-2xl border border-white/[0.11] bg-[#080e0c] shadow-[0_35px_100px_-35px_rgba(16,185,129,0.18)] ring-1 ring-black/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300"
-                  tabindex="0"
-                  role="group"
-                  aria-label={`${item.label} (scrolls horizontally on narrow screens)`}
-                >
-                  <div class="min-w-[900px]" set:html={item.svg} />
-                </div>
-                <figcaption class="mt-3 px-1 font-mono text-[10px] uppercase tracking-[0.14em] text-slate-600">{item.label}</figcaption>
-              </figure>
+              <div class="mt-6"><TerminalShot name={item.name} label={item.label} /></div>
             </article>
           ))}
         </div>

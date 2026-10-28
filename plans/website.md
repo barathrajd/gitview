@@ -39,6 +39,10 @@ The implementation is complete when these outcomes can be checked directly.
   clearly marked, summarized from `RELEASE.md` in `website/src/data/releases.ts`. It states that
   Linux packaging moves to the next release and that remotes, merge, and export
   stay out.
+- Every page fits phone widths from 320 px with no horizontal page scroll. Each
+  terminal screenshot has a 140-column version for desktop and a 64-column
+  version captured from the same binary for phones, so none needs sideways
+  scrolling. Elements that still scroll sideways hide their scrollbars.
 - The install tabs and copy command work with keyboard and pointer input, and
   copy feedback is announced accessibly.
 - The page includes page title, description, canonical URL, Open Graph metadata,
@@ -131,7 +135,7 @@ part of the final experience.
 5. [x] Add the "Coming in 0.6.0" section to a separate `/features/` page, and a
    `/changelog/` page for all releases, so the home page keeps one hero
    screenshot and only the high-level feature cards. Links use a base-path
-   helper so they work at the root and under `/gitview`. Add one screenshot per planned
+   helper so they work at the root and under `/gitview`. Add one desktop and one phone screenshot per planned
    workflow: repository setup (real command output), path operations, commit and
    amend, history filter/search/comparison, branches and tags, object
    description, and help. Each screen is captured from the real development

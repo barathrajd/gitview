@@ -1,15 +1,5 @@
 ---
-import comparison from "../assets/comparison.svg?raw";
-import object from "../assets/object.svg?raw";
-import branches from "../assets/branches.svg?raw";
-import tags from "../assets/tags.svg?raw";
-import commit from "../assets/commit.svg?raw";
-import amend from "../assets/amend.svg?raw";
-import pathhistory from "../assets/pathhistory.svg?raw";
-import search from "../assets/search.svg?raw";
-import move from "../assets/move.svg?raw";
-import ignoreform from "../assets/ignoreform.svg?raw";
-import help from "../assets/help.svg?raw";
+import TerminalShot from "./TerminalShot.astro";
 
 // Every screen below was captured from the real binary built from the 0.6.0
 // development branch. The text of each group follows README.md and the 0.6.0 plan.
@@ -39,8 +29,8 @@ const groups = [
     title: "Handle paths with review",
     body: "Look up the ignore rule for any repository-relative path, stop tracking a file but keep your copy, remove a tracked path, move a clean tracked file, and discard a staged rename. Each action is reviewed before it runs, and Git's own refusals stay visible.",
     shots: [
-      { svg: ignoreform, label: "Inspect the ignore rule for any repository-relative path" },
-      { svg: move, label: "Move a clean tracked file; Git stages the rename" },
+      { name: "ignoreform", label: "Inspect the ignore rule for any repository-relative path" },
+      { name: "move", label: "Move a clean tracked file; Git stages the rename" },
     ],
   },
   {
@@ -48,8 +38,8 @@ const groups = [
     title: "Commit and amend",
     body: "Write a subject and description, or press Ctrl+E to edit them in your configured Git editor. Saving a changed message commits the reviewed staged changes without a second Enter. Amending HEAD first shows the old and replacement messages. Hooks and signing stay on.",
     shots: [
-      { svg: commit, label: "Commit composer beside the read-only worktree" },
-      { svg: amend, label: "Amend confirmation with a rewrite warning" },
+      { name: "commit", label: "Commit composer beside the read-only worktree" },
+      { name: "amend", label: "Amend confirmation with a rewrite warning" },
     ],
   },
   {
@@ -57,9 +47,9 @@ const groups = [
     title: "Filter, search, and compare history",
     body: "Filter history to a literal file or directory, search commits as you type, and compare any two local commits on one page with folding per file. Branches and remote refs already stored locally work as revisions; nothing is fetched.",
     shots: [
-      { svg: pathhistory, label: "History filtered to docs/notes.md" },
-      { svg: search, label: "Debounced history search" },
-      { svg: comparison, label: "Comparison of two commits across three files" },
+      { name: "pathhistory", label: "History filtered to docs/notes.md" },
+      { name: "search", label: "Debounced history search" },
+      { name: "comparison", label: "Comparison of two commits across three files" },
     ],
   },
   {
@@ -67,21 +57,21 @@ const groups = [
     title: "Branches and tags",
     body: "Rename and delete local branches with the destination rechecked first, and return to the previous branch or detached commit. Tags list, create lightweight tags at the reviewed HEAD, verify signatures with Git, and delete locally. Annotated and signed tag creation isn't available.",
     shots: [
-      { svg: branches, label: "Local branches" },
-      { svg: tags, label: "Local tags" },
+      { name: "branches", label: "Local branches" },
+      { name: "tags", label: "Local tags" },
     ],
   },
   {
     id: "inspect",
     title: "Describe any object",
     body: "Enter a commit, tag, tree, or blob revision such as HEAD:src/main.rs to see its fixed ID, type, size, nearest-tag description, and a bounded read-only preview.",
-    shots: [{ svg: object, label: "Object description for a commit" }],
+    shots: [{ name: "object", label: "Object description for a commit" }],
   },
   {
     id: "help",
     title: "Help on every page",
     body: "Press ? on any page for the actions available there. The footer always lists the keys for the current view.",
-    shots: [{ svg: help, label: "Contextual help over the working tree" }],
+    shots: [{ name: "help", label: "Contextual help over the working tree" }],
   },
 ];
 ---
@@ -106,23 +96,13 @@ const groups = [
           <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-400">{group.body}</p>
           {group.transcript && (
             <figure class="mt-6 m-0">
-              <pre class="overflow-x-auto rounded-2xl border border-white/[0.11] bg-[#080e0c] p-5 font-mono text-[13px] leading-6 text-slate-300" tabindex="0" aria-label="Real output of the gitview init and clone commands">{group.transcript.join("\n")}</pre>
+              <pre class="no-scrollbar overflow-x-auto whitespace-pre-wrap break-words rounded-xl border border-white/[0.11] bg-[#080e0c] p-4 font-mono text-[12px] leading-6 text-slate-300 sm:rounded-2xl sm:p-5 sm:text-[13px]" tabindex="0" aria-label="Real output of the gitview init and clone commands">{group.transcript.join("\n")}</pre>
               <figcaption class="mt-3 px-1 font-mono text-[10px] uppercase tracking-[0.14em] text-slate-600">Output from the development build</figcaption>
             </figure>
           )}
           <div class="mt-6 flex flex-col gap-8">
             {group.shots.map((shot) => (
-              <figure class="m-0 min-w-0">
-                <div
-                  class="overflow-x-auto rounded-2xl border border-white/[0.11] bg-[#080e0c] shadow-[0_35px_100px_-35px_rgba(16,185,129,0.18)] ring-1 ring-black/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300"
-                  tabindex="0"
-                  role="group"
-                  aria-label={`${shot.label} (scrolls horizontally on narrow screens)`}
-                >
-                  <div class="min-w-[900px]" set:html={shot.svg} />
-                </div>
-                <figcaption class="mt-3 px-1 font-mono text-[10px] uppercase tracking-[0.14em] text-slate-600">{shot.label}</figcaption>
-              </figure>
+              <TerminalShot name={shot.name} label={shot.label} />
             ))}
           </div>
         </article>

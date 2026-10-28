@@ -26,6 +26,16 @@ body {
   margin: 0;
 }
 
+/* Hide scrollbars on elements that still scroll sideways; touch and trackpad scrolling keep working. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 ::selection {
   background: rgb(52 211 153 / 25%);
   color: #ecfdf5;
