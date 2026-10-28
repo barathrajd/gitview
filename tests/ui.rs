@@ -66,6 +66,39 @@ fn contextual_help_opens_as_a_page_specific_overlay() {
 }
 
 #[test]
+fn commit_dialogs_show_the_message_and_exact_staged_file_list() {
+    let input = draw(
+        Screen::CommitInput {
+            message: "Fix the parser",
+            feedback: "",
+        },
+        50,
+        10,
+    );
+    assert!(input.contains("COMMIT MESSAGE"));
+    assert!(input.contains("Fix the parser"));
+    assert!(input.contains("review staged files"));
+
+    let staged = vec![Entry {
+        section: Section::Staged,
+        path: OsString::from("src/parser.rs"),
+        original: None,
+    }];
+    let confirm = draw(
+        Screen::CommitConfirmation {
+            message: "Fix the parser",
+            staged: &staged,
+            pending: false,
+        },
+        60,
+        16,
+    );
+    assert!(confirm.contains("CONFIRM COMMIT"));
+    assert!(confirm.contains("src/parser.rs"));
+    assert!(confirm.contains("Fix the parser"));
+}
+
+#[test]
 fn renders_help_and_loading_or_empty_history_states() {
     let help = draw(Screen::Help, 80, 24);
     assert!(help.contains("KEYBOARD SHORTCUTS"));

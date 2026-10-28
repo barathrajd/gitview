@@ -81,6 +81,9 @@ remains deferred.
   refreshes status. Open a file diff with **Enter** to select hunks with **[**
   and **]**; **s/u** stage or unstage the selected hunk, and **S/U** act on the
   whole file.
+- Press **c** in the working-tree view to enter a commit message, review the
+  staged file list, and confirm the commit. Gitview commits only the staged
+  changes; it preserves unstaged edits and Git's configured hooks and signing.
 - Press **b** to browse local branches. Select one and press **Enter**, or press
   **c** to create a branch from the current commit. Confirm with **y** or cancel
   with **n** or **Esc**.
@@ -134,6 +137,14 @@ finished.
 
 ## Current limitations
 
+Gitview currently focuses on history and working-tree review, file and hunk
+staging, commit creation from a reviewed staged file set, local branch browsing
+and creation, and folder-scoped Git config profiles. Commit amendment and editor
+handoff, tag and remote management, restoring or moving working-tree paths,
+conflict resolution, stash, rebase, and submodule workflows are not
+implemented. See the [Git CLI capability matrix](docs/git-cli-capability-matrix.md)
+for current coverage and planned work.
+
 History is limited to 200 commits. Diffs are limited to 1 MB or 5,000 lines and
 indicate truncation; binary changes show Git's binary notice. Diff lines wider
 than the available pane are clipped. Terminals at least 120 columns wide show
@@ -142,10 +153,8 @@ changes are displayed as separate deletion and addition entries. Unmerged
 working-tree entries are not supported; resolve conflicts using Git. Branch
 creation requires a first commit. Git checkout hooks run normally and can
 report failure after a switch has already occurred; Gitview refreshes the
-branch state and displays the error. Submodules, remote operations, commit
-creation, interactive rebase, and conflict resolution are outside the MVP.
-Linux builds and tests were verified for 0.2.1; Linux release packaging is not
-provided.
+branch state and displays the error. Linux builds and tests were verified for
+0.2.1; Linux release packaging is not provided.
 
 ## License
 

@@ -230,6 +230,11 @@ fn app(
     let mut branch_confirm: Option<BranchAction> = None;
     let mut branch_input: Option<String> = None;
     let mut branch_feedback = String::new();
+    let mut commit_message: Option<String> = None;
+    let mut commit_confirm: Option<String> = None;
+    let mut commit_expected: Option<gitview::commit::CommitPreview> = None;
+    let mut commit_feedback = String::new();
+    let (commit_sender, commit_receiver) = mpsc::channel::<(String, Result<(), String>)>();
     let mut mutation_pending = false;
     let mut status_mutation: Option<u64> = None;
     let mut diff_entry_refresh: Option<(gitview::worktree::Section, gitview::worktree::Section)> =
@@ -500,9 +505,47 @@ fn app(
                 let _ = sender.send((id, gitview::branches::load_branches(&path)));
             });
         }
+        while let Ok((message, result)) = commit_receiver.try_recv() {
+            mutation_pending = false;
+            commit_confirm = None;
+            match result {
+                Ok(()) => {
+                    commit_message = None;
+                    commit_expected = None;
+                    commit_feedback = "Commit created.".into();
+                    history_request += 1;
+                    history = None;
+                    let id = history_request;
+                    let sender = history_sender.clone();
+                    let path = root.to_path_buf();
+                    std::thread::spawn(move || {
+                        let _ = sender.send((id, gitview::history::load_history(&path)));
+                    });
+                    status_request += 1;
+                    status = None;
+                    status_mutation = Some(status_request);
+                    let id = status_request;
+                    let sender = status_sender.clone();
+                    let path = root.to_path_buf();
+                    std::thread::spawn(move || {
+                        let result = gitview::worktree::load_status(&path);
+                        let _ = sender.send((id, result));
+                    });
+                }
+                Err(error) => {
+                    commit_feedback = error;
+                    commit_message = Some(message);
+                    commit_expected = gitview::commit::preview_commit(root).ok();
+                }
+            }
+        }
         terminal.draw(|frame| {
             let help_page = if profiles_view {
                 ui::HelpPage::Profiles
+            } else if commit_confirm.is_some() {
+                ui::HelpPage::CommitConfirmation
+            } else if commit_message.is_some() {
+                ui::HelpPage::CommitMessage
             } else if branch_view && branch_input.is_some() {
                 ui::HelpPage::BranchInput
             } else if branch_view && branch_confirm.is_some() {
@@ -529,6 +572,19 @@ fn app(
                     active_profile: &profile_label,
                     registry_path: &profile_registry_path,
                     feedback: &profile_feedback,
+                }
+            } else if let Some(message) = &commit_confirm {
+                Screen::CommitConfirmation {
+                    message,
+                    staged: commit_expected
+                        .as_ref()
+                        .map_or(&[], |preview| preview.entries.as_slice()),
+                    pending: mutation_pending,
+                }
+            } else if let Some(message) = &commit_message {
+                Screen::CommitInput {
+                    message,
+                    feedback: &commit_feedback,
                 }
             } else if branch_view && branch_input.is_some() {
                 Screen::BranchInput(branch_input.as_deref().unwrap_or(""))
@@ -570,6 +626,7 @@ fn app(
                     branches: branches.as_ref(),
                     history: history.as_ref(),
                     status: status.as_ref(),
+                    feedback: &commit_feedback,
                     focused: app_state.view(),
                     history_selection: &mut selection,
                     working_tree_selection: &mut status_selection,
@@ -623,6 +680,71 @@ fn app(
                             profile_selection.selected(),
                             profiles.len(),
                         ));
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+            if commit_message.is_some() {
+                match key.code {
+                    KeyCode::Esc => {
+                        commit_message = None;
+                        commit_expected = None;
+                        commit_feedback.clear();
+                    }
+                    KeyCode::Char('?') => help = true,
+                    KeyCode::Backspace => {
+                        if let Some(message) = &mut commit_message {
+                            message.pop();
+                        }
+                    }
+                    KeyCode::Enter | KeyCode::Char('\r' | '\n') => {
+                        let message = commit_message.as_deref().unwrap_or_default();
+                        if message.trim().is_empty() {
+                            commit_feedback = "Enter a commit message.".into();
+                        } else if commit_expected.is_none() {
+                            commit_feedback = "Stage changes before committing.".into();
+                        } else {
+                            commit_confirm = Some(message.to_owned());
+                            commit_message = None;
+                            commit_feedback.clear();
+                        }
+                    }
+                    KeyCode::Char(character) if !character.is_control() => {
+                        if let Some(message) = &mut commit_message {
+                            message.push(character);
+                        }
+                        commit_feedback.clear();
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+            if let Some(message) = commit_confirm.as_ref() {
+                if mutation_pending {
+                    continue;
+                }
+                match key.code {
+                    KeyCode::Char('?') => help = true,
+                    KeyCode::Char('y') => {
+                        mutation_pending = true;
+                        let message = message.clone();
+                        let staged = commit_expected.clone();
+                        let path = root.to_path_buf();
+                        let sender = commit_sender.clone();
+                        std::thread::spawn(move || {
+                            let result = staged
+                                .as_ref()
+                                .ok_or_else(|| "Staged changes are unavailable".to_owned())
+                                .and_then(|preview| {
+                                    gitview::commit::create_commit(&path, &message, preview)
+                                });
+                            let _ = sender.send((message, result));
+                        });
+                    }
+                    KeyCode::Char('n') | KeyCode::Esc => {
+                        commit_message = Some(message.clone());
+                        commit_confirm = None;
                     }
                     _ => {}
                 }
@@ -834,6 +956,9 @@ fn app(
                 profiles_view = true;
                 continue;
             }
+            if key.code != KeyCode::Char('c') {
+                commit_feedback.clear();
+            }
             let blocked = help || mutation_pending || details.is_some() || diff.is_some();
             if let Some(action) = app_state.handle_key(navigation_key(key), blocked) {
                 match action {
@@ -871,6 +996,16 @@ fn app(
                             let _ = sender.send((id, gitview::branches::load_branches(&path)));
                         });
                     }
+                    AppAction::StartCommit => match gitview::commit::preview_commit(root) {
+                        Ok(preview) => {
+                            commit_expected = Some(preview);
+                            commit_feedback.clear();
+                            commit_message = Some(String::new());
+                        }
+                        Err(error) => {
+                            commit_feedback = error;
+                        }
+                    },
                     AppAction::StageAll => {
                         status_request += 1;
                         let id = status_request;

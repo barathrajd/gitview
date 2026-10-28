@@ -40,7 +40,7 @@ pub const HELP: &str = concat!(
     "S                   Stage all worktree changes\n",
     "U                   Unstage all staged changes\n",
     "p                   Git config profiles\n",
-    "c                   Create branch in list               y                   Confirm branch operation\n",
+    "c                   Commit in worktree / create branch in branch list\n",
     "n                   Cancel branch operation            Backspace           Edit search query\n",
     "Diff: [/] selects hunks; s stages an unstaged hunk and u unstages a staged hunk.\n",
     "S stages all changes in the file; U unstages all staged changes in the file.\n",
@@ -62,7 +62,12 @@ const HELP_ROWS: &[(&str, &str, &str, &str)] = &[
     ("p", "Git config profiles", "H", "Open history"),
     ("/", "Search history", "s", "Stage selected file"),
     ("u", "Unstage selected file", "r", "Refresh worktree"),
-    ("c", "Create branch in list", "y", "Confirm branch"),
+    (
+        "c",
+        "Commit or create branch by page",
+        "y",
+        "Confirm branch",
+    ),
     (
         "n",
         "Cancel branch operation",
@@ -246,6 +251,7 @@ pub fn render_help_overlay(
     const WORKTREE: &[(&str, &str)] = &[
         ("Up/Down, j/k", "Select a changed file"),
         ("Enter", "Open file diff"),
+        ("c", "Commit staged files"),
         ("s", "Stage selected file"),
         ("u", "Unstage selected file"),
         ("S", "Stage all working tree changes"),
@@ -280,6 +286,16 @@ pub fn render_help_overlay(
         ("H", "Return to history"),
         ("W", "Open working tree"),
         ("q", "Quit Gitview"),
+    ];
+    const COMMIT_MESSAGE: &[(&str, &str)] = &[
+        ("Type", "Write a commit message"),
+        ("Enter", "Review staged files"),
+        ("Backspace", "Delete a character"),
+        ("Esc", "Cancel commit"),
+    ];
+    const COMMIT_CONFIRMATION: &[(&str, &str)] = &[
+        ("y", "Create this commit"),
+        ("n, Esc", "Edit message or cancel"),
     ];
     const WORKTREE_DIFF: &[(&str, &str)] = &[
         ("[, ]", "Select previous or next hunk"),
@@ -319,6 +335,8 @@ pub fn render_help_overlay(
         HelpPage::BranchInput => ("Branch name", BRANCH_INPUT),
         HelpPage::BranchConfirmation => ("Confirm branch", BRANCH_CONFIRMATION),
         HelpPage::Commit => ("Commit", COMMIT),
+        HelpPage::CommitMessage => ("Commit message", COMMIT_MESSAGE),
+        HelpPage::CommitConfirmation => ("Commit confirmation", COMMIT_CONFIRMATION),
         HelpPage::WorktreeDiff => ("Working tree diff", WORKTREE_DIFF),
         HelpPage::CommitDiff => ("Commit diff", COMMIT_DIFF),
         HelpPage::Search => ("Search", SEARCH),
@@ -392,6 +410,7 @@ pub struct Cockpit<'a> {
     pub branches: Option<&'a Result<Branches, String>>,
     pub history: Option<&'a Result<Vec<String>, String>>,
     pub status: Option<&'a Result<Vec<Entry>, String>>,
+    pub feedback: &'a str,
     pub focused: View,
     pub history_selection: &'a mut ListState,
     pub working_tree_selection: &'a mut ListState,
@@ -404,6 +423,15 @@ pub enum Screen<'a> {
     BranchConfirmation {
         pending: bool,
         action: Option<&'a BranchAction>,
+    },
+    CommitInput {
+        message: &'a str,
+        feedback: &'a str,
+    },
+    CommitConfirmation {
+        message: &'a str,
+        staged: &'a [Entry],
+        pending: bool,
     },
     Branches {
         branches: Option<&'a Result<Branches, String>>,
@@ -456,6 +484,8 @@ pub enum HelpPage {
     BranchInput,
     BranchConfirmation,
     Commit,
+    CommitMessage,
+    CommitConfirmation,
     WorktreeDiff,
     CommitDiff,
     Search,
@@ -520,6 +550,64 @@ pub fn render(
                 &[("Working", "operation in progress")][..]
             } else {
                 &[("y", "confirm"), ("n/Esc", "cancel")][..]
+            };
+            render_key_hints(frame, areas[1], hints);
+        }
+        Screen::CommitInput { message, feedback } => {
+            let mut lines = Vec::new();
+            if !feedback.is_empty() {
+                lines.push(Line::styled(
+                    feedback,
+                    Style::default().fg(Color::Rgb(251, 191, 36)),
+                ));
+            }
+            lines.push(Line::raw(format!("{message}_")));
+            let areas =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
+            frame.render_widget(
+                Paragraph::new(Text::from(lines))
+                    .wrap(Wrap { trim: false })
+                    .block(page_block("COMMIT MESSAGE", border)),
+                areas[0],
+            );
+            render_key_hints(
+                frame,
+                areas[1],
+                &[("Enter", "review staged files"), ("Esc", "cancel")],
+            );
+        }
+        Screen::CommitConfirmation {
+            message,
+            staged,
+            pending,
+        } => {
+            let mut lines = if pending {
+                vec![Line::raw("Creating commit...")]
+            } else {
+                vec![
+                    Line::raw(format!("Message: {message}")),
+                    Line::raw(format!("\n{} staged file(s):", staged.len())),
+                ]
+            };
+            if !pending {
+                lines.extend(
+                    staged
+                        .iter()
+                        .map(|entry| Line::raw(format!("  {}", entry.path.to_string_lossy()))),
+                );
+            }
+            let areas =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
+            frame.render_widget(
+                Paragraph::new(Text::from(lines))
+                    .wrap(Wrap { trim: true })
+                    .block(page_block("CONFIRM COMMIT", border)),
+                areas[0],
+            );
+            let hints = if pending {
+                &[("Working", "commit in progress")][..]
+            } else {
+                &[("y", "commit"), ("n/Esc", "edit or cancel")][..]
             };
             render_key_hints(frame, areas[1], hints);
         }
@@ -671,6 +759,7 @@ fn render_cockpit(
         history,
         status,
         focused,
+        feedback,
         history_selection,
         working_tree_selection,
     } = cockpit;
@@ -690,6 +779,7 @@ fn render_cockpit(
             ("u", "unstage"),
             ("S", "stage all"),
             ("U", "unstage all"),
+            ("c", "commit"),
             ("r", "refresh"),
             ("p", "profiles"),
         ],
@@ -807,8 +897,8 @@ fn render_cockpit(
     }
 
     let (staged, unstaged, untracked) = status_counts(status);
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
+    let status_line = if feedback.is_empty() {
+        Line::from(vec![
             Span::styled(" STAGED ", Style::default().fg(Color::Rgb(94, 234, 212))),
             Span::raw(staged.to_string()),
             Span::styled("   CHANGES ", Style::default().fg(Color::Rgb(251, 191, 36))),
@@ -818,9 +908,11 @@ fn render_cockpit(
                 Style::default().fg(Color::Rgb(148, 163, 184)),
             ),
             Span::raw(untracked.to_string()),
-        ])),
-        sections[2],
-    );
+        ])
+    } else {
+        Line::styled(feedback, Style::default().fg(Color::Rgb(94, 234, 212)))
+    };
+    frame.render_widget(Paragraph::new(status_line), sections[2]);
     render_key_hints_padded(frame, sections[3], &hints);
 }
 

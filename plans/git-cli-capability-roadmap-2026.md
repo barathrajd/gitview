@@ -220,12 +220,16 @@ Milestones are ordered by user-visible slices. The dates describe release
 checkpoints through December 31, 2026; move unfinished work explicitly instead
 of weakening its safety or acceptance criteria.
 
-1. **October 28–November 7 — establish the compatibility map:** inventory every
-   documented porcelain command family and subpage; record current Gitview
-   support, risk level, and acceptance coverage; update outdated README claims.
-2. **November 8–21 — finish Basic worktree and commit flow:** complete file
-   navigation, discard confirmation, commit/amend, path operations, and
-   working-tree regression coverage.
+1. **October 28–November 7 — establish the compatibility map** (complete
+   October 28): inventory every documented porcelain command family and
+   subpage; record current Gitview support, risk level, and acceptance coverage in
+   [`docs/git-cli-capability-matrix.md`](../docs/git-cli-capability-matrix.md);
+   update outdated README claims.
+2. **November 8–21 — finish Basic worktree and commit flow (in progress):**
+   complete file navigation, discard confirmation, commit/amend, path
+   operations, and working-tree regression coverage. Commit creation from a
+   reviewed staged set is implemented; amend, editor handoff, discard, and
+   path operations remain incomplete.
 3. **November 22–December 5 — finish Basic refs and sharing:** complete local
    branch/tag management, remote setup, explicit fetch, ahead/behind, pull, and
    push with preview and progress/error states.

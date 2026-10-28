@@ -40,6 +40,7 @@ fn render_cockpit_focused(width: u16, focused: View, profile: &str) -> String {
                     branches: Some(&Ok(branches)),
                     history: Some(&history),
                     status: Some(&status),
+                    feedback: "",
                     focused,
                     history_selection: &mut history_selection,
                     working_tree_selection: &mut working_tree_selection,
@@ -94,6 +95,7 @@ fn renders_responsive_repository_cockpit() {
     );
     let worktree_focused = render_cockpit_focused(140, View::WorkingTree, "Primary");
     assert!(worktree_focused.contains("diff"));
+    assert!(worktree_focused.contains("commit"));
     assert!(!worktree_focused.contains("details"));
 }
 
@@ -121,6 +123,7 @@ fn replacing_the_cockpit_with_commit_details_clears_old_panes() {
                     branches: Some(&Ok(branches)),
                     history: Some(&history),
                     status: Some(&status),
+                    feedback: "",
                     focused: View::History,
                     history_selection: &mut history_selection,
                     working_tree_selection: &mut working_tree_selection,
