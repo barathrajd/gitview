@@ -144,17 +144,14 @@ config directory. Use it to try the current workflows without changing your
 own repository or Gitview profiles. Create a fresh playground whenever you want
 to reset its state.
 
-From the Gitview source directory, run:
+From the Gitview source directory, run the launcher:
 
 ```sh
-source_dir="$(pwd)"
-playground="$(scripts/create-feature-playground.sh)"
-cd "$playground/repo"
-XDG_CONFIG_HOME="$playground/config" \
-  cargo run --manifest-path "$source_dir/Cargo.toml"
+scripts/run-feature-playground.sh
 ```
 
-The script prints the temporary playground path. The sample repository
+The launcher creates a temporary repository, prints its path, and runs the
+`gitview` binary there with an isolated config directory. The sample repository
 includes:
 
 - A main branch, a topic branch, a merge commit, and a tag for history and graph
