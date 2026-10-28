@@ -17,10 +17,10 @@ const tag = (version: string) => ({
 export const releases: Release[] = [
   {
     version: "0.6.0",
-    date: "Targets December 31, 2026",
-    status: "planned",
+    date: "October 29, 2026",
+    status: "released",
     summary:
-      "Completes six everyday local Git workflows. Not published yet; remotes, merge and conflict workflows, and export stay out.",
+      "Completes six everyday local Git workflows. Remotes, merge and conflict workflows, and export stay out.",
     highlights: [
       "Repository setup with gitview init and gitview clone.",
       "Ignore-rule lookup for any path, stop tracking, confirmed removal and moves of tracked paths, and discard of a staged rename.",
@@ -29,7 +29,11 @@ export const releases: Release[] = [
       "Rename, delete, and previous-branch return for local branches; list, lightweight create, verify, and delete for local tags.",
       "Object description for commits, tags, trees, and blobs, and comparisons against remote refs already stored locally.",
     ],
-    note: "Ships the crate and the macOS Apple Silicon archive. Linux packaging moves to the next release.",
+    note: "Known issues: native memory on a very large comparison varies between runs, a renderer-only memory diagnostic still exceeds its budget, and TypeScript, TSX, and TOML diffs aren't syntax highlighted. Ships the crate and the macOS Apple Silicon archive; Linux packaging isn't provided yet.",
+    links: [
+      { label: "crates.io 0.6.0", url: "https://crates.io/crates/gitview/0.6.0" },
+      tag("0.6.0"),
+    ],
   },
   {
     version: "0.5.0",

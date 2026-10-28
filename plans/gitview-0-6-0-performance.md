@@ -1,5 +1,12 @@
 # Gitview 0.6.0 performance review
 
+> **Status: shipped with open findings.** 0.6.0 was released on October 29, 2026
+> by the maintainer's decision. Open and deferred items: native memory variance
+> on a very large comparison, the failing renderer-only memory diagnostic,
+> Linux x86_64 evidence, and a clean-revision rerun. See
+> [RELEASE.md](../RELEASE.md#upcoming) and the
+> [performance report](../docs/performance-0-6-0.md).
+
 ## Objective
 
 Review and fix measured performance problems across the whole Gitview TUI before

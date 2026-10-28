@@ -2,11 +2,9 @@
 
 ## Now
 
-- [0.6.0 performance review](plans/gitview-0-6-0-performance.md) — approved
-  release prerequisite; initial preview/idle fixes measured, audit in progress.
-
-- [Gitview 0.6.0](plans/gitview-0-6-0.md) — complete six partial Basic
-  workflows; target December 31, 2026.
+- [0.6.0 follow-ups](RELEASE.md#upcoming) — the known issues 0.6.0 shipped
+  with: large-comparison memory variance, the renderer-only memory diagnostic,
+  the security review, and a clean-revision rerun.
 - [Git CLI capability roadmap](plans/git-cli-capability-roadmap-2026.md) —
   track remaining Basic, Medium, and Advanced workflows beyond this release.
 
@@ -24,6 +22,9 @@
 
 ## Shipped
 
+- 2026-10-29: [Gitview 0.6.0](plans/gitview-0-6-0.md) — six partial Basic
+  workflows completed, with the [performance review](plans/gitview-0-6-0-performance.md)
+  carried out and its open findings recorded; released as [v0.6.0][release-060].
 - 2026-10-28: [Git config profiles](plans/git-config-profiles.md) —
   folder-based account settings, released in [Gitview v0.5.0][release-050].
 - 2026-10-27: Gitview 0.4.0 — hunk staging, grouped worktree status, and
@@ -43,3 +44,4 @@
 [release-031]: https://github.com/barathrajd/gitview/releases/tag/v0.3.1
 [release-040]: https://github.com/barathrajd/gitview/releases/tag/v0.4.0
 [release-050]: https://github.com/barathrajd/gitview/releases/tag/v0.5.0
+[release-060]: https://github.com/barathrajd/gitview/releases/tag/v0.6.0

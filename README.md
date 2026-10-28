@@ -45,14 +45,12 @@ prebuilt release currently supports macOS Apple Silicon. Linux release
 packaging remains deferred. You can also download the archive from the
 [GitHub releases](https://github.com/barathrajd/gitview/releases).
 
-## What's coming in 0.6.0
+## What's new in 0.6.0
 
-Gitview 0.6.0 is planned for December 31, 2026 and isn't released yet. The
-current release is 0.5.0, and `cargo install gitview --locked` installs it. The
-features below are implemented on the development branch and are described in
-[Controls](#controls); they pass acceptance review only when the
-[release gates](RELEASE.md) pass. The [website](https://gitview.barathrajdevarajan.dev/#coming-in-060)
-shows a real screenshot of each one.
+Gitview 0.6.0, released October 29, 2026, completes six everyday local Git
+workflows. Each is described in [Controls](#controls), and the
+[website](https://gitview.barathrajdevarajan.dev/features/) shows a screenshot
+of each one.
 
 - **Repository setup:** `gitview init` and `gitview clone` from the command line.
 - **Path operations:** ignore-rule lookup for any path, stop tracking, confirmed
@@ -66,9 +64,12 @@ shows a real screenshot of each one.
 - **Inspection:** describe any commit, tag, tree, or blob and compare against
   remote refs already stored locally. Nothing is fetched.
 
-Linux packaging is deferred to the next release, so 0.6.0 provides the macOS
-Apple Silicon archive and the crate only. Remotes, merge and conflict
-workflows, and export stay out of this release.
+Known issues: native memory on a very large comparison varies between runs, a
+renderer-only memory diagnostic still exceeds its budget, and TypeScript, TSX,
+and TOML diffs aren't syntax highlighted. The [release notes](RELEASE.md) list
+the follow-up work. Linux packaging isn't provided yet, so 0.6.0 ships the crate
+and the macOS Apple Silicon archive. Remotes, merge and conflict workflows, and
+export remain out of scope.
 
 ## Build and run
 
@@ -270,7 +271,7 @@ isolated profile and split-hunk fixture.
 
 ## Performance checks
 
-The approved 0.6.0 performance review is in progress. See the
+The 0.6.0 performance review is complete with open findings. See the
 [measured results and remaining checks](docs/performance-0-6-0.md) for native
 results, fixture details, and reproducible commands. Read-only preparation
 screens accept **Esc** to cancel their result while Git finishes in the

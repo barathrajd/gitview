@@ -1,5 +1,10 @@
 # Gitview 0.6.0 — complete the partial Basic workflows
 
+> **Status: released October 29, 2026.** All six workflow milestones shipped.
+> The maintainer released without waiting for the complete performance and safety
+> gates; the open items are tracked under "Upcoming" in
+> [RELEASE.md](../RELEASE.md). Linux x86_64 moved to the next release.
+
 ## Objective
 
 Complete the six partially implemented Basic workflow groups in the current

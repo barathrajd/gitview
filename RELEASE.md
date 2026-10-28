@@ -4,53 +4,86 @@ This file is the single release plan and release-notes record for Gitview.
 
 ## Upcoming
 
-### Gitview 0.6.0 — target December 31, 2026 (planned)
+### Next release — follow-up tasks carried over from 0.6.0
 
-Complete the six partially implemented Basic workflows: repository, worktree,
-commit, history, local branches/tags, and diff/inspection. Remotes, merge, and
-export remain outside this release.
+Gitview 0.6.0 shipped with the known issues below. They are open work for a
+future release and aren't release promises.
 
-Features:
-
-- Repository and worktree implementation milestones are complete: init/clone,
-  ignore inspection, path removal/moves, and staged-rename discard. Release
-  acceptance review remains pending; see the [0.6.0 plan](plans/gitview-0-6-0.md).
-- Commit and history implementation milestones are complete: editor handoff,
-  path filtering, fixed-revision comparisons, and patch summaries. Release
-  acceptance review remains pending.
-- Local branch/tag and diff/inspection implementation milestones are complete:
-  branch rename/delete/previous checkout, lightweight tag creation and local
-  tag verification/deletion, comparisons, and object inspection. Annotated and
-  signed tag creation remain unavailable. Release acceptance review is pending.
-- Publish crates.io and macOS ARM64 artifacts with checksums — planned; see
-  the [0.6.0 plan](plans/gitview-0-6-0.md). Linux x86_64 packaging and native
-  installer selection are deferred to the next release.
-
-Release gate:
-
-- Complete the [whole-TUI performance review](plans/gitview-0-6-0-performance.md)
-  and measured fixes on macOS ARM64; Linux x86_64 evidence is deferred to the
-  next release. The plan is approved and initial
-  native preview/idle fixes are measured; full acceptance remains pending.
-  See the [performance report](docs/performance-0-6-0.md).
-
-- All included features pass their acceptance checks; excluded workflows stay
-  labeled incomplete.
-- Full tests, formatting, build, and Clippy pass on the supported CI toolchain.
-- macOS ARM64 builds and the archive checksum are verified. Linux x86_64 is
-  deferred to the next release.
-- The installer verifies the macOS archive checksum.
-- Crate packaging dry run passes; `CHANGELOG.md`, release notes, and
-  installation instructions match the actual artifacts.
-- Confirm there is no persistent-data migration and document how to reinstall
-  0.5.x if users need to roll back.
-- Complete a focused security review of Git argument handling, path handling,
-  destructive actions, terminal restoration, and release workflows.
-- Review the repository instructions and satisfy the shared
-  [DoD](.agents/skills/release-plan/references/definition-of-done.md).
-- The user reviews and approves the release candidate before publishing.
+- Linux x86_64: native checks, performance evidence, a release archive with
+  checksum, and installer selection on a Linux runner.
+- Memory: explain why native RSS on a large (about 940 KB) comparison varies
+  between runs (256 to 13,552 KiB growth over 100 open/close cycles against a
+  10,240 KiB budget); live heap stays flat. See the
+  [performance report](docs/performance-0-6-0.md).
+- Memory: the renderer-only diff RSS diagnostic still exceeds its budget in a
+  synthetic test, while live heap stays flat. Decide whether to fix, reshape, or
+  retire it.
+- Evidence: rerun the full pre-release pass on a clean revision, and confirm
+  Clippy on the CI toolchain from the release pull request.
+- Process: complete the focused security review and the shared Definition of
+  Done review that 0.6.0 did not wait for.
+- Coverage gaps: syntax highlighting for TypeScript, TSX, and TOML, and
+  cancelling running Git commands when a comparison or object page closes.
 
 ## Released
+
+### Gitview 0.6.0 — October 29, 2026
+
+Gitview 0.6.0 completes six everyday local Git workflows: repository setup,
+worktree path operations, commit composition, history, local branches and tags,
+and diff and object inspection. Remotes, merge and conflict workflows, and
+export remain out of scope.
+
+Highlights:
+
+- Added `gitview init` and `gitview clone`; initialization refuses an existing
+  repository and clone refuses a non-empty destination.
+- Added ignore-rule lookup for any path, stop tracking, confirmed removal and
+  moves of tracked paths, and discard of a staged rename.
+- Added Ctrl+E to edit the commit message in the configured Git editor. Saving a
+  changed message commits it without a second Enter; an unchanged or empty
+  subject returns to the form, and amend keeps its confirmation.
+- Added history filtering by file or directory, one-page comparison of two
+  commits with folding, and object description for commits, tags, trees, and
+  blobs, including comparison against remote refs already stored locally.
+- Added local branch rename, delete, and previous-branch return, and local tag
+  listing, lightweight creation, verification, and deletion.
+- Reviewed responsiveness across the interface: diffs, comparison, history
+  search, tag and object pages, and previews prepare off the render loop,
+  cancel on Escape, and bound retained memory. Results and limits are in the
+  [performance report](docs/performance-0-6-0.md).
+
+Known issues:
+
+- Native memory on a large comparison varies between runs; one run exceeded the
+  10 MiB growth budget over 100 open/close cycles. See the follow-up tasks above.
+- A renderer-only memory diagnostic still exceeds its budget; live heap stays
+  flat in the same test.
+- TypeScript, TSX, and TOML diffs aren't syntax highlighted.
+- Linux packaging is not provided; Linux was last verified for 0.2.1.
+- Annotated and signed tag creation, remotes, merge, and export are unavailable.
+
+Validation:
+
+- At revision `3a0df05` on macOS Apple Silicon (Rust 1.99.1, Git 2.56.0):
+  formatting, the full test suite, Clippy with the CI command, and the release
+  build passed. The performance diagnostics and pseudo-terminal scripts passed
+  except the known renderer-only memory diagnostic.
+- The release shipped without waiting for the full pre-release pass to finish,
+  the security review, or the shared Definition of Done review, by the
+  maintainer's decision.
+
+Downloads:
+
+- `gitview-v0.6.0-macos-arm64.tar.gz` contains the macOS Apple Silicon binary.
+- `gitview-v0.6.0-macos-arm64.tar.gz.sha256` contains the archive checksum.
+- GitHub provides source archives for the `v0.6.0` tag.
+
+- Crate: [gitview 0.6.0 on crates.io](https://crates.io/crates/gitview/0.6.0)
+- Release: [GitHub v0.6.0][release-060]
+- Tag: `v0.6.0`
+- Release PR: [#8](https://github.com/barathrajd/gitview/pull/8)
+- Plan: [Gitview 0.6.0](plans/gitview-0-6-0.md)
 
 ### Gitview 0.5.0 — October 28, 2026
 
@@ -277,6 +310,7 @@ Windows support and Linux release packaging remain deferred.
 [release-040]: https://github.com/barathrajd/gitview/releases/tag/v0.4.0
 [release-041]: https://github.com/barathrajd/gitview/releases/tag/v0.4.1
 [release-050]: https://github.com/barathrajd/gitview/releases/tag/v0.5.0
+[release-060]: https://github.com/barathrajd/gitview/releases/tag/v0.6.0
 [release-021]: https://github.com/barathrajd/gitview/releases/tag/v0.2.1
 [definition-of-done]:
   .agents/skills/release-plan/references/definition-of-done.md

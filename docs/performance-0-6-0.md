@@ -591,6 +591,11 @@ deferred to the next release and isn't a 0.6.0 gate.
 
 ## Review status and remaining work
 
+Gitview 0.6.0 was released on October 29, 2026 with the open findings below, by
+the maintainer's decision. They carry over to a future release; they are not
+resolved.
+
+
 The following checks remain required before release:
 
 - Complete the workflow matrix and larger-fixture sampling for the newly

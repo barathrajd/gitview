@@ -33,9 +33,9 @@ The implementation is complete when these outcomes can be checked directly.
 - The home page stays high level: one terminal screenshot in the hero, the
   six-card feature summary, and the install guide, with links to the other pages.
 - A `/features/` page shows each workflow with a screenshot of the real binary.
-  Its "Coming in 0.6.0" section is labeled planned and not yet released, and the
-  install instructions stay on 0.5.0 until the release is published.
-- A `/changelog/` page lists every release from 0.2.1, with the planned 0.6.0
+  Its "New in 0.6.0" section describes the released version, and the install
+  instructions install the latest published release.
+- A `/changelog/` page lists every release from 0.2.1, with any planned release
   clearly marked, summarized from `RELEASE.md` in `website/src/data/releases.ts`. It states that
   Linux packaging moves to the next release and that remotes, merge, and export
   stay out.
@@ -145,9 +145,8 @@ part of the final experience.
    binary in a pseudo-terminal at 140x24 on a throwaway sample repository, and
    converted to an inline SVG with the true colors and a JetBrains Mono grid; no
    screen is drawn by hand. Label the section planned, keep the install guide on
-   0.5.0, and add a README section that matches. After 0.6.0 is published,
-   recapture the screens from the released binary, retitle the section as
-   shipped, and update the install guide and version badge. Add each new
+   0.5.0, and add a README section that matches. 0.6.0 is published, so the section reads as shipped. The screens come from the
+   0.6.0 source build; recapture them if a later release changes a layout. Add each new
    release to `releases.ts` when it ships.
 
 ## Risks & open questions
