@@ -86,17 +86,83 @@ The existing `cargo test --release --locked --test diff_switching -- --nocapture
 command measures the comparison fixture separately. It does not measure process
 startup, Git completion time, or ordinary worktree/commit diff first display.
 
+## Path, ref, and tag preview response
+
+The second slice moves discard, untrack, remove/move, branch rename/delete,
+previous checkout, and ignore inspection into a shared bounded read worker.
+Tag creation previews and signature verification use another bounded read
+worker owned by the tag page. Each worker retains one active request and at
+most one queued replacement. Escape invalidates the read result and returns
+to the source screen; an active Git command may finish in the background.
+Confirmed mutations keep their existing adapters and checks.
+
+Failed commit/amend attempts now refresh their preview in the background while
+retaining the subject, description, and error. Cancelling that refresh preserves
+the message but invalidates the expected snapshot; submission requires reopening
+the composer to review staged state. The rejected-hook runtime check verifies
+cancellation and a normal refreshed retry, including a single successful commit
+after the temporary fixture hook is removed.
+
+The delayed-Git debug baseline took 871.6 ms to show the discard confirmation
+(one sample). The native optimized follow-up uses a two-file repository with
+one unstaged change, a previous checkout, and a lightweight tag. It runs three
+samples per case, injecting 250 ms into **every** Git command during preparation.
+The table reports sample maxima, not a statistically established p95:
+
+| Preview case | Maximum loading response | Maximum Escape response |
+| --- | --- | --- |
+| discard | 14.8 ms | 14.8 ms |
+| untrack | 14.9 ms | 14.9 ms |
+| remove | 12.4 ms | 12.4 ms |
+| move | 12.5 ms | 12.5 ms |
+| branch-rename | 12.5 ms | 12.4 ms |
+| branch-delete | 12.2 ms | 12.4 ms |
+| previous | 12.5 ms | 12.5 ms |
+| ignore | 12.3 ms | 12.4 ms |
+| tag-create | 12.5 ms | 12.5 ms |
+| tag-verify | 12.6 ms | 12.5 ms |
+| ignore-path | 12.4 ms | 12.5 ms |
+
+All 33 feedback/cancel samples pass the diagnostic's 100 ms limit. Repository
+status and refs remain unchanged after the checks. This does not establish the
+full fixture/platform performance gate. Verification uses an unsigned tag;
+external signing tools, key retrieval, and signed-tag cases remain unaudited.
+
+- [Debug discard baseline](performance/macos-discard-preview-baseline.json).
+- [Native path/ref/tag samples](performance/macos-path-ref-previews.json).
+
+The harness now reconstructs cursor movement and erase sequences instead of
+searching only raw terminal byte fragments, so incremental redraws are measured
+as visible screen state. Its sampling still uses 10 ms read windows.
+
+To repeat the diagnostics against an explicitly built binary:
+
+```sh
+cargo build --release --locked
+python3 scripts/profile-previews.py --samples 3 --check \
+  --output /tmp/gitview-previews.json
+python3 scripts/check-preview-retry.py
+```
+
+Use `--case` to isolate a preview and `--binary` to select a build. These scripts
+use temporary repositories; the retry check exercises a temporary pre-commit
+hook and creates a commit only inside its fixture. The native reports above
+identify the prior committed revision with a dirty worktree and record binary
+SHA-256; final release evidence still requires an identifiable clean revision.
+
 ## Review status and remaining work
 
 The following checks remain required before release:
 
-- Measure and address path/ref previews and failure-time commit re-previews
-  that still execute synchronously in input/result handling.
+- Complete the workflow matrix and larger-fixture sampling for the newly
+  asynchronous path/ref/ignore/tag previews and failed-commit refreshes. Audit
+  profile/config/editor handling and read-worker lifecycle across page closure.
 - Profile ordinary worktree/commit diff first display, wrapping, hunk movement,
   scrolling, and resizing; their render cache miss still prepares syntax in the
   UI thread. Complete the 100-action matrix for all supported diff variants.
-- Cover navigation, debounced search, large status/ref lists, tag verification,
-  object inspection, mutation progress, and editor/hook/signing responsiveness.
+- Cover navigation, debounced search, large status/ref lists, signed-tag/key
+  verification behavior, object inspection, mutation progress, and external
+  editor/hook/signing responsiveness.
 - Run medium/stress fixtures, cache memory plateaus, and request lifecycle checks.
 - Collect native Linux evidence and report Git-child CPU separately.
 - Clear the release Clippy gate and complete the existing release gates.

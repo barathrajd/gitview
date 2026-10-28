@@ -241,6 +241,14 @@ staged changes, and amend rewrites the temporary `HEAD`. The simpler
 `scripts/create-demo.sh` remains available for a small repository without the
 isolated profile and split-hunk fixture.
 
+## Performance checks
+
+The approved 0.6.0 performance review is in progress. See the
+[measured results and remaining checks](docs/performance-0-6-0.md) for native
+results, fixture details, and reproducible commands. Read-only preparation
+screens accept **Esc** to cancel their result while Git finishes in the
+background. Confirmed Git operations retain their normal completion handling.
+
 ## Current limitations
 
 Gitview currently focuses on history and working-tree review, file and hunk

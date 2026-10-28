@@ -10,6 +10,7 @@ pub mod editor;
 pub mod history;
 pub mod object;
 pub mod object_page;
+pub mod preview;
 pub mod process;
 pub mod read_worker;
 pub mod repository;

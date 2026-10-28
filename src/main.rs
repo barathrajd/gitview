@@ -342,6 +342,12 @@ fn app(
     let mut move_destination = String::new();
     let mut move_destination_focused = false;
     let mut move_confirm: Option<gitview::worktree::MovePathPreview> = None;
+    let preview_root = root.to_path_buf();
+    let preview_worker = gitview::read_worker::LatestRead::new(move |request| {
+        gitview::preview::prepare(&preview_root, request)
+    });
+    let mut pending_preview: Option<gitview::preview::Context> = None;
+    let mut commit_preview_retry = false;
     let mut commit_preview_mode: Option<bool> = None;
     let preview_root = root.to_path_buf();
     let commit_preview_worker = gitview::read_worker::LatestRead::new(move |amend: bool| {
@@ -367,8 +373,6 @@ fn app(
     let (untrack_sender, untrack_receiver) = mpsc::channel::<Result<(), String>>();
     let (remove_sender, remove_receiver) = mpsc::channel::<Result<(), String>>();
     let (move_sender, move_receiver) = mpsc::channel::<Result<(), String>>();
-    let (ignore_sender, ignore_receiver) =
-        mpsc::channel::<Result<Option<gitview::worktree::IgnoreRule>, String>>();
     let mut mutation_pending = false;
     let mut status_mutation: Option<u64> = None;
     let mut diff_entry_refresh: Option<(gitview::worktree::Section, gitview::worktree::Section)> =
@@ -734,11 +738,11 @@ fn app(
                     commit_message = Some(message);
                     commit_description = description;
                     commit_amend = was_amend;
-                    if was_amend {
-                        amend_expected = gitview::commit::preview_amend(root).ok();
-                    } else {
-                        commit_expected = gitview::commit::preview_commit(root).ok();
-                    }
+                    amend_expected = None;
+                    commit_expected = None;
+                    commit_preview_retry = true;
+                    commit_preview_mode = Some(was_amend);
+                    commit_preview_worker.request(was_amend);
                 }
             }
         }
@@ -815,23 +819,59 @@ fn app(
                 let _ = sender.send((id, gitview::worktree::load_status(&path)));
             });
         }
-        while let Ok(result) = ignore_receiver.try_recv() {
+        if let Some(result) = preview_worker.take_result()
+            && let Some(context) = pending_preview.take()
+        {
             needs_redraw = true;
-            commit_feedback = match result {
-                Ok(Some(rule)) => {
-                    format!(
-                        "Ignored by {}:{} ({:?}).",
-                        rule.source, rule.line, rule.pattern
-                    )
+            use gitview::preview::{Context, Value};
+            match result {
+                Ok(Value::Discard(preview)) => discard_confirm = Some(preview),
+                Ok(Value::Untrack(preview)) => untrack_confirm = Some(preview),
+                Ok(Value::Remove(preview)) => {
+                    remove_path_input = None;
+                    remove_confirm = Some(preview);
                 }
-                Ok(None) => "No ignore rule matches the selected path.".into(),
-                Err(error) => error,
-            };
+                Ok(Value::Move(preview)) => {
+                    move_path_input = false;
+                    move_confirm = Some(preview);
+                }
+                Ok(Value::Previous(preview)) => {
+                    branch_confirm = Some(BranchAction::Previous(preview))
+                }
+                Ok(Value::Branch(preview)) => {
+                    if matches!(context, Context::BranchRename) {
+                        branch_rename = Some(preview);
+                        branch_input = Some(String::new());
+                    } else {
+                        branch_confirm = Some(BranchAction::Delete(preview));
+                    }
+                }
+                Ok(Value::Ignore(rule)) => {
+                    if matches!(context, Context::IgnorePath) {
+                        ignore_path_input = None;
+                    }
+                    commit_feedback = match rule {
+                        Some(rule) => format!(
+                            "Ignored by {}:{} ({:?}).",
+                            rule.source, rule.line, rule.pattern
+                        ),
+                        None => "No ignore rule matches the selected path.".into(),
+                    };
+                }
+                Err(error) => {
+                    if context.is_branch() {
+                        branch_feedback = error;
+                    } else {
+                        commit_feedback = error;
+                    }
+                }
+            }
         }
         if let Some(result) = commit_preview_worker.take_result()
             && commit_preview_mode.take().is_some()
         {
             needs_redraw = true;
+            let retry = std::mem::take(&mut commit_preview_retry);
             match result {
                 CommitReadResult::Create(result) => match result {
                     Ok(preview) => {
@@ -839,13 +879,19 @@ fn app(
                         amend_expected = None;
                         amend_confirm = false;
                         commit_amend = false;
-                        commit_feedback.clear();
-                        commit_description.clear();
-                        commit_description_focused = false;
-                        commit_message = Some(String::new());
+                        if !retry {
+                            commit_feedback.clear();
+                            commit_description.clear();
+                            commit_description_focused = false;
+                            commit_message = Some(String::new());
+                        }
                     }
                     Err(error) => {
-                        commit_feedback = error;
+                        commit_feedback = if retry {
+                            format!("{commit_feedback}\nPreview refresh failed: {error}")
+                        } else {
+                            error
+                        };
                     }
                 },
                 CommitReadResult::Amend(result) => match result {
@@ -855,12 +901,20 @@ fn app(
                         commit_expected = None;
                         amend_confirm = false;
                         commit_amend = true;
-                        commit_feedback.clear();
-                        commit_description = description;
-                        commit_description_focused = false;
-                        commit_message = Some(subject);
+                        if !retry {
+                            commit_feedback.clear();
+                            commit_description = description;
+                            commit_description_focused = false;
+                            commit_message = Some(subject);
+                        }
                     }
-                    Err(error) => commit_feedback = error,
+                    Err(error) => {
+                        commit_feedback = if retry {
+                            format!("{commit_feedback}\nPreview refresh failed: {error}")
+                        } else {
+                            error
+                        }
+                    }
                 },
             }
         }
@@ -915,7 +969,11 @@ fn app(
                 } else {
                     ui::HelpPage::History
                 };
-                let screen = if let Some(amend) = commit_preview_mode {
+                let screen = if let Some(context) = pending_preview {
+                    Screen::PreviewLoading {
+                        message: context.label(),
+                    }
+                } else if let Some(amend) = commit_preview_mode {
                     Screen::CommitPreviewLoading { amend }
                 } else if let Some(page) = &object_page {
                     Screen::Object(page)
@@ -1066,6 +1124,9 @@ fn app(
         };
         needs_redraw = true;
         if let Event::Paste(pasted) = &event {
+            if pending_preview.is_some() || commit_preview_mode.is_some() {
+                continue;
+            }
             if let Some(page) = &mut object_page {
                 page.paste(pasted);
                 continue;
@@ -1121,11 +1182,22 @@ fn app(
                 }
                 continue;
             }
+            if pending_preview.is_some() {
+                if key.code == KeyCode::Esc {
+                    preview_worker.cancel();
+                    pending_preview = None;
+                }
+                continue;
+            }
             if commit_preview_mode.is_some() {
                 if key.code == KeyCode::Esc {
                     commit_preview_worker.cancel();
                     commit_preview_mode = None;
-                    commit_feedback.clear();
+                    if std::mem::take(&mut commit_preview_retry) {
+                        commit_feedback.push_str("\nPreview refresh cancelled; reopen the composer to review staged changes.");
+                    } else {
+                        commit_feedback.clear();
+                    }
                 }
                 continue;
             }
@@ -1237,17 +1309,10 @@ fn app(
                         path_text.pop();
                     }
                     KeyCode::Enter => {
-                        let user_path = path_text.clone();
-                        ignore_path_input = None;
-                        let sender = ignore_sender.clone();
-                        let root = root.to_path_buf();
-                        std::thread::spawn(move || {
-                            let result = gitview::worktree::ignore_rule_for_path(
-                                &root,
-                                std::path::Path::new(&user_path),
-                            );
-                            let _ = sender.send(result);
-                        });
+                        let user_path = std::path::PathBuf::from(&*path_text);
+                        pending_preview = Some(gitview::preview::Context::IgnorePath);
+                        commit_feedback.clear();
+                        preview_worker.request(gitview::preview::Request::IgnorePath(user_path));
                     }
                     KeyCode::Char(ch) if !ch.is_control() => path_text.push(ch),
                     _ => {}
@@ -1280,18 +1345,12 @@ fn app(
                         }
                     }
                     KeyCode::Enter => {
-                        match gitview::worktree::preview_move_path(
-                            root,
-                            std::path::Path::new(&move_source),
-                            std::path::Path::new(&move_destination),
-                        ) {
-                            Ok(preview) => {
-                                move_path_input = false;
-                                move_confirm = Some(preview);
-                                commit_feedback.clear();
-                            }
-                            Err(error) => commit_feedback = error,
-                        }
+                        pending_preview = Some(gitview::preview::Context::Move);
+                        commit_feedback.clear();
+                        preview_worker.request(gitview::preview::Request::Move(
+                            move_source.clone().into(),
+                            move_destination.clone().into(),
+                        ));
                     }
                     KeyCode::Char(ch) if !ch.is_control() => {
                         if move_destination_focused {
@@ -1315,17 +1374,11 @@ fn app(
                         path_text.pop();
                     }
                     KeyCode::Enter => {
-                        match gitview::worktree::preview_remove_path(
-                            root,
-                            std::path::Path::new(path_text),
-                        ) {
-                            Ok(preview) => {
-                                remove_path_input = None;
-                                remove_confirm = Some(preview);
-                                commit_feedback.clear();
-                            }
-                            Err(error) => commit_feedback = error,
-                        }
+                        pending_preview = Some(gitview::preview::Context::Remove);
+                        commit_feedback.clear();
+                        preview_worker.request(gitview::preview::Request::Remove(
+                            std::path::PathBuf::from(&*path_text),
+                        ));
                     }
                     KeyCode::Char(ch) if !ch.is_control() => path_text.push(ch),
                     _ => {}
@@ -1432,9 +1485,10 @@ fn app(
                             || (!commit_amend && commit_expected.is_none())
                         {
                             commit_feedback = if commit_amend {
-                                "Amend preview is unavailable; refresh and try again.".into()
+                                "Amend preview unavailable; reopen the composer to review changes."
+                                    .into()
                             } else {
-                                "Stage changes before committing.".into()
+                                "Commit preview unavailable; reopen the composer to review staged changes.".into()
                             };
                         } else {
                             let subject = message.to_owned();
@@ -1711,28 +1765,22 @@ fn app(
                         tag_page = Some(gitview::tag_page::TagPage::open(root));
                     }
                     KeyCode::Char('-') => {
-                        match gitview::branches::preview_previous_checkout(root) {
-                            Ok(preview) => {
-                                branch_confirm = Some(BranchAction::Previous(preview));
-                                branch_feedback.clear();
-                            }
-                            Err(error) => branch_feedback = error,
-                        }
+                        pending_preview = Some(gitview::preview::Context::Previous);
+                        branch_feedback.clear();
+                        preview_worker.request(gitview::preview::Request::Previous);
                     }
                     KeyCode::Char('r' | 'd') => {
                         if let (Some(Ok(data)), Some(index)) =
                             (&branches, branch_selection.selected())
                             && let Some(name) = data.branches.get(index)
                         {
-                            match gitview::branches::preview_branch(root, name) {
-                                Ok(preview) if key.code == KeyCode::Char('r') => {
-                                    branch_rename = Some(preview);
-                                    branch_input = Some(String::new());
-                                    branch_feedback.clear();
-                                }
-                                Ok(preview) => branch_confirm = Some(BranchAction::Delete(preview)),
-                                Err(error) => branch_feedback = error,
-                            }
+                            pending_preview = Some(if key.code == KeyCode::Char('r') {
+                                gitview::preview::Context::BranchRename
+                            } else {
+                                gitview::preview::Context::BranchDelete
+                            });
+                            branch_feedback.clear();
+                            preview_worker.request(gitview::preview::Request::Branch(name.clone()));
                         }
                     }
                     KeyCode::Char('c') => {
@@ -1880,6 +1928,7 @@ fn app(
                     }
                     AppAction::StartCommit | AppAction::StartAmend => {
                         let amend = action == AppAction::StartAmend;
+                        commit_preview_retry = false;
                         commit_preview_mode = Some(amend);
                         commit_feedback.clear();
                         commit_preview_worker.request(amend);
@@ -1889,13 +1938,10 @@ fn app(
                             (&status, status_selection.selected())
                             && let Some(entry) = entries.get(index)
                         {
-                            match gitview::worktree::preview_discard(root, entry) {
-                                Ok(preview) => {
-                                    discard_confirm = Some(preview);
-                                    commit_feedback.clear();
-                                }
-                                Err(error) => commit_feedback = error,
-                            }
+                            pending_preview = Some(gitview::preview::Context::Discard);
+                            commit_feedback.clear();
+                            preview_worker
+                                .request(gitview::preview::Request::Discard(entry.clone()));
                         }
                     }
                     AppAction::PreviewUntrackSelected => {
@@ -1903,13 +1949,10 @@ fn app(
                             (&status, status_selection.selected())
                             && let Some(entry) = entries.get(index)
                         {
-                            match gitview::worktree::preview_untrack(root, entry) {
-                                Ok(preview) => {
-                                    untrack_confirm = Some(preview);
-                                    commit_feedback.clear();
-                                }
-                                Err(error) => commit_feedback = error,
-                            }
+                            pending_preview = Some(gitview::preview::Context::Untrack);
+                            commit_feedback.clear();
+                            preview_worker
+                                .request(gitview::preview::Request::Untrack(entry.clone()));
                         }
                     }
                     AppAction::InspectIgnoreRule => {
@@ -1917,12 +1960,10 @@ fn app(
                             (&status, status_selection.selected())
                             && let Some(entry) = entries.get(index)
                         {
-                            let entry = entry.clone();
-                            let sender = ignore_sender.clone();
-                            let path = root.to_path_buf();
-                            std::thread::spawn(move || {
-                                let _ = sender.send(gitview::worktree::ignore_rule(&path, &entry));
-                            });
+                            pending_preview = Some(gitview::preview::Context::IgnoreSelected);
+                            commit_feedback.clear();
+                            preview_worker
+                                .request(gitview::preview::Request::IgnoreSelected(entry.clone()));
                         }
                     }
                     AppAction::StartIgnorePathInput => {

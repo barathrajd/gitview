@@ -106,9 +106,11 @@ change is selected, and no unverified library-performance claim is assumed.
    input delay, record passing paths, and retain failed cases as regressions.
 2. **Responsive previews and operations (in progress):** commit/amend preview
    preparation now uses a bounded, replaceable read worker and cancellable
-   loading state. Other preview paths and failure-time re-previews remain
-   pending. Continue to move measured blocking preview work
-   into bounded workers with immediate loading states and request generations.
+   loading state. Path/ref and ignore previews now use the same bounded read
+   pattern, and tag creation/verification have cancellable read preparation.
+   Failed commits refresh their preview asynchronously without losing the draft.
+   Native small-fixture checks cover these flows; the full matrix, page lifecycle,
+   and external editor/hook/signing measurements remain pending.
    Preserve current confirmation/commit behavior, ignore stale read results,
    and verify Escape responsiveness with delayed Git and changed repository
    state. Do not cancel an already-started mutation as if it never happened.

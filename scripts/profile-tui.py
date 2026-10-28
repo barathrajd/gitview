@@ -5,6 +5,8 @@ Use an explicitly built binary. Fixtures and a Git delay shim are temporary.
 Other workflow measurements remain tracked in the performance plan.
 """
 import argparse
+import codecs
+import unicodedata
 import hashlib
 import fcntl
 import json
@@ -47,8 +49,72 @@ def fixture(root, kind, git):
     return dict(commits=commits, tracked_files=files, staged_paths=changed, extra_refs=refs)
 
 
+class TerminalScreen:
+    """Minimal screen reconstruction for the cursor/erase sequences used by Ratatui."""
+    def __init__(self, width, height):
+        self.width=width;self.height=height;self.x=0;self.y=0
+        self.rows=[[' ']*width for _ in range(height)]
+        self.decoder=codecs.getincrementaldecoder('utf-8')('replace')
+        self.state='text';self.sequence=''
+
+    def feed(self, data):
+        for char in self.decoder.decode(data):
+            if self.state=='osc':
+                if char=='\a':self.state='text'
+                elif char=='\x1b':self.state='osc-escape'
+                continue
+            if self.state=='osc-escape':
+                self.state='text' if char=='\\' else 'osc'
+                continue
+            if self.state=='escape':
+                self.state='csi' if char=='[' else ('osc' if char==']' else 'text');self.sequence='';continue
+            if self.state=='csi':
+                if '@'<=char<='~':self.control(char,self.sequence);self.state='text'
+                else:self.sequence+=char
+                continue
+            if char=='\x1b':self.state='escape';continue
+            if char=='\r':self.x=0;continue
+            if char=='\n':self.y=min(self.height-1,self.y+1);continue
+            if char=='\b':self.x=max(0,self.x-1);continue
+            if char=='\t':self.x=min(self.width-1,(self.x//8+1)*8);continue
+            if ord(char)<32:continue
+            if unicodedata.combining(char):
+                if self.x:self.rows[self.y][min(self.x-1,self.width-1)]+=char
+                continue
+            width=2 if unicodedata.east_asian_width(char) in ('W','F') else 1
+            if self.x<self.width:self.rows[self.y][self.x]=char
+            if width==2 and self.x+1<self.width:self.rows[self.y][self.x+1]=''
+            self.x=min(self.width,self.x+width)
+
+    def control(self, final, sequence):
+        if sequence.startswith('?'):return
+        try:values=[int(value) if value else 0 for value in sequence.split(';')]
+        except ValueError:return
+        first=values[0] if values else 0
+        if final in ('H','f'):
+            self.y=min(self.height-1,max(0,first-1));self.x=min(self.width-1,max(0,(values[1] if len(values)>1 else 1)-1))
+        elif final=='A':self.y=max(0,self.y-(first or 1))
+        elif final=='B':self.y=min(self.height-1,self.y+(first or 1))
+        elif final=='C':self.x=min(self.width-1,self.x+(first or 1))
+        elif final=='D':self.x=max(0,self.x-(first or 1))
+        elif final=='G':self.x=min(self.width-1,max(0,first-1))
+        elif final=='d':self.y=min(self.height-1,max(0,first-1))
+        elif final=='J':
+            if first in (2,3):self.rows=[[' ']*self.width for _ in range(self.height)]
+            elif first==0:
+                self.rows[self.y][self.x:]=[' ']*(self.width-self.x)
+                for y in range(self.y+1,self.height):self.rows[y]=[' ']*self.width
+        elif final=='K':
+            if first==2:self.rows[self.y]=[' ']*self.width
+            elif first==0:self.rows[self.y][self.x:]=[' ']*(self.width-self.x)
+            elif first==1:self.rows[self.y][:self.x+1]=[' ']*(self.x+1)
+
+    def text(self):return '\n'.join(''.join(row) for row in self.rows).encode()
+
+
 class Session:
     def __init__(self, binary, root, env, width, height):
+        self.screen=TerminalScreen(width,height)
         self.master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', height, width, 0, 0))
         self.child = subprocess.Popen([str(binary)], cwd=root, stdin=slave, stdout=slave, stderr=slave, env=env)
@@ -64,6 +130,7 @@ class Session:
                     break
                 if not part:
                     break
+                self.screen.feed(part)
                 output+=part
         return output
 
@@ -71,7 +138,7 @@ class Session:
         output=b''; start=time.monotonic()
         while time.monotonic()-start<timeout:
             output+=self.receive(.01)
-            plain=re.sub(rb'\x1b\[[0-?]*[ -/]*[@-~]', b'', output)
+            plain=self.screen.text()
             if any(needle in plain for needle in needles):
                 return (time.monotonic()-start)*1000
         raise RuntimeError(f'Timed out waiting for {needles!r}; tail={output[-400:]!r}')
@@ -136,7 +203,7 @@ def main():
                 os.write(session.master,b'\x1b');cancel.append(session.wait_for([b'WORKTREE']))
                 # Let any cancelled read finish; a late result must not reopen the form.
                 late=session.receive(1)
-                plain=re.sub(rb'\x1b\[[0-?]*[ -/]*[@-~]',b'',late)
+                plain=session.screen.text()
                 if b'COMMIT MESSAGE' in plain or b'AMEND MESSAGE' in plain:
                     raise RuntimeError('A cancelled preview reopened the commit form')
                 marker.unlink();os.write(session.master,b'q');session.child.wait(timeout=3)

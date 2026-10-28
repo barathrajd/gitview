@@ -497,6 +497,9 @@ pub struct Cockpit<'a> {
 }
 
 pub enum Screen<'a> {
+    PreviewLoading {
+        message: &'static str,
+    },
     CommitPreviewLoading {
         amend: bool,
     },
@@ -650,6 +653,13 @@ pub fn render(
     // next one, including when switching from a wide pane layout to a dialog.
     frame.render_widget(Clear, frame.area());
     match screen {
+        Screen::PreviewLoading { message } => render_message_page(
+            frame,
+            "PREPARING PREVIEW",
+            message,
+            border,
+            &[("Esc", "cancel")],
+        ),
         Screen::CommitPreviewLoading { amend } => render_message_page(
             frame,
             if amend {

@@ -1,0 +1,24 @@
+{
+  "revision": "bae752d9ca3684473c06bb39f6cc2671ab2c6e5f",
+  "worktree_dirty": true,
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "git": "git version 2.56.0",
+  "rust": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "binary_sha256": "88a8943eb35189091b800ef1945ea3804cb5bf5abd0d1d9e5dfad0e0dc5d7e32",
+  "terminal": [
+    140,
+    35
+  ],
+  "delay_ms_per_git_command": 250,
+  "samples_per_case": 1,
+  "measurements": {
+    "discard": [
+      {
+        "feedback_ms": 871.5548750187736,
+        "cancel_ms": 11.431457998696715
+      }
+    ]
+  },
+  "scope": "temporary two-file repository; preview feedback and cancel, not mutation completion; 10 ms read windows",
+  "binary": "target/debug/gitview"
+}

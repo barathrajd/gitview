@@ -15,8 +15,20 @@ use std::{
 enum Action {
     Create(CreatePreview),
     Delete(Tag),
-    Verify(Tag),
     Refresh,
+}
+enum ReadRequest {
+    Create(String),
+    Verify(Tag),
+}
+enum ReadResult {
+    Create(Result<CreatePreview, String>),
+    Verify(Result<tags::Verification, String>, Result<Vec<Tag>, String>),
+}
+#[derive(Clone, Copy)]
+enum ReadKind {
+    Create,
+    Verify,
 }
 type Reply = (Result<String, String>, Result<Vec<Tag>, String>);
 pub struct TagPage {
@@ -26,6 +38,8 @@ pub struct TagPage {
     confirm: Option<Action>,
     feedback: String,
     pending: bool,
+    pending_read: Option<ReadKind>,
+    read_worker: crate::read_worker::LatestRead<ReadRequest, ReadResult>,
     verification: Option<String>,
     scroll: u16,
     sender: mpsc::Sender<Reply>,
@@ -34,6 +48,15 @@ pub struct TagPage {
 impl TagPage {
     pub fn open(root: &Path) -> Self {
         let (sender, receiver) = mpsc::channel();
+        let read_root = root.to_path_buf();
+        let read_worker = crate::read_worker::LatestRead::new(move |request| match request {
+            ReadRequest::Create(name) => {
+                ReadResult::Create(tags::preview_create(&read_root, &name))
+            }
+            ReadRequest::Verify(tag) => {
+                ReadResult::Verify(tags::verify(&read_root, &tag), tags::list(&read_root))
+            }
+        });
         let mut page = Self {
             entries: vec![],
             selected: 0,
@@ -41,6 +64,8 @@ impl TagPage {
             confirm: None,
             feedback: String::new(),
             pending: false,
+            pending_read: None,
+            read_worker,
             verification: None,
             scroll: 0,
             sender,
@@ -53,11 +78,14 @@ impl TagPage {
         self.pending = true;
         let sender = self.sender.clone();
         std::thread::spawn(move || {
-            let message=match action {
-                Action::Refresh=>Ok(String::new()),
-                Action::Create(preview)=>tags::create(&root,&preview).map(|()| "Lightweight tag created.".into()),
-                Action::Delete(tag)=>tags::delete(&root,&tag).map(|()| "Local tag deleted.".into()),
-                Action::Verify(tag)=>tags::verify(&root,&tag).map(|result| format!("{}\n{}", if result.verified { "Git signature verification succeeded." } else { "Git signature verification failed or this tag has no verifiable signature." }, result.output)),
+            let message = match action {
+                Action::Refresh => Ok(String::new()),
+                Action::Create(preview) => {
+                    tags::create(&root, &preview).map(|()| "Lightweight tag created.".into())
+                }
+                Action::Delete(tag) => {
+                    tags::delete(&root, &tag).map(|()| "Local tag deleted.".into())
+                }
             };
             let _ = sender.send((message, tags::list(&root)));
         });
@@ -80,15 +108,60 @@ impl TagPage {
                 self.verification = Some(self.feedback.clone());
             }
         }
+        if let Some(result) = self.read_worker.take_result()
+            && self.pending_read.take().is_some()
+        {
+            changed = true;
+            match result {
+                ReadResult::Create(Ok(preview)) => {
+                    self.confirm = Some(Action::Create(preview));
+                    self.input = None;
+                    self.feedback.clear();
+                }
+                ReadResult::Create(Err(error)) => self.feedback = error,
+                ReadResult::Verify(result, entries) => {
+                    match entries {
+                        Ok(entries) => {
+                            self.entries = entries;
+                            self.selected = self.selected.min(self.entries.len().saturating_sub(1));
+                        }
+                        Err(error) => self.feedback = error,
+                    }
+                    self.scroll = 0;
+                    self.verification = Some(match result {
+                        Ok(result) => format!(
+                            "{}\n{}",
+                            if result.verified {
+                                "Git signature verification succeeded."
+                            } else {
+                                "Git signature verification failed or this tag has no verifiable signature."
+                            },
+                            result.output
+                        ),
+                        Err(error) => error,
+                    });
+                }
+            }
+        }
         changed
     }
     pub fn paste(&mut self, text: &str) {
-        if let Some(input) = &mut self.input {
+        if !self.pending
+            && self.pending_read.is_none()
+            && let Some(input) = &mut self.input
+        {
             input.push_str(text);
         }
     }
     /// Return false when the user leaves the tag page.
     pub fn key(&mut self, root: &Path, key: KeyCode) -> bool {
+        if self.pending_read.is_some() {
+            if key == KeyCode::Esc {
+                self.read_worker.cancel();
+                self.pending_read = None;
+            }
+            return true;
+        }
         if self.pending {
             return true;
         }
@@ -107,14 +180,10 @@ impl TagPage {
                 KeyCode::Backspace => {
                     input.pop();
                 }
-                KeyCode::Enter => match tags::preview_create(root, input) {
-                    Ok(preview) => {
-                        self.confirm = Some(Action::Create(preview));
-                        self.input = None;
-                        self.feedback.clear();
-                    }
-                    Err(error) => self.feedback = error,
-                },
+                KeyCode::Enter => {
+                    self.pending_read = Some(ReadKind::Create);
+                    self.read_worker.request(ReadRequest::Create(input.clone()));
+                }
                 KeyCode::Char(ch) if !ch.is_control() => input.push(ch),
                 _ => {}
             }
@@ -135,7 +204,7 @@ impl TagPage {
             KeyCode::Esc|KeyCode::Char('q')=>return false,
             KeyCode::Char('c')=>{self.input=Some(String::new());self.feedback.clear();},
             KeyCode::Char('d')=>if let Some(tag)=self.entries.get(self.selected) {self.confirm=Some(Action::Delete(tag.clone()));},
-            KeyCode::Char('v')=>if let Some(tag)=self.entries.get(self.selected) {let tag=tag.clone();self.verification=Some(String::new());self.scroll=0;self.run(root.to_path_buf(),Action::Verify(tag));},
+            KeyCode::Char('v')=>if let Some(tag)=self.entries.get(self.selected) {self.pending_read=Some(ReadKind::Verify);self.read_worker.request(ReadRequest::Verify(tag.clone()));},
             KeyCode::Char('r')=>self.run(root.to_path_buf(),Action::Refresh),
             KeyCode::Down|KeyCode::Char('j')=>self.selected=(self.selected+1).min(self.entries.len().saturating_sub(1)),
             KeyCode::Up|KeyCode::Char('k')=>self.selected=self.selected.saturating_sub(1),
@@ -144,6 +213,19 @@ impl TagPage {
         true
     }
     pub fn render(&self, frame: &mut Frame<'_>, border: ratatui::symbols::border::Set<'static>) {
+        if let Some(kind) = self.pending_read {
+            crate::ui::render(
+                frame,
+                crate::ui::Screen::PreviewLoading {
+                    message: match kind {
+                        ReadKind::Create => "Reviewing lightweight tag target...",
+                        ReadKind::Verify => "Verifying tag signature...",
+                    },
+                },
+                border,
+            );
+            return;
+        }
         use crate::ui::{
             ACCENT, MUTED, hint_row_count, page_block, render_key_hints, selection_style,
         };
