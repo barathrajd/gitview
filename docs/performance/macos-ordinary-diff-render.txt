@@ -1,0 +1,35 @@
+Ordinary diff diagnostic — local Darwin ARM64; uncommitted performance slice
+revision: e1a3609b945c1161f26b5cee75097701e89cb205
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+git version 2.56.0
+production binary sha256: 9e677384881a9f42f44f7a25d041a8d841982c6f7fd67cc14e91a731121398d2
+
+Reference renderer (separate process):
+   Compiling gitview v0.5.0 (/Users/barathrajdevarajan/Developer/OpenSource/gitview)
+    Finished `release` profile [optimized] target(s) in 0.33s
+     Running tests/ordinary_diff_performance.rs (target/release/deps/ordinary_diff_performance-7dea1ea3eaa4ce8d)
+
+running 1 test
+test measures_ordinary_diff_first_render_and_warm_actions ... Ordinary diff first-render / raw / IDE / unified / scroll / split: [76.170542ms, 405.917µs, 1.053792ms, 1.144041ms, 1.061166ms, 1.045ms]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.08s
+
+
+Prepared renderer (separate process):
+    Finished `release` profile [optimized] target(s) in 0.06s
+     Running tests/ordinary_diff_performance.rs (target/release/deps/ordinary_diff_performance-7dea1ea3eaa4ce8d)
+
+running 1 test
+test prepares_off_thread_and_renders_all_variants_without_stale_rows ... Background preparation time: 75.88875ms
+Prepared ordinary diff view-switch / scroll timings: [1.288ms, 450.917µs, 200.667µs, 1.087334ms, 145.333µs, 199.417µs, 1.3045ms, 417.875µs, 119.541µs, 981.834µs, 109.792µs, 120.917µs, 1.213166ms, 424.375µs, 197.625µs, 1.008084ms, 135.833µs, 204.667µs]
+Warm ordinary diff 140x35: samples=100 p50=167.209µs p95=202.042µs
+Warm ordinary diff 80x24: samples=100 p50=73.333µs p95=79.5µs
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.12s
+
+
+Native runtime check:
+Ordinary loading feedback 11.1 ms; Escape 12.3 ms with delayed Git
+PASS: cancelled loading stayed closed; second-hunk staging matched all four variants; committed-file diff stayed read-only

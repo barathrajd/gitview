@@ -312,6 +312,11 @@ fn app(
     let mut file_selection = ListState::default();
     let (diff_sender, diff_receiver) = std::sync::mpsc::channel::<(u64, Result<String, String>)>();
     let mut diff: Option<(u64, Option<Result<String, String>>)> = None;
+    let diff_root = root.to_path_buf();
+    let ordinary_diff_worker = gitview::read_worker::LatestRead::new(move |request| {
+        gitview::diff_loader::load(&diff_root, request)
+    });
+    let mut prepared_diff: Option<ui::PreparedDiff> = None;
     let mut diff_scroll = 0u16;
     let mut diff_raw_view = false;
     let mut diff_side_by_side = true;
@@ -532,10 +537,39 @@ fn app(
             if let Some((active, value)) = &mut diff
                 && *active == id
             {
-                *value = Some(result);
-                selected_hunk = 0;
-                diff_scroll = 0;
+                prepared_diff = None;
+                match result {
+                    Ok(text) => {
+                        *value = None;
+                        ordinary_diff_worker.request(gitview::diff_loader::Request {
+                            id,
+                            source: gitview::diff_loader::Source::Loaded {
+                                text,
+                                path: diff_entry.as_ref().map(|entry| entry.path.clone().into()),
+                            },
+                        });
+                    }
+                    Err(error) => *value = Some(Err(error)),
+                }
             }
+        }
+        if let Some((id, result)) = ordinary_diff_worker.take_result()
+            && let Some((active, value)) = &mut diff
+            && *active == id
+        {
+            needs_redraw = true;
+            match result {
+                Ok(prepared) => {
+                    *value = Some(Ok(prepared.text().to_owned()));
+                    prepared_diff = Some(prepared);
+                }
+                Err(error) => {
+                    *value = Some(Err(error));
+                    prepared_diff = None;
+                }
+            }
+            selected_hunk = 0;
+            diff_scroll = 0;
         }
         while let Ok((id, result)) = status_receiver.try_recv() {
             needs_redraw = true;
@@ -658,6 +692,8 @@ fn app(
             request_id += 1;
             details = None;
             diff = None;
+            prepared_diff = None;
+            ordinary_diff_worker.cancel();
             history_request += 1;
             history = None;
             let id = history_request;
@@ -1074,6 +1110,16 @@ fn app(
                         branches: branches.as_ref(),
                         feedback: &branch_feedback,
                         selection: &mut branch_selection,
+                    }
+                } else if let (Some(diff), Some(prepared)) = (&diff, &prepared_diff) {
+                    Screen::PreparedDiff {
+                        diff,
+                        prepared,
+                        scroll: diff_scroll,
+                        selected_hunk,
+                        raw: diff_raw_view,
+                        side_by_side: diff_side_by_side,
+                        worktree_entry: diff_entry.as_ref(),
                     }
                 } else if let Some(diff) = &diff {
                     Screen::Diff {
@@ -1673,6 +1719,8 @@ fn app(
                 let _ = app_state.handle_key(KeyCode::Char('W'), false);
                 branch_view = false;
                 diff = None;
+                prepared_diff = None;
+                ordinary_diff_worker.cancel();
                 diff_entry = None;
                 details = None;
                 continue;
@@ -1838,6 +1886,8 @@ fn app(
                 let _ = app_state.handle_key(KeyCode::Char('H'), false);
                 searching = false;
                 diff = None;
+                prepared_diff = None;
+                ordinary_diff_worker.cancel();
                 diff_entry = None;
                 details = None;
                 continue;
@@ -2098,6 +2148,8 @@ fn app(
                 KeyCode::Esc if !help => {
                     if diff.is_some() {
                         diff = None;
+                        prepared_diff = None;
+                        ordinary_diff_worker.cancel();
                         diff_entry = None;
                     } else {
                         details = None;
@@ -2117,14 +2169,14 @@ fn app(
                         diff_entry = Some(entry.clone());
                         request_id += 1;
                         let current = request_id;
-                        let sender = diff_sender.clone();
-                        let path = std::path::PathBuf::from(root);
                         diff = Some((current, None));
+                        prepared_diff = None;
+                        ordinary_diff_worker.cancel();
                         diff_scroll = 0;
                         selected_hunk = 0;
-                        std::thread::spawn(move || {
-                            let _ =
-                                sender.send((current, gitview::worktree::load_diff(&path, &entry)));
+                        ordinary_diff_worker.request(gitview::diff_loader::Request {
+                            id: current,
+                            source: gitview::diff_loader::Source::Worktree(entry),
                         });
                     }
                 }
@@ -2138,7 +2190,7 @@ fn app(
                     {
                         request_id += 1;
                         let id = id.to_owned();
-                        let path = std::path::PathBuf::from(root);
+                        let path = root.to_path_buf();
                         let sender = details_sender.clone();
                         let current = request_id;
                         details = Some((current, None));
@@ -2157,15 +2209,18 @@ fn app(
                         let current = request_id;
                         let hash = commit.hash.clone();
                         let file = file.clone();
-                        let path = std::path::PathBuf::from(root);
-                        let sender = diff_sender.clone();
                         diff = Some((current, None));
+                        prepared_diff = None;
+                        ordinary_diff_worker.cancel();
                         diff_scroll = 0;
                         diff_entry = None;
                         selected_hunk = 0;
-                        std::thread::spawn(move || {
-                            let _ = sender
-                                .send((current, gitview::details::load_diff(&path, &hash, &file)));
+                        ordinary_diff_worker.request(gitview::diff_loader::Request {
+                            id: current,
+                            source: gitview::diff_loader::Source::Commit {
+                                revision: hash,
+                                file,
+                            },
                         });
                     }
                 }
@@ -2183,6 +2238,7 @@ fn app(
                 {
                     if let Some((_, Some(Ok(text)))) = &diff {
                         let positions = hunk_line_positions(
+                            prepared_diff.as_ref(),
                             text,
                             diff_raw_view,
                             diff_side_by_side,
@@ -2202,6 +2258,7 @@ fn app(
                 {
                     if let Some((_, Some(Ok(text)))) = &diff {
                         let positions = hunk_line_positions(
+                            prepared_diff.as_ref(),
                             text,
                             diff_raw_view,
                             diff_side_by_side,
@@ -2225,6 +2282,7 @@ fn app(
                         && (all_hunks
                             || selected_hunk
                                 < hunk_line_positions(
+                                    prepared_diff.as_ref(),
                                     text,
                                     diff_raw_view,
                                     diff_side_by_side,
@@ -2319,12 +2377,16 @@ fn app(
 }
 
 fn hunk_line_positions(
+    prepared: Option<&ui::PreparedDiff>,
     diff: &str,
     raw: bool,
     side_by_side: bool,
     terminal_width: u16,
 ) -> Vec<usize> {
-    ui::diff_hunk_line_positions(diff, terminal_width, raw, side_by_side)
+    prepared.map_or_else(
+        || ui::diff_hunk_line_positions(diff, terminal_width, raw, side_by_side),
+        |prepared| prepared.hunk_positions(terminal_width, raw, side_by_side),
+    )
 }
 
 fn navigation_key(key: KeyEvent) -> KeyCode {

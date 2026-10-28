@@ -150,6 +150,60 @@ hook and creates a commit only inside its fixture. The native reports above
 identify the prior committed revision with a dirty worktree and record binary
 SHA-256; final release evidence still requires an identifiable clean revision.
 
+## Ordinary worktree and committed-file diffs
+
+The third slice moves ordinary diff highlighting into a single replaceable read
+worker. Worktree and commit-file reads, plus refreshed diffs after staging, now
+produce immutable prepared data before publication. Closing or superseding a
+view invalidates its read result. Mutation execution and Git's checks stay in
+the existing adapters; read cancellation does not cancel a confirmed write.
+
+The prepared view retains wrapped rows and hunk positions for four style/layout
+variants at one terminal width. Resizing evicts the prior width, and replacing
+or closing the diff releases its prepared data. Drawing copies only visible
+rows. The legacy `Screen::Diff` path remains available for loading/errors and
+existing direct renderer callers; loaded application diffs use `PreparedDiff`.
+
+A 400-line Rust replacement fixture produced these local diagnostic results:
+
+| Check | Result |
+| --- | --- |
+| Legacy first render, debug sample | 941.8 ms on the render thread |
+| Legacy first render, isolated optimized sample | 76.2 ms on the render thread |
+| Prepared syntax, isolated optimized sample | 75.9 ms in the preparation thread |
+| Prepared first frame, isolated optimized sample | 1.29 ms after preparation |
+| Warm frames, 140x35 | 100 actions; p50 0.167 ms; p95 0.202 ms |
+| Warm frames, 80x24 | 100 actions; p50 0.073 ms; p95 0.080 ms |
+| Delayed-Git loading/Escape runtime sample | 11.1 ms / 12.3 ms |
+
+Preparation work still exists; it is moved out of input/render handling. The
+renderer measurements use Ratatui's in-memory test backend and exclude Git,
+terminal I/O, and preparation. Runs do not establish maximum-diff, large-list,
+Linux, or memory-plateau performance. Cold/resize samples are retained separately
+from the warm sample statistics. The [diagnostic output](performance/macos-ordinary-diff-render.txt)
+records toolchain, revision, binary identity, and individual first-use samples.
+As with the earlier slices, the implementation worktree was dirty; final release
+measurements still require an identifiable clean revision.
+
+The runtime check opens actual worktree and committed-file diffs, cancels a
+loading read, switches styles/layouts, and stages only the second of two hunks
+in each of the four variants. It verifies the index contents, reloads the diff,
+and checks that staging keys do not mutate a committed-file view. A regression
+also checks changed content and resize invalidation. This check exposed an
+existing unified IDE rendering bug: paired replacement rows hid additions.
+Unified rendering and hunk geometry now include both sides of replacements.
+
+To reproduce the isolated diagnostics and native check:
+
+```sh
+cargo test --release --locked --test ordinary_diff_performance \
+  measures_ordinary_diff_first -- --nocapture --test-threads=1
+cargo test --release --locked --test ordinary_diff_performance \
+  prepares_off_thread -- --nocapture --test-threads=1
+cargo build --release --locked
+python3 scripts/check-ordinary-diff.py
+```
+
 ## Review status and remaining work
 
 The following checks remain required before release:
@@ -157,9 +211,10 @@ The following checks remain required before release:
 - Complete the workflow matrix and larger-fixture sampling for the newly
   asynchronous path/ref/ignore/tag previews and failed-commit refreshes. Audit
   profile/config/editor handling and read-worker lifecycle across page closure.
-- Profile ordinary worktree/commit diff first display, wrapping, hunk movement,
-  scrolling, and resizing; their render cache miss still prepares syntax in the
-  UI thread. Complete the 100-action matrix for all supported diff variants.
+- Extend ordinary/comparison diff measurements to the medium/stress fixtures,
+  output limits, very long lines, unusual paths, cache memory plateaus, and
+  page/request lifecycle cycles. Current warm-frame coverage is the 400-line
+  Rust fixture and two terminal sizes, not the whole matrix.
 - Cover navigation, debounced search, large status/ref lists, signed-tag/key
   verification behavior, object inspection, mutation progress, and external
   editor/hook/signing responsiveness.

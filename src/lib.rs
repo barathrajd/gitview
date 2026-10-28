@@ -6,6 +6,7 @@ pub mod comparison_page;
 pub mod config;
 pub mod details;
 pub mod diff;
+pub mod diff_loader;
 pub mod editor;
 pub mod history;
 pub mod object;

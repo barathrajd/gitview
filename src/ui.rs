@@ -497,6 +497,15 @@ pub struct Cockpit<'a> {
 }
 
 pub enum Screen<'a> {
+    PreparedDiff {
+        diff: &'a (u64, Option<Result<String, String>>),
+        prepared: &'a PreparedDiff,
+        scroll: u16,
+        selected_hunk: usize,
+        raw: bool,
+        side_by_side: bool,
+        worktree_entry: Option<&'a Entry>,
+    },
     PreviewLoading {
         message: &'static str,
     },
@@ -653,6 +662,25 @@ pub fn render(
     // next one, including when switching from a wide pane layout to a dialog.
     frame.render_widget(Clear, frame.area());
     match screen {
+        Screen::PreparedDiff {
+            diff,
+            prepared,
+            scroll,
+            selected_hunk,
+            raw,
+            side_by_side,
+            worktree_entry,
+        } => render_diff(
+            frame,
+            diff,
+            scroll,
+            selected_hunk,
+            raw,
+            side_by_side,
+            worktree_entry,
+            border,
+            Some(prepared),
+        ),
         Screen::PreviewLoading { message } => render_message_page(
             frame,
             "PREPARING PREVIEW",
@@ -1005,6 +1033,7 @@ pub fn render(
             side_by_side,
             worktree_entry,
             border,
+            None,
         ),
         Screen::CommitDetails { details, selection } => {
             render_commit_details(frame, details, selection, border)
@@ -1857,6 +1886,7 @@ fn render_diff(
     side_by_side: bool,
     worktree_entry: Option<&Entry>,
     border: ratatui::symbols::border::Set<'static>,
+    prepared: Option<&PreparedDiff>,
 ) {
     let message = match &diff.1 {
         None => "Loading diff...",
@@ -1864,12 +1894,16 @@ fn render_diff(
         Some(Ok(text)) if text.is_empty() => "No textual diff",
         Some(Ok(text)) => text,
     };
-    let hunk_count = diff
-        .1
-        .as_ref()
-        .and_then(|result| result.as_ref().ok())
-        .map(|text| text.lines().filter(|line| line.starts_with("@@ ")).count())
-        .unwrap_or(0);
+    let hunk_count = prepared.map_or_else(
+        || {
+            diff.1
+                .as_ref()
+                .and_then(|result| result.as_ref().ok())
+                .map(|text| text.lines().filter(|line| line.starts_with("@@ ")).count())
+                .unwrap_or(0)
+        },
+        |prepared| prepared.hunk_count,
+    );
     let selectable_hunks =
         worktree_entry.is_some_and(|entry| entry.section != Section::Untracked) && hunk_count > 0;
     let hints = if worktree_entry.is_some() {
@@ -1933,7 +1967,26 @@ fn render_diff(
                 .saturating_sub(2)
                 .saturating_sub(6)
                 .max(1);
-            let (left, right, empty_hint) = if raw {
+            let (left, right, empty_hint) = if let Some(prepared) = prepared {
+                let layout = prepared.layout(frame.area().width, raw, true);
+                (
+                    layout
+                        .left
+                        .iter()
+                        .skip(usize::from(scroll))
+                        .take(usize::from(panes[0].height.saturating_sub(2)))
+                        .cloned()
+                        .collect(),
+                    layout
+                        .right
+                        .iter()
+                        .skip(usize::from(scroll))
+                        .take(usize::from(panes[1].height.saturating_sub(2)))
+                        .cloned()
+                        .collect(),
+                    "",
+                )
+            } else if raw {
                 let (left, right) = aligned_raw_diff_lines(
                     &crate::diff::numbered_side_by_side(text),
                     content_width,
@@ -1956,7 +2009,7 @@ fn render_diff(
             };
             frame.render_widget(
                 Paragraph::new(Text::from(left))
-                    .scroll((scroll, 0))
+                    .scroll((if prepared.is_some() { 0 } else { scroll }, 0))
                     .wrap(Wrap { trim: false })
                     .block(page_block(
                         if selectable_hunks {
@@ -1974,7 +2027,7 @@ fn render_diff(
             );
             frame.render_widget(
                 Paragraph::new(Text::from(right))
-                    .scroll((scroll, 0))
+                    .scroll((if prepared.is_some() { 0 } else { scroll }, 0))
                     .wrap(Wrap { trim: false })
                     .block(page_block(
                         if selectable_hunks {
@@ -1995,7 +2048,19 @@ fn render_diff(
                 .saturating_sub(2)
                 .saturating_sub(14)
                 .max(1);
-            let (lines, title) = if raw {
+            let (lines, title) = if let Some(prepared) = prepared {
+                let layout = prepared.layout(frame.area().width, raw, false);
+                (
+                    layout
+                        .left
+                        .iter()
+                        .skip(usize::from(scroll))
+                        .take(usize::from(sections[0].height.saturating_sub(2)))
+                        .cloned()
+                        .collect(),
+                    if raw { "RAW PATCH" } else { "UNIFIED IDE DIFF" },
+                )
+            } else if raw {
                 (
                     crate::diff::numbered_lines(text)
                         .iter()
@@ -2014,7 +2079,7 @@ fn render_diff(
             };
             frame.render_widget(
                 Paragraph::new(Text::from(lines))
-                    .scroll((scroll, 0))
+                    .scroll((if prepared.is_some() { 0 } else { scroll }, 0))
                     .wrap(Wrap { trim: false })
                     .block(page_block(title, border)),
                 sections[0],
@@ -2027,7 +2092,7 @@ fn render_diff(
             .collect();
         frame.render_widget(
             Paragraph::new(Text::from(lines))
-                .scroll((scroll, 0))
+                .scroll((if prepared.is_some() { 0 } else { scroll }, 0))
                 .wrap(Wrap { trim: false })
                 .block(page_block(
                     if raw && selectable_hunks {
@@ -2582,7 +2647,11 @@ fn numbered_wrapped_line(number: Option<u32>, text: &str, style: Style) -> Line<
 fn aligned_ide_unified_lines(rows: &[IdeDiffRow], content_width: usize) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
     for row in rows {
-        if row.before.number.is_some() && row.after.number.is_some() {
+        if row.before.number.is_some()
+            && row.after.number.is_some()
+            && row.before.background.is_none()
+            && row.after.background.is_none()
+        {
             lines.extend(ide_unified_code_lines(
                 &row.before,
                 row.before.number,
@@ -2790,7 +2859,11 @@ pub fn diff_hunk_line_positions(
             } else if row.old_number.is_some() || row.new_number.is_some() {
                 let before = source_line(row.old_text).0;
                 let after = source_line(row.new_text).0;
-                if row.old_number.is_some() && row.new_number.is_some() {
+                if row.old_number.is_some()
+                    && row.new_number.is_some()
+                    && !row.old_text.starts_with('-')
+                    && !row.new_text.starts_with('+')
+                {
                     visual_line += wrap_line_ranges(before, content_width).len();
                 } else {
                     if row.old_number.is_some() {
@@ -2937,4 +3010,74 @@ pub(crate) fn comparison_file_lines(
         }
     }
     (left, right)
+}
+
+struct OrdinaryLayout {
+    width: u16,
+    raw: bool,
+    split: bool,
+    left: Vec<Line<'static>>,
+    right: Vec<Line<'static>>,
+    positions: Vec<usize>,
+}
+/// Immutable diff content prepared by a background loader, with four layouts at one width.
+pub struct PreparedDiff {
+    text: String,
+    prepared: PreparedComparisonFile,
+    hunk_count: usize,
+    layouts: RefCell<Vec<OrdinaryLayout>>,
+}
+impl PreparedDiff {
+    pub fn new(text: String, path: Option<&Path>) -> Self {
+        let inferred = diff_path(&text, None);
+        let prepared = prepare_comparison_file(&text, path.unwrap_or(&inferred));
+        let hunk_count = text.lines().filter(|line| line.starts_with("@@ ")).count();
+        Self {
+            text,
+            prepared,
+            hunk_count,
+            layouts: RefCell::new(Vec::new()),
+        }
+    }
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+    fn layout(&self, width: u16, raw: bool, split: bool) -> std::cell::Ref<'_, OrdinaryLayout> {
+        let mut layouts = self.layouts.borrow_mut();
+        if layouts.first().is_some_and(|layout| layout.width != width) {
+            layouts.clear();
+        }
+        let index = if let Some(index) = layouts
+            .iter()
+            .position(|layout| layout.raw == raw && layout.split == split)
+        {
+            index
+        } else {
+            let content_width = if split {
+                usize::from(width / 2).saturating_sub(8)
+            } else if raw {
+                usize::from(width).saturating_sub(14)
+            } else {
+                usize::from(width).saturating_sub(16)
+            }
+            .max(1);
+            let (left, right) =
+                comparison_file_lines(&self.text, &self.prepared, content_width, raw, split);
+            let positions = diff_hunk_line_positions(&self.text, width, raw, split);
+            layouts.push(OrdinaryLayout {
+                width,
+                raw,
+                split,
+                left,
+                right,
+                positions,
+            });
+            layouts.len() - 1
+        };
+        drop(layouts);
+        std::cell::Ref::map(self.layouts.borrow(), |layouts| &layouts[index])
+    }
+    pub fn hunk_positions(&self, width: u16, raw: bool, split: bool) -> Vec<usize> {
+        self.layout(width, raw, split).positions.clone()
+    }
 }

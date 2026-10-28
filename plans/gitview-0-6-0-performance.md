@@ -114,10 +114,13 @@ change is selected, and no unverified library-performance claim is assumed.
    Preserve current confirmation/commit behavior, ignore stale read results,
    and verify Escape responsiveness with delayed Git and changed repository
    state. Do not cancel an already-started mutation as if it never happened.
-3. **Consistent diff responsiveness:** profile normal worktree/commit diffs and
-   comparisons, then remove measured render-thread parsing/highlighting and
-   repeated wrapping. Bound cache entries and byte/row retention; validate all
-   layout/style switches, long lines, file changes, folding, and resize cycles.
+3. **Consistent diff responsiveness (in progress):** ordinary worktree/commit
+   syntax preparation now runs in a bounded worker. Four layouts at one width
+   retain wrapped rows and hunk positions; only visible rows are drawn. Native
+   400-line diagnostics, both terminal sizes, and four-variant hunk staging pass.
+   Unified IDE replacement rows now include additions as well as removals.
+   Medium/stress fixtures, retention budgets, long lines, and lifecycle cycles
+   remain pending before this milestone can close.
 4. **Idle and large-list fixes (in progress):** unchanged main-loop frames are
    skipped; page completions and status updates request a redraw. Native
    small-fixture idle measurements pass; large lists and memory cycles remain
