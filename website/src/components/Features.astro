@@ -4,15 +4,15 @@ const features = [
     index: "01",
     title: "History you can navigate",
     description:
-      "Follow commit lanes, branch and tag labels, then search by message, author, or hash.",
+      "Follow the commit graph with branch and tag labels, search history, filter by file or directory, and compare two commits on one page.",
     icon: "history",
     accent: "text-emerald-300",
   },
   {
     index: "02",
-    title: "Diffs with room to think",
+    title: "Before and after, highlighted",
     description:
-      "Review line-numbered changes side by side on wide terminals, with a unified view when space is tight.",
+      "Review syntax-colored Before and After panes with aligned, wrapped lines. Switch to raw patch styling or a unified layout with a key.",
     icon: "diff",
     accent: "text-cyan-300",
   },
@@ -20,19 +20,36 @@ const features = [
     index: "03",
     title: "Stage the part you mean",
     description:
-      "Stage or unstage individual hunks, a whole file, or the full working tree from the keyboard.",
+      "See staged, changed, and untracked files in groups. Stage or unstage selected hunks, whole files, or everything, and confirm before you discard.",
     icon: "stage",
     accent: "text-amber-300",
   },
   {
     index: "04",
-    title: "Keep local work in context",
+    title: "Commit without leaving",
     description:
-      "Browse and create local branches, and apply folder-based Git config profiles to the right repositories.",
+      "Write a subject and description in the composer, or press Ctrl+E to use your Git editor. Amend HEAD after reviewing the warning. Hooks and signing stay on.",
+    icon: "commit",
+    accent: "text-cyan-200",
+  },
+  {
+    index: "05",
+    title: "Local branches and tags",
+    description:
+      "Browse, create, switch, rename, and delete local branches, return to the previous branch, and list, create, verify, or delete local tags.",
     icon: "branch",
     accent: "text-emerald-200",
   },
+  {
+    index: "06",
+    title: "The right account, per folder",
+    description:
+      "Map folder trees to Git config profiles so each repository uses the matching account, shown in the header. Press ? any time for help on the current page.",
+    icon: "profile",
+    accent: "text-amber-200",
+  },
 ];
+
 ---
 
 <section id="features" class="relative px-5 py-24 sm:px-8 sm:py-32">
@@ -43,7 +60,7 @@ const features = [
         <h2 class="mt-4 max-w-xl text-3xl font-semibold tracking-[-0.04em] text-slate-100 sm:text-4xl">From commit graph to the exact line you want to stage.</h2>
       </div>
       <p class="max-w-xl text-base leading-7 text-slate-400 lg:justify-self-end">
-        Gitview keeps the everyday review loop close at hand: understand what changed, inspect the context, and choose what belongs in the index.
+        Gitview keeps the everyday local loop close at hand: understand what changed, inspect the context, choose what belongs in the index, and commit it.
       </p>
     </div>
 
@@ -61,6 +78,12 @@ const features = [
               {feature.icon === "stage" && (
                 <svg viewBox="0 0 24 24" fill="none" class="size-5"><path d="M12 4v16M4 12h16M7 7l10 10M17 7 7 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".45" /><path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
               )}
+              {feature.icon === "commit" && (
+                <svg viewBox="0 0 24 24" fill="none" class="size-5"><circle cx="12" cy="12" r="3.5" stroke="currentColor" stroke-width="1.5" /><path d="M3 12h5.5M15.5 12H21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+              )}
+              {feature.icon === "profile" && (
+                <svg viewBox="0 0 24 24" fill="none" class="size-5"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.5" /><path d="M5 20c.8-3.6 3.4-5.5 7-5.5s6.2 1.9 7 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+              )}
               {feature.icon === "branch" && (
                 <svg viewBox="0 0 24 24" fill="none" class="size-5"><circle cx="6" cy="5" r="2" stroke="currentColor" stroke-width="1.5" /><circle cx="18" cy="19" r="2" stroke="currentColor" stroke-width="1.5" /><circle cx="18" cy="5" r="2" stroke="currentColor" stroke-width="1.5" /><path d="M6 7v9a3 3 0 0 0 3 3h7M18 7v4a3 3 0 0 1-3 3h-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
               )}
@@ -75,7 +98,7 @@ const features = [
     </div>
 
     <div class="mt-5 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-wider text-slate-600">
-      <span>Rust + Ratatui</span><span class="text-slate-800">/</span><span>keyboard-first</span><span class="text-slate-800">/</span><span>local Git workflows</span>
+      <span>Rust + Ratatui</span><span class="text-slate-800">/</span><span>keyboard-first</span><span class="text-slate-800">/</span><span>local Git workflows</span><span class="text-slate-800">/</span><span>no remote operations yet</span>
     </div>
   </div>
 </section>

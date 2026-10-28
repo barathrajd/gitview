@@ -20,7 +20,7 @@ import TerminalPreview from "./TerminalPreview.astro";
       {" "}<span class="bg-gradient-to-r from-emerald-300 via-emerald-200 to-cyan-200 bg-clip-text text-transparent">Stay in your terminal.</span>
     </h1>
     <p class="mx-auto mt-7 max-w-2xl text-pretty text-base leading-7 text-slate-400 sm:text-lg sm:leading-8">
-      Browse commit history, inspect clear diffs, and stage exactly the changes you want—without leaving your keyboard.
+      Browse commit history, review syntax-highlighted before and after diffs, and stage exactly the hunks you want—without leaving your keyboard.
     </p>
 
     <div class="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -38,9 +38,9 @@ import TerminalPreview from "./TerminalPreview.astro";
   </div>
 
   <div class="mx-auto mt-16 max-w-6xl sm:mt-20">
-    <div class="mb-3 flex items-center justify-between px-1 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-600 sm:px-2">
-      <span>Gitview’s current screen layout</span>
-      <span>Sample data · panes and key hints match the app</span>
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-1 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-600 sm:px-2">
+      <span>Captured from Gitview 0.5.0</span>
+      <span>Sample repository · 140×24 terminal</span>
     </div>
     <TerminalPreview />
   </div>
