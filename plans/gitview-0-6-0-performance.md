@@ -124,7 +124,10 @@ change is selected, and no unverified library-performance claim is assumed.
    above an 8 MiB owned-allocation estimate, retaining one active layout if it
    alone exceeds the budget. Blank gutters and alignment rows avoid redundant
    allocations. Renderer-only RSS lifecycle checks still exceed the budget;
-   native lifecycle evidence is recorded separately in the performance report.
+   a counting-allocator diagnostic shows live heap is flat across 110 closed
+   diffs, so the growth tracks allocator retention of a roughly 25 MiB
+   per-cycle peak, not retained views. Native lifecycle evidence is recorded
+   separately in the performance report.
    Comparison cache bounds, other languages, the complete stress matrix, and
    memory investigation remain pending before this milestone can close.
 4. **Idle and large-list fixes (in progress):** unchanged main-loop frames are

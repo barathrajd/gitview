@@ -241,6 +241,23 @@ The allocation changes and eviction reduce retained data, but repeated
 renderer-only runs still exceed that RSS budget. This diagnostic remains a
 known failure; it doesn't establish a memory leak or a passing release gate.
 
+A separate counting-allocator diagnostic compares live heap bytes with RSS:
+
+```sh
+cargo test --release --locked --features test-support \
+  --test diff_cache_live_allocations -- --ignored --nocapture --test-threads=1
+```
+
+It runs the same open, render, and drop cycle 110 times. Live heap after each
+close stays at 1,941 KiB (1,942 KiB from cycle 70) against a 1,395 KiB starting
+value, while the per-cycle peak stays at about 25,319 KiB. The first closed
+view keeps roughly 546 KiB, and nothing grows with the cycle count. In the same
+environment the RSS diagnostic still grew 16,320 KiB in steps, then plateaued.
+This shows the dropped prepared views and layouts aren't retained by Gitview.
+The RSS growth is consistent with the allocator keeping freed pages from a
+roughly 25 MiB per-cycle peak. It doesn't show that RSS is bounded in the native
+process, and the RSS diagnostic stays failing and unchanged.
+
 The final optimized frame diagnostic passes: p95 is 22.37 ms / 10.54 ms for
 958 KB at 140x35 / 80x24, and 7.55 ms / 8.74 ms for the long-line fixture.
 The 122 KB case measures 0.324 ms / 0.138 ms. Each value covers 100 actions;
