@@ -137,13 +137,50 @@ profile. To make terminal `git` commands use the same folder mapping, run
 `~/.zshrc`. This shell integration is optional; remove the function from
 `~/.zshrc` to disable it.
 
-## Try a demo
+## Try the feature playground
 
-From the source directory, run `scripts/create-demo.sh`. It prints the path to a
-new temporary repository containing branches, a merge, a tag, and staged,
-unstaged, and untracked changes. Change to that directory and run the Gitview
-binary. The script leaves the demo directory for you to inspect and remove when
-finished.
+The feature playground creates a disposable repository and a separate Gitview
+config directory. Use it to try the current workflows without changing your
+own repository or Gitview profiles. Create a fresh playground whenever you want
+to reset its state.
+
+From the Gitview source directory, run:
+
+```sh
+source_dir="$(pwd)"
+playground="$(scripts/create-feature-playground.sh)"
+cd "$playground/repo"
+XDG_CONFIG_HOME="$playground/config" \
+  cargo run --manifest-path "$source_dir/Cargo.toml"
+```
+
+The script prints the temporary playground path. The sample repository
+includes:
+
+- A main branch, a topic branch, a merge commit, and a tag for history and graph
+  browsing, search, commit details, and branch switching.
+- A clean working-tree file, a staged file, an unstaged file, and an untracked
+  file for status navigation, staging, unstaging, and discard confirmation.
+- A file with one staged hunk and a separate unstaged hunk for reviewing diffs
+  and staging or unstaging selected hunks.
+- An isolated `Playground` Git config profile for the profiles view and profile
+  matching. The configuration lives under the temporary directory.
+
+In the TUI, use **Tab** to switch views, **/** to search history, **b** to
+browse, switch, or create branches, **p** to inspect profiles, and **?** to open
+the in-app help.
+In the working tree, use **s/u** on files or selected hunks, **S/U** for all
+files or the selected file, **d** to review a discard, **c** to create a commit,
+and **a** to amend the latest commit. The amend flow asks you to review the
+replacement before confirming. Use **Esc** to cancel a prompt or action.
+
+Actions such as discard, commit, amend, and branch switching change only the
+temporary repository. The script leaves it in place after Gitview exits; remove
+the printed temporary directory when you no longer need it. Create a fresh
+playground to try commit and amend independently because a commit consumes the
+staged changes, and amend rewrites the temporary `HEAD`. The simpler
+`scripts/create-demo.sh` remains available for a small repository without the
+isolated profile and split-hunk fixture.
 
 ## Current limitations
 
