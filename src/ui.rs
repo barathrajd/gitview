@@ -2848,10 +2848,20 @@ fn format_number(number: Option<u32>) -> String {
     number.map_or_else(|| "     ".to_owned(), |number| format!("{number:>5}"))
 }
 
+pub(crate) struct PreparedComparisonFile {
+    rows: Vec<IdeDiffRow>,
+}
+
+pub(crate) fn prepare_comparison_file(patch: &str, path: &Path) -> PreparedComparisonFile {
+    PreparedComparisonFile {
+        rows: build_ide_diff_rows(patch, path),
+    }
+}
+
 /// Build already-wrapped rows for one file in a stacked comparison.
 pub(crate) fn comparison_file_lines(
     patch: &str,
-    path: &Path,
+    prepared: &PreparedComparisonFile,
     content_width: usize,
     raw: bool,
     split: bool,
@@ -2860,7 +2870,7 @@ pub(crate) fn comparison_file_lines(
         if raw {
             aligned_raw_diff_lines(&crate::diff::numbered_side_by_side(patch), content_width)
         } else {
-            aligned_ide_diff_lines(&build_ide_diff_rows(patch, path), content_width)
+            aligned_ide_diff_lines(&prepared.rows, content_width)
         }
     } else if raw {
         let mut lines = Vec::new();
@@ -2882,7 +2892,7 @@ pub(crate) fn comparison_file_lines(
         (lines, Vec::new())
     } else {
         (
-            aligned_ide_unified_lines(&build_ide_diff_rows(patch, path), content_width),
+            aligned_ide_unified_lines(&prepared.rows, content_width),
             Vec::new(),
         )
     };

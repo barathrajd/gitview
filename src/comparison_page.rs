@@ -17,6 +17,7 @@ enum Mode {
     Input,
     Review,
 }
+type PreparedResult = Result<(Comparison, Vec<crate::ui::PreparedComparisonFile>), String>;
 type FileLines = (Vec<Line<'static>>, Vec<Line<'static>>);
 struct RenderCache {
     width: u16,
@@ -31,15 +32,16 @@ pub struct ComparisonPage {
     pending: bool,
     feedback: String,
     result: Option<Comparison>,
+    prepared: Vec<crate::ui::PreparedComparisonFile>,
     collapsed: Vec<bool>,
     selected: usize,
     scroll: Cell<usize>,
     jump: Cell<bool>,
     raw: bool,
     side_by_side: bool,
-    cache: RefCell<Option<RenderCache>>,
-    sender: mpsc::Sender<Result<Comparison, String>>,
-    receiver: mpsc::Receiver<Result<Comparison, String>>,
+    cache: RefCell<Vec<RenderCache>>,
+    sender: mpsc::Sender<PreparedResult>,
+    receiver: mpsc::Receiver<PreparedResult>,
 }
 impl ComparisonPage {
     pub fn open(target: &str, path: Option<&Path>) -> Self {
@@ -56,13 +58,14 @@ impl ComparisonPage {
             pending: false,
             feedback: String::new(),
             result: None,
+            prepared: vec![],
             collapsed: vec![],
             selected: 0,
             scroll: Cell::new(0),
             jump: Cell::new(false),
             raw: false,
             side_by_side: true,
-            cache: RefCell::new(None),
+            cache: RefCell::new(Vec::new()),
             sender,
             receiver,
         }
@@ -71,13 +74,14 @@ impl ComparisonPage {
         while let Ok(result) = self.receiver.try_recv() {
             self.pending = false;
             match result {
-                Ok(result) => {
+                Ok((result, prepared)) => {
+                    self.prepared = prepared;
                     self.collapsed = vec![false; result.files.len()];
                     self.selected = 0;
                     self.result = Some(result);
                     self.mode = Mode::Review;
                     self.scroll.set(0);
-                    self.cache.replace(None);
+                    self.cache.replace(Vec::new());
                     self.feedback.clear();
                 }
                 Err(error) => self.feedback = error,
@@ -110,7 +114,21 @@ impl ComparisonPage {
                     self.feedback.clear();
                     std::thread::spawn(move || {
                         let path = (!fields[2].is_empty()).then(|| Path::new(&fields[2]));
-                        let _ = sender.send(comparison::load(&root, &fields[0], &fields[1], path));
+                        let result =
+                            comparison::load(&root, &fields[0], &fields[1], path).map(|result| {
+                                let prepared = result
+                                    .files
+                                    .iter()
+                                    .map(|file| {
+                                        crate::ui::prepare_comparison_file(
+                                            &file.patch,
+                                            Path::new(&file.path),
+                                        )
+                                    })
+                                    .collect();
+                                (result, prepared)
+                            });
+                        let _ = sender.send(result);
                     });
                 }
                 _ => {}
@@ -324,35 +342,42 @@ impl ComparisonPage {
             return;
         }
         let mut cache = self.cache.borrow_mut();
-        if cache.as_ref().is_none_or(|cache| {
-            cache.width != inner.width || cache.raw != self.raw || cache.split != self.side_by_side
-        }) {
+        // Retain the four style/layout combinations at the current width.
+        if cache
+            .first()
+            .is_some_and(|cache| cache.width != inner.width)
+        {
+            cache.clear();
+        }
+        let cache_index = if let Some(index) = cache
+            .iter()
+            .position(|cache| cache.raw == self.raw && cache.split == self.side_by_side)
+        {
+            index
+        } else {
             let width = if self.side_by_side {
                 usize::from(inner.width.saturating_sub(1) / 2).saturating_sub(6)
             } else {
                 usize::from(inner.width).saturating_sub(12)
             }
             .max(1);
-            *cache = Some(RenderCache {
+            let files = result
+                .files
+                .iter()
+                .zip(&self.prepared)
+                .map(|(file, prepared)| {
+                    comparison_file_lines(&file.patch, prepared, width, self.raw, self.side_by_side)
+                })
+                .collect();
+            cache.push(RenderCache {
                 width: inner.width,
                 raw: self.raw,
                 split: self.side_by_side,
-                files: result
-                    .files
-                    .iter()
-                    .map(|file| {
-                        comparison_file_lines(
-                            &file.patch,
-                            Path::new(&file.path),
-                            width,
-                            self.raw,
-                            self.side_by_side,
-                        )
-                    })
-                    .collect(),
+                files,
             });
-        }
-        let cache = cache.as_ref().unwrap();
+            cache.len() - 1
+        };
+        let cache = &cache[cache_index];
         let height = |index: usize| {
             if self.collapsed[index] {
                 0
