@@ -13,7 +13,18 @@ use ratatui::{
     text::{Line, Span, Text},
     widgets::{Block, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table, Wrap},
 };
-use std::path::Path;
+use std::{
+    cell::RefCell,
+    ops::Range,
+    path::{Path, PathBuf},
+    rc::Rc,
+    sync::OnceLock,
+};
+use syntect::{
+    easy::HighlightLines,
+    highlighting::ThemeSet,
+    parsing::{SyntaxReference, SyntaxSet},
+};
 use unicode_width::UnicodeWidthChar;
 
 pub const ASCII_BORDER: ratatui::symbols::border::Set<'static> = ratatui::symbols::border::Set {
@@ -308,7 +319,8 @@ pub fn render_help_overlay(
     ];
     const WORKTREE_DIFF: &[(&str, &str)] = &[
         ("[, ]", "Select previous or next hunk"),
-        ("v", "Toggle Before/After or unified view"),
+        ("v", "Toggle IDE or raw diff"),
+        ("Tab", "Toggle side-by-side or unified layout"),
         ("s, u", "Stage or unstage selected hunk"),
         ("S, U", "Stage or unstage all file changes"),
         ("Up/Down, j/k", "Scroll diff"),
@@ -318,7 +330,8 @@ pub fn render_help_overlay(
         ("q", "Quit Gitview"),
     ];
     const COMMIT_DIFF: &[(&str, &str)] = &[
-        ("v", "Toggle Before/After or unified view"),
+        ("v", "Toggle IDE or raw diff"),
+        ("Tab", "Toggle side-by-side or unified layout"),
         ("Up/Down, j/k", "Scroll diff"),
         ("Esc, h", "Return to commit files"),
         ("H", "Return to history"),
@@ -470,6 +483,7 @@ pub enum Screen<'a> {
         diff: &'a (u64, Option<Result<String, String>>),
         scroll: u16,
         selected_hunk: usize,
+        raw: bool,
         side_by_side: bool,
         worktree_entry: Option<&'a Entry>,
     },
@@ -667,6 +681,7 @@ pub fn render(
             diff,
             scroll,
             selected_hunk,
+            raw,
             side_by_side,
             worktree_entry,
         } => render_diff(
@@ -674,6 +689,7 @@ pub fn render(
             diff,
             scroll,
             selected_hunk,
+            raw,
             side_by_side,
             worktree_entry,
             border,
@@ -1522,6 +1538,7 @@ fn render_diff(
     diff: &(u64, Option<Result<String, String>>),
     scroll: u16,
     selected_hunk: usize,
+    raw: bool,
     side_by_side: bool,
     worktree_entry: Option<&Entry>,
     border: ratatui::symbols::border::Set<'static>,
@@ -1543,7 +1560,26 @@ fn render_diff(
     let hints = if worktree_entry.is_some() {
         let compact = frame.area().width <= 80;
         let mut hints = vec![
-            ("v", if compact { "view" } else { "toggle view" }),
+            (
+                "v",
+                if raw {
+                    if compact { "IDE" } else { "IDE diff" }
+                } else if compact {
+                    "raw"
+                } else {
+                    "raw patch"
+                },
+            ),
+            (
+                "Tab",
+                if side_by_side {
+                    if compact { "unified" } else { "unified view" }
+                } else if compact {
+                    "split"
+                } else {
+                    "side-by-side"
+                },
+            ),
             ("s", if compact { "stage" } else { "stage hunk" }),
             ("u", if compact { "unstage" } else { "unstage hunk" }),
             ("S", "stage all"),
@@ -1555,7 +1591,15 @@ fn render_diff(
         hints
     } else {
         vec![
-            ("v", "toggle view"),
+            ("v", if raw { "IDE diff" } else { "raw patch" }),
+            (
+                "Tab",
+                if side_by_side {
+                    "unified view"
+                } else {
+                    "side-by-side"
+                },
+            ),
             ("Up/Down or j/k", "scroll"),
             ("Esc/h", "back"),
         ]
@@ -1565,51 +1609,102 @@ fn render_diff(
         Constraint::Length(hint_row_count(&hints, frame.area().width)),
     ])
     .split(frame.area());
-    if side_by_side && matches!(diff.1, Some(Ok(_))) {
-        let panes = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(sections[0]);
-        let rows = crate::diff::numbered_side_by_side(message);
-        let content_width = usize::from(panes[0].width.min(panes[1].width))
-            .saturating_sub(2)
-            .saturating_sub(6)
-            .max(1);
-        let (left, right) = aligned_side_by_side_lines(&rows, content_width);
-        frame.render_widget(
-            Paragraph::new(Text::from(left))
-                .scroll((scroll, 0))
-                .wrap(Wrap { trim: false })
-                .block(page_block(
-                    if selectable_hunks {
-                        format!(
-                            "BEFORE · HUNK {}/{}",
-                            selected_hunk.saturating_add(1),
-                            hunk_count
-                        )
-                    } else {
-                        "BEFORE".to_owned()
-                    },
-                    border,
-                )),
-            panes[0],
-        );
-        frame.render_widget(
-            Paragraph::new(Text::from(right))
-                .scroll((scroll, 0))
-                .wrap(Wrap { trim: false })
-                .block(page_block(
-                    if selectable_hunks {
-                        format!(
-                            "AFTER · HUNK {}/{}",
-                            selected_hunk.saturating_add(1),
-                            hunk_count
-                        )
-                    } else {
-                        "AFTER".to_owned()
-                    },
-                    border,
-                )),
-            panes[1],
-        );
+    if let Some(Ok(text)) = &diff.1 {
+        if side_by_side {
+            let panes =
+                Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+                    .split(sections[0]);
+            let content_width = usize::from(panes[0].width.min(panes[1].width))
+                .saturating_sub(2)
+                .saturating_sub(6)
+                .max(1);
+            let (left, right, empty_hint) = if raw {
+                let (left, right) = aligned_raw_diff_lines(
+                    &crate::diff::numbered_side_by_side(text),
+                    content_width,
+                );
+                (left, right, "No file lines · Tab for unified raw patch")
+            } else {
+                let rows = cached_ide_diff_rows(diff.0, message, worktree_entry);
+                let (left, right) = aligned_ide_diff_lines(&rows, content_width);
+                (left, right, "No source lines · press v for raw patch")
+            };
+            let left = if left.is_empty() {
+                vec![Line::raw(empty_hint)]
+            } else {
+                left
+            };
+            let right = if right.is_empty() {
+                vec![Line::raw(empty_hint)]
+            } else {
+                right
+            };
+            frame.render_widget(
+                Paragraph::new(Text::from(left))
+                    .scroll((scroll, 0))
+                    .wrap(Wrap { trim: false })
+                    .block(page_block(
+                        if selectable_hunks {
+                            format!(
+                                "BEFORE · HUNK {}/{}",
+                                selected_hunk.saturating_add(1),
+                                hunk_count
+                            )
+                        } else {
+                            "BEFORE".to_owned()
+                        },
+                        border,
+                    )),
+                panes[0],
+            );
+            frame.render_widget(
+                Paragraph::new(Text::from(right))
+                    .scroll((scroll, 0))
+                    .wrap(Wrap { trim: false })
+                    .block(page_block(
+                        if selectable_hunks {
+                            format!(
+                                "AFTER · HUNK {}/{}",
+                                selected_hunk.saturating_add(1),
+                                hunk_count
+                            )
+                        } else {
+                            "AFTER".to_owned()
+                        },
+                        border,
+                    )),
+                panes[1],
+            );
+        } else {
+            let content_width = usize::from(sections[0].width)
+                .saturating_sub(2)
+                .saturating_sub(14)
+                .max(1);
+            let (lines, title) = if raw {
+                (
+                    crate::diff::numbered_lines(text)
+                        .iter()
+                        .map(|line| {
+                            styled_numbered_unified(line.old_number, line.new_number, line.text)
+                        })
+                        .collect(),
+                    "RAW PATCH",
+                )
+            } else {
+                let rows = cached_ide_diff_rows(diff.0, message, worktree_entry);
+                (
+                    aligned_ide_unified_lines(&rows, content_width),
+                    "UNIFIED IDE DIFF",
+                )
+            };
+            frame.render_widget(
+                Paragraph::new(Text::from(lines))
+                    .scroll((scroll, 0))
+                    .wrap(Wrap { trim: false })
+                    .block(page_block(title, border)),
+                sections[0],
+            );
+        }
     } else {
         let lines: Vec<Line> = crate::diff::numbered_lines(message)
             .iter()
@@ -1620,14 +1715,16 @@ fn render_diff(
                 .scroll((scroll, 0))
                 .wrap(Wrap { trim: false })
                 .block(page_block(
-                    if selectable_hunks {
+                    if raw && selectable_hunks {
                         format!(
-                            "UNIFIED · HUNK {}/{}",
+                            "RAW PATCH · HUNK {}/{}",
                             selected_hunk.saturating_add(1),
                             hunk_count
                         )
+                    } else if raw {
+                        "RAW PATCH".to_owned()
                     } else {
-                        "UNIFIED".to_owned()
+                        "DIFF".to_owned()
                     },
                     border,
                 )),
@@ -1852,24 +1949,290 @@ fn render_search(
 }
 
 fn diff_line_style(line: &str) -> Style {
-    let color = if line.starts_with('+') && !line.starts_with("+++") {
-        Color::Green
+    if line.starts_with('+') && !line.starts_with("+++") {
+        Style::default()
+            .fg(Color::Rgb(134, 239, 172))
+            .bg(Color::Rgb(24, 58, 43))
     } else if line.starts_with('-') && !line.starts_with("---") {
-        Color::Red
+        Style::default()
+            .fg(Color::Rgb(252, 165, 165))
+            .bg(Color::Rgb(63, 39, 44))
     } else {
-        Color::Reset
-    };
-    Style::default().fg(color)
+        Style::default()
+    }
 }
 
-fn aligned_side_by_side_lines(
-    rows: &[crate::diff::NumberedDiffRow<'_>],
+#[derive(Clone)]
+struct IdeDiffLine {
+    number: Option<u32>,
+    code: String,
+    spans: Vec<(String, Style)>,
+    background: Option<Color>,
+    inline_change: Option<(usize, usize)>,
+    inline_background: Option<Color>,
+}
+
+#[derive(Clone)]
+struct IdeDiffRow {
+    before: IdeDiffLine,
+    after: IdeDiffLine,
+}
+
+thread_local! {
+    static IDE_DIFF_CACHE: RefCell<Option<(u64, usize, String, Rc<Vec<IdeDiffRow>>)>> = const { RefCell::new(None) };
+}
+
+fn syntax_assets() -> (&'static SyntaxSet, &'static ThemeSet) {
+    static SYNTAXES: OnceLock<SyntaxSet> = OnceLock::new();
+    static THEMES: OnceLock<ThemeSet> = OnceLock::new();
+    (
+        SYNTAXES.get_or_init(SyntaxSet::load_defaults_newlines),
+        THEMES.get_or_init(ThemeSet::load_defaults),
+    )
+}
+
+fn cached_ide_diff_rows(
+    id: u64,
+    message: &str,
+    worktree_entry: Option<&Entry>,
+) -> Rc<Vec<IdeDiffRow>> {
+    let path = diff_path(message, worktree_entry);
+    let path_key = path.to_string_lossy().into_owned();
+    let message_pointer = message.as_ptr() as usize;
+
+    IDE_DIFF_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if let Some((cached_id, cached_pointer, cached_path, rows)) = cache.as_ref()
+            && *cached_id == id
+            && *cached_pointer == message_pointer
+            && *cached_path == path_key
+        {
+            return Rc::clone(rows);
+        }
+
+        let rows = Rc::new(build_ide_diff_rows(message, &path));
+        *cache = Some((id, message_pointer, path_key, Rc::clone(&rows)));
+        rows
+    })
+}
+
+fn diff_path(message: &str, worktree_entry: Option<&Entry>) -> PathBuf {
+    if let Some(entry) = worktree_entry {
+        return PathBuf::from(&entry.path);
+    }
+
+    message
+        .lines()
+        .filter_map(|line| {
+            line.strip_prefix("+++ ")
+                .or_else(|| line.strip_prefix("--- "))
+        })
+        .find(|path| *path != "/dev/null")
+        .map(|path| {
+            let path = path.trim_matches('"');
+            PathBuf::from(
+                path.strip_prefix("b/")
+                    .or_else(|| path.strip_prefix("a/"))
+                    .unwrap_or(path),
+            )
+        })
+        .unwrap_or_default()
+}
+
+fn diff_syntax<'a>(path: &Path, syntaxes: &'a SyntaxSet) -> &'a SyntaxReference {
+    let extension = if path.file_name().is_some_and(|name| name == "Cargo.lock") {
+        Some("toml")
+    } else {
+        path.extension().and_then(|extension| extension.to_str())
+    };
+    extension
+        .and_then(|extension| syntaxes.find_syntax_by_extension(extension))
+        .unwrap_or_else(|| syntaxes.find_syntax_plain_text())
+}
+
+fn build_ide_diff_rows(message: &str, path: &Path) -> Vec<IdeDiffRow> {
+    let (syntaxes, themes) = syntax_assets();
+    let syntax = diff_syntax(path, syntaxes);
+    let theme = themes
+        .themes
+        .get("base16-ocean.dark")
+        .or_else(|| themes.themes.values().next())
+        .expect("Syntect default themes are present");
+    let mut before_highlighter = HighlightLines::new(syntax, theme);
+    let mut after_highlighter = HighlightLines::new(syntax, theme);
+    let mut rows = Vec::new();
+
+    for row in crate::diff::numbered_side_by_side(message) {
+        if row.old_text.starts_with("@@ ") || row.new_text.starts_with("@@ ") {
+            before_highlighter = HighlightLines::new(syntax, theme);
+            after_highlighter = HighlightLines::new(syntax, theme);
+            continue;
+        }
+        if row.old_number.is_none() && row.new_number.is_none() {
+            continue;
+        }
+
+        let mut before = highlighted_ide_line(
+            row.old_number,
+            row.old_text,
+            &mut before_highlighter,
+            syntaxes,
+        );
+        let mut after = highlighted_ide_line(
+            row.new_number,
+            row.new_text,
+            &mut after_highlighter,
+            syntaxes,
+        );
+        if before.background.is_some() && after.background.is_some() {
+            let (before_range, after_range) = inline_change_ranges(&before.code, &after.code);
+            before.inline_change = before_range;
+            after.inline_change = after_range;
+            before.inline_background = before.background.map(inline_diff_background);
+            after.inline_background = after.background.map(inline_diff_background);
+        }
+        rows.push(IdeDiffRow { before, after });
+    }
+    rows
+}
+
+fn highlighted_ide_line(
+    number: Option<u32>,
+    diff_text: &str,
+    highlighter: &mut HighlightLines<'_>,
+    syntaxes: &SyntaxSet,
+) -> IdeDiffLine {
+    let (code, background) = source_line(diff_text);
+    if number.is_none() {
+        return IdeDiffLine {
+            number,
+            code: String::new(),
+            spans: Vec::new(),
+            background,
+            inline_change: None,
+            inline_background: None,
+        };
+    }
+
+    let input = format!("{code}\n");
+    let spans = highlighter
+        .highlight_line(&input, syntaxes)
+        .map(|ranges| {
+            ranges
+                .into_iter()
+                .filter_map(|(style, text)| {
+                    let text = text.trim_end_matches('\n').trim_end_matches('\r');
+                    (!text.is_empty()).then(|| {
+                        (
+                            text.to_owned(),
+                            Style::default().fg(Color::Rgb(
+                                style.foreground.r,
+                                style.foreground.g,
+                                style.foreground.b,
+                            )),
+                        )
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_else(|_| vec![(code.to_owned(), Style::default())]);
+
+    IdeDiffLine {
+        number,
+        code: code.to_owned(),
+        spans,
+        background,
+        inline_change: None,
+        inline_background: None,
+    }
+}
+
+fn inline_diff_background(background: Color) -> Color {
+    match background {
+        Color::Rgb(63, 39, 44) => Color::Rgb(112, 54, 64),
+        Color::Rgb(24, 58, 43) => Color::Rgb(39, 112, 74),
+        _ => background,
+    }
+}
+
+fn inline_change_ranges(
+    before: &str,
+    after: &str,
+) -> (Option<(usize, usize)>, Option<(usize, usize)>) {
+    let before: Vec<_> = before.chars().collect();
+    let after: Vec<_> = after.chars().collect();
+    let mut prefix = 0;
+    while prefix < before.len() && prefix < after.len() && before[prefix] == after[prefix] {
+        prefix += 1;
+    }
+    let mut suffix = 0;
+    while suffix < before.len().saturating_sub(prefix)
+        && suffix < after.len().saturating_sub(prefix)
+        && before[before.len() - suffix - 1] == after[after.len() - suffix - 1]
+    {
+        suffix += 1;
+    }
+
+    let before_end = before.len() - suffix;
+    let after_end = after.len() - suffix;
+    (
+        (prefix < before_end).then_some((prefix, before_end)),
+        (prefix < after_end).then_some((prefix, after_end)),
+    )
+}
+
+fn source_line(diff_text: &str) -> (&str, Option<Color>) {
+    if diff_text.starts_with('+') && !diff_text.starts_with("+++") {
+        (&diff_text[1..], Some(Color::Rgb(24, 58, 43)))
+    } else if diff_text.starts_with('-') && !diff_text.starts_with("---") {
+        (&diff_text[1..], Some(Color::Rgb(63, 39, 44)))
+    } else if diff_text.starts_with(' ') {
+        (&diff_text[1..], None)
+    } else {
+        (diff_text, None)
+    }
+}
+
+fn aligned_ide_diff_lines(
+    rows: &[IdeDiffRow],
     content_width: usize,
 ) -> (Vec<Line<'static>>, Vec<Line<'static>>) {
     let mut old_lines = Vec::new();
     let mut new_lines = Vec::new();
 
     for row in rows {
+        let old_wrapped = wrap_styled_line(&row.before, content_width);
+        let new_wrapped = wrap_styled_line(&row.after, content_width);
+        let height = old_wrapped.len().max(new_wrapped.len());
+
+        for line_index in 0..height {
+            old_lines.push(ide_line(
+                &row.before,
+                (line_index == 0).then_some(row.before.number).flatten(),
+                old_wrapped.get(line_index),
+            ));
+            new_lines.push(ide_line(
+                &row.after,
+                (line_index == 0).then_some(row.after.number).flatten(),
+                new_wrapped.get(line_index),
+            ));
+        }
+    }
+
+    (old_lines, new_lines)
+}
+
+fn aligned_raw_diff_lines(
+    rows: &[crate::diff::NumberedDiffRow<'_>],
+    content_width: usize,
+) -> (Vec<Line<'static>>, Vec<Line<'static>>) {
+    let mut before = Vec::new();
+    let mut after = Vec::new();
+
+    for row in rows
+        .iter()
+        .filter(|row| row.old_number.is_some() || row.new_number.is_some())
+    {
         let old_wrapped = wrap_diff_line(row.old_text, content_width);
         let new_wrapped = wrap_diff_line(row.new_text, content_width);
         let height = old_wrapped.len().max(new_wrapped.len());
@@ -1877,12 +2240,12 @@ fn aligned_side_by_side_lines(
         let new_style = diff_line_style(row.new_text);
 
         for line_index in 0..height {
-            old_lines.push(numbered_wrapped_line(
+            before.push(numbered_wrapped_line(
                 (line_index == 0).then_some(row.old_number).flatten(),
                 old_wrapped.get(line_index).map_or("", String::as_str),
                 old_style,
             ));
-            new_lines.push(numbered_wrapped_line(
+            after.push(numbered_wrapped_line(
                 (line_index == 0).then_some(row.new_number).flatten(),
                 new_wrapped.get(line_index).map_or("", String::as_str),
                 new_style,
@@ -1890,7 +2253,7 @@ fn aligned_side_by_side_lines(
         }
     }
 
-    (old_lines, new_lines)
+    (before, after)
 }
 
 fn numbered_wrapped_line(number: Option<u32>, text: &str, style: Style) -> Line<'static> {
@@ -1901,47 +2264,283 @@ fn numbered_wrapped_line(number: Option<u32>, text: &str, style: Style) -> Line<
     ])
 }
 
+fn aligned_ide_unified_lines(rows: &[IdeDiffRow], content_width: usize) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+    for row in rows {
+        if row.before.number.is_some() && row.after.number.is_some() {
+            lines.extend(ide_unified_code_lines(
+                &row.before,
+                row.before.number,
+                row.after.number,
+                " ",
+                content_width,
+            ));
+        } else {
+            if row.before.number.is_some() {
+                lines.extend(ide_unified_code_lines(
+                    &row.before,
+                    row.before.number,
+                    None,
+                    "-",
+                    content_width,
+                ));
+            }
+            if row.after.number.is_some() {
+                lines.extend(ide_unified_code_lines(
+                    &row.after,
+                    None,
+                    row.after.number,
+                    "+",
+                    content_width,
+                ));
+            }
+        }
+    }
+    lines
+}
+
+fn ide_unified_code_lines(
+    source: &IdeDiffLine,
+    old_number: Option<u32>,
+    new_number: Option<u32>,
+    marker: &str,
+    content_width: usize,
+) -> Vec<Line<'static>> {
+    let wrapped = wrap_styled_line(source, content_width);
+    wrapped
+        .iter()
+        .enumerate()
+        .map(|(index, spans)| {
+            let old_number = (index == 0).then_some(old_number).flatten();
+            let new_number = (index == 0).then_some(new_number).flatten();
+            let marker_style = match marker {
+                "+" => Style::default().fg(Color::Green),
+                "-" => Style::default().fg(Color::Red),
+                _ => Style::default(),
+            };
+            let background = source.background;
+            let with_background = |style: Style| match background {
+                Some(color) if style.bg.is_none() => style.bg(color),
+                None => style,
+                Some(_) => style,
+            };
+            let mut line = vec![
+                Span::styled(
+                    format_number(old_number),
+                    with_background(Style::default().fg(MUTED)),
+                ),
+                Span::styled(" ", with_background(Style::default())),
+                Span::styled(
+                    format_number(new_number),
+                    with_background(Style::default().fg(MUTED)),
+                ),
+                Span::styled(" ", with_background(Style::default())),
+                Span::styled(
+                    if index == 0 { marker } else { " " }.to_owned(),
+                    with_background(marker_style),
+                ),
+                Span::styled(" ", with_background(Style::default())),
+            ];
+            line.extend(
+                spans
+                    .iter()
+                    .map(|(text, style)| Span::styled(text.clone(), with_background(*style))),
+            );
+            Line::from(line)
+        })
+        .collect()
+}
+
+fn ide_line(
+    source: &IdeDiffLine,
+    number: Option<u32>,
+    wrapped: Option<&Vec<(String, Style)>>,
+) -> Line<'static> {
+    let background = source.background;
+    let with_background = |style: Style| match background {
+        Some(color) if style.bg.is_none() => style.bg(color),
+        None => style,
+        Some(_) => style,
+    };
+    let mut spans = vec![
+        Span::styled(
+            format_number(number),
+            with_background(Style::default().fg(MUTED)),
+        ),
+        Span::styled(" ", with_background(Style::default())),
+    ];
+    if let Some(wrapped) = wrapped {
+        spans.extend(
+            wrapped
+                .iter()
+                .map(|(text, style)| Span::styled(text.clone(), with_background(*style))),
+        );
+    }
+    Line::from(spans)
+}
+
+fn wrap_styled_line(line: &IdeDiffLine, width: usize) -> Vec<Vec<(String, Style)>> {
+    let ranges = wrap_line_ranges(&line.code, width);
+    let mut lines = Vec::with_capacity(ranges.len());
+    let mut character_index = 0;
+    let mut byte_cursor = 0;
+    let mut span_index = 0;
+    let mut span_offset = 0;
+
+    for range in ranges {
+        let mut wrapped: Vec<(String, Style)> = Vec::new();
+        while byte_cursor < range.end {
+            let Some((text, base_style)) = line.spans.get(span_index) else {
+                break;
+            };
+            let available = text.len().saturating_sub(span_offset);
+            let take = available.min(range.end - byte_cursor);
+            if take == 0 {
+                span_index += 1;
+                span_offset = 0;
+                continue;
+            }
+            let segment = &text[span_offset..span_offset + take];
+            for character in segment.chars() {
+                let style = match line.inline_change {
+                    Some((start, end)) if start <= character_index && character_index < end => {
+                        base_style.bg(line.inline_background.unwrap_or(Color::Reset))
+                    }
+                    _ => *base_style,
+                };
+                if let Some((last_text, last_style)) = wrapped.last_mut()
+                    && *last_style == style
+                {
+                    last_text.push(character);
+                } else {
+                    wrapped.push((character.to_string(), style));
+                }
+                character_index += 1;
+            }
+            span_offset += take;
+            byte_cursor += take;
+            if span_offset == text.len() {
+                span_index += 1;
+                span_offset = 0;
+            }
+        }
+        lines.push(wrapped);
+    }
+    lines
+}
+
+pub fn diff_hunk_line_positions(
+    diff: &str,
+    terminal_width: u16,
+    raw: bool,
+    side_by_side: bool,
+) -> Vec<usize> {
+    let mut positions = Vec::new();
+    let mut visual_line = 0;
+
+    if side_by_side {
+        let content_width = usize::from(terminal_width / 2).saturating_sub(8).max(1);
+        for row in crate::diff::numbered_side_by_side(diff) {
+            if row.old_text.starts_with("@@ ") || row.new_text.starts_with("@@ ") {
+                positions.push(visual_line);
+            } else if row.old_number.is_some() || row.new_number.is_some() {
+                let before = if raw {
+                    row.old_text
+                } else {
+                    source_line(row.old_text).0
+                };
+                let after = if raw {
+                    row.new_text
+                } else {
+                    source_line(row.new_text).0
+                };
+                visual_line += wrap_line_ranges(before, content_width)
+                    .len()
+                    .max(wrap_line_ranges(after, content_width).len());
+            }
+        }
+    } else if raw {
+        let content_width = usize::from(terminal_width).saturating_sub(14).max(1);
+        for line in diff.lines() {
+            if line.starts_with("@@ ") {
+                positions.push(visual_line);
+            }
+            visual_line += wrap_line_ranges(line, content_width).len();
+        }
+    } else {
+        let content_width = usize::from(terminal_width).saturating_sub(16).max(1);
+        for row in crate::diff::numbered_side_by_side(diff) {
+            if row.old_text.starts_with("@@ ") || row.new_text.starts_with("@@ ") {
+                positions.push(visual_line);
+            } else if row.old_number.is_some() || row.new_number.is_some() {
+                let before = source_line(row.old_text).0;
+                let after = source_line(row.new_text).0;
+                if row.old_number.is_some() && row.new_number.is_some() {
+                    visual_line += wrap_line_ranges(before, content_width).len();
+                } else {
+                    if row.old_number.is_some() {
+                        visual_line += wrap_line_ranges(before, content_width).len();
+                    }
+                    if row.new_number.is_some() {
+                        visual_line += wrap_line_ranges(after, content_width).len();
+                    }
+                }
+            }
+        }
+    }
+    positions
+}
+
 fn wrap_diff_line(text: &str, width: usize) -> Vec<String> {
+    wrap_line_ranges(text, width)
+        .into_iter()
+        .map(|range| text[range].to_owned())
+        .collect()
+}
+
+fn wrap_line_ranges(text: &str, width: usize) -> Vec<Range<usize>> {
     if text.is_empty() {
-        return vec![String::new()];
+        return vec![0..0];
     }
 
     let width = width.max(1);
-    let mut lines = Vec::new();
-    let mut remaining = text;
+    let mut ranges = Vec::new();
+    let mut start = 0;
 
-    while remaining
-        .chars()
-        .map(|character| UnicodeWidthChar::width(character).unwrap_or(0))
-        .sum::<usize>()
-        > width
-    {
+    while start < text.len() {
         let mut used_width = 0;
-        let mut last_fit = 0;
+        let mut last_fit = start;
         let mut last_whitespace = None;
+        let mut overflow = false;
 
-        for (index, character) in remaining.char_indices() {
+        for (relative_index, character) in text[start..].char_indices() {
+            let index = start + relative_index;
             let character_width = UnicodeWidthChar::width(character).unwrap_or(0);
             if used_width + character_width > width {
+                overflow = true;
                 break;
             }
             used_width += character_width;
             last_fit = index + character.len_utf8();
-            if character.is_whitespace() && index > 0 {
-                last_whitespace = Some(index);
+            if character.is_whitespace() && index > start {
+                last_whitespace = Some(last_fit);
             }
         }
 
-        let split_at = last_whitespace.unwrap_or(last_fit);
-        if split_at == 0 {
+        if !overflow {
+            ranges.push(start..text.len());
             break;
         }
-        lines.push(remaining[..split_at].to_owned());
-        remaining = &remaining[split_at..];
+
+        let mut split_at = last_whitespace.unwrap_or(last_fit);
+        if split_at <= start {
+            split_at = start + text[start..].chars().next().unwrap().len_utf8();
+        }
+        ranges.push(start..split_at);
+        start = split_at;
     }
 
-    lines.push(remaining.to_owned());
-    lines
+    ranges
 }
 
 fn styled_numbered_unified(old: Option<u32>, new: Option<u32>, text: &str) -> Line<'static> {

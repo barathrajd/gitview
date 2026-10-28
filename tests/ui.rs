@@ -42,6 +42,7 @@ fn contextual_help_opens_as_a_page_specific_overlay() {
                     diff: &diff,
                     scroll: 0,
                     selected_hunk: 0,
+                    raw: false,
                     side_by_side: true,
                     worktree_entry: Some(&entry),
                 },
@@ -414,6 +415,7 @@ fn renders_error_states_for_git_backed_views() {
             diff: &diff,
             scroll: 0,
             selected_hunk: 0,
+            raw: false,
             side_by_side: true,
             worktree_entry: None,
         },
@@ -424,13 +426,14 @@ fn renders_error_states_for_git_backed_views() {
 }
 
 #[test]
-fn renders_split_or_unified_diff_at_any_terminal_width() {
+fn renders_ide_diff_by_default_and_raw_patch_on_request() {
     let diff = (1, Some(Ok("@@ -10 +20 @@\n-before\n+after\n".to_owned())));
     let narrow = draw(
         Screen::Diff {
             diff: &diff,
             scroll: 0,
             selected_hunk: 0,
+            raw: false,
             side_by_side: true,
             worktree_entry: None,
         },
@@ -447,13 +450,14 @@ fn renders_split_or_unified_diff_at_any_terminal_width() {
             diff: &diff,
             scroll: 0,
             selected_hunk: 0,
+            raw: true,
             side_by_side: false,
             worktree_entry: None,
         },
         120,
         24,
     );
-    assert!(wide.contains("UNIFIED"));
+    assert!(wide.contains("RAW PATCH"));
     assert!(!wide.contains("BEFORE"));
     assert!(!wide.contains("AFTER"));
     assert!(wide.contains("10"));
@@ -480,6 +484,7 @@ fn working_tree_diff_shows_hunk_controls_and_selection() {
             diff: &diff,
             scroll: 0,
             selected_hunk: 1,
+            raw: false,
             side_by_side: true,
             worktree_entry: Some(&entry),
         },
@@ -518,6 +523,7 @@ fn staged_worktree_diff_shows_unstage_all_controls() {
             diff: &diff,
             scroll: 0,
             selected_hunk: 0,
+            raw: false,
             side_by_side: true,
             worktree_entry: Some(&entry),
         },
@@ -539,6 +545,7 @@ fn wide_side_by_side_diff_wraps_long_lines() {
             diff: &diff,
             scroll: 0,
             selected_hunk: 0,
+            raw: false,
             side_by_side: true,
             worktree_entry: None,
         },

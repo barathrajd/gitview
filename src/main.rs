@@ -268,6 +268,7 @@ fn app(
     let (diff_sender, diff_receiver) = std::sync::mpsc::channel::<(u64, Result<String, String>)>();
     let mut diff: Option<(u64, Option<Result<String, String>>)> = None;
     let mut diff_scroll = 0u16;
+    let mut diff_raw_view = false;
     let mut diff_side_by_side = true;
     let mut diff_entry: Option<gitview::worktree::Entry> = None;
     let mut selected_hunk = 0usize;
@@ -718,6 +719,7 @@ fn app(
                     diff,
                     scroll: diff_scroll,
                     selected_hunk,
+                    raw: diff_raw_view,
                     side_by_side: diff_side_by_side,
                     worktree_entry: diff_entry.as_ref(),
                 }
@@ -1333,6 +1335,10 @@ fn app(
                 KeyCode::Char('q') if !mutation_pending => return Ok(()),
                 KeyCode::Esc if help => help = false,
                 KeyCode::Char('?') => help = !help,
+                KeyCode::Tab if !help && diff.is_some() => {
+                    diff_side_by_side = !diff_side_by_side;
+                    diff_scroll = 0;
+                }
                 KeyCode::Tab
                 | KeyCode::Char('b')
                 | KeyCode::Char('/')
@@ -1347,7 +1353,7 @@ fn app(
                     }
                 }
                 KeyCode::Char('v') if !help && diff.is_some() => {
-                    diff_side_by_side = !diff_side_by_side;
+                    diff_raw_view = !diff_raw_view;
                     diff_scroll = 0;
                 }
                 KeyCode::Enter
@@ -1425,7 +1431,12 @@ fn app(
                         }) =>
                 {
                     if let Some((_, Some(Ok(text)))) = &diff {
-                        let positions = hunk_line_positions(text, diff_side_by_side);
+                        let positions = hunk_line_positions(
+                            text,
+                            diff_raw_view,
+                            diff_side_by_side,
+                            terminal.size().map_or(80, |size| size.width),
+                        );
                         if !positions.is_empty() {
                             selected_hunk = (selected_hunk + 1).min(positions.len() - 1);
                             diff_scroll = positions[selected_hunk] as u16;
@@ -1439,7 +1450,12 @@ fn app(
                         }) =>
                 {
                     if let Some((_, Some(Ok(text)))) = &diff {
-                        let positions = hunk_line_positions(text, diff_side_by_side);
+                        let positions = hunk_line_positions(
+                            text,
+                            diff_raw_view,
+                            diff_side_by_side,
+                            terminal.size().map_or(80, |size| size.width),
+                        );
                         if !positions.is_empty() {
                             selected_hunk = selected_hunk.saturating_sub(1);
                             diff_scroll = positions[selected_hunk] as u16;
@@ -1456,7 +1472,14 @@ fn app(
                                     && entry.section == gitview::worktree::Section::Untracked)))
                             || (!stage && entry.section == gitview::worktree::Section::Staged))
                         && (all_hunks
-                            || selected_hunk < hunk_line_positions(text, diff_side_by_side).len())
+                            || selected_hunk
+                                < hunk_line_positions(
+                                    text,
+                                    diff_raw_view,
+                                    diff_side_by_side,
+                                    terminal.size().map_or(80, |size| size.width),
+                                )
+                                .len())
                     {
                         let entry = entry.clone();
                         let hunk = selected_hunk;
@@ -1544,22 +1567,13 @@ fn app(
     }
 }
 
-fn hunk_line_positions(diff: &str, side_by_side: bool) -> Vec<usize> {
-    if side_by_side {
-        gitview::diff::numbered_side_by_side(diff)
-            .iter()
-            .enumerate()
-            .filter_map(|(index, row)| {
-                (row.old_text.starts_with("@@ ") || row.new_text.starts_with("@@ "))
-                    .then_some(index)
-            })
-            .collect()
-    } else {
-        diff.lines()
-            .enumerate()
-            .filter_map(|(index, line)| line.starts_with("@@ ").then_some(index))
-            .collect()
-    }
+fn hunk_line_positions(
+    diff: &str,
+    raw: bool,
+    side_by_side: bool,
+    terminal_width: u16,
+) -> Vec<usize> {
+    ui::diff_hunk_line_positions(diff, terminal_width, raw, side_by_side)
 }
 
 fn navigation_key(key: KeyEvent) -> KeyCode {
