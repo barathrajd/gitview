@@ -78,7 +78,9 @@ remains deferred.
   **Backspace** edits the query, and **Esc** returns to history.
 - In the working-tree view, **s** stages the selected file, **u** unstages it,
   **S** stages all changes, **U** unstages all staged changes, and **r**
-  refreshes status. Open a file diff with **Enter** to select hunks with **[**
+  refreshes status. Press **d** to review and confirm discarding one unstaged or
+  untracked file; tracked files return to their staged version, and untracked
+  files are removed. Open a file diff with **Enter** to select hunks with **[**
   and **]**; **s/u** stage or unstage the selected hunk, and **S/U** act on the
   whole file.
 - Press **c** in the working-tree view to enter a commit message, review the
@@ -138,9 +140,10 @@ finished.
 ## Current limitations
 
 Gitview currently focuses on history and working-tree review, file and hunk
-staging, commit creation from a reviewed staged file set, local branch browsing
-and creation, and folder-scoped Git config profiles. Commit amendment and editor
-handoff, tag and remote management, restoring or moving working-tree paths,
+staging, confirmed discard of selected unstaged and untracked files, commit
+creation from a reviewed staged file set, local branch browsing and creation,
+and folder-scoped Git config profiles. Commit amendment and editor handoff, tag
+and remote management, moving working-tree paths, discarding renamed paths,
 conflict resolution, stash, rebase, and submodule workflows are not
 implemented. See the [Git CLI capability matrix](docs/git-cli-capability-matrix.md)
 for current coverage and planned work.

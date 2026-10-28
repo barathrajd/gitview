@@ -16,6 +16,12 @@ pub struct Entry {
     pub original: Option<OsString>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DiscardPreview {
+    pub entry: Entry,
+    fingerprint: Vec<u8>,
+}
+
 pub fn load_status(root: &Path) -> Result<Vec<Entry>, String> {
     let output = process::git_command()
         .current_dir(root)
@@ -129,6 +135,76 @@ fn run_action(
             String::from_utf8_lossy(&output.stderr).trim()
         ))
     }
+}
+
+pub fn preview_discard(root: &Path, entry: &Entry) -> Result<DiscardPreview, String> {
+    if entry.section == Section::Staged {
+        return Err("Select an unstaged or untracked file to discard".into());
+    }
+    if entry.original.is_some() {
+        return Err("Discarding renamed paths is not supported yet".into());
+    }
+    if !load_status(root)?.iter().any(|current| current == entry) {
+        return Err("File status changed; refresh and select it again".into());
+    }
+    Ok(DiscardPreview {
+        entry: entry.clone(),
+        fingerprint: discard_fingerprint(root, entry)?,
+    })
+}
+
+pub fn discard(root: &Path, preview: &DiscardPreview) -> Result<(), String> {
+    let entry = &preview.entry;
+    if !load_status(root)?.iter().any(|current| current == entry) {
+        return Err("File status changed; refresh and select it again".into());
+    }
+    if discard_fingerprint(root, entry)? != preview.fingerprint {
+        return Err("File contents changed after confirmation; review it again".into());
+    }
+    match entry.section {
+        Section::Staged => Err("Select an unstaged or untracked file to discard".into()),
+        Section::Unstaged => run_action(root, &["restore", "--worktree"], &entry.path, None),
+        Section::Untracked => run_action(root, &["clean", "-f"], &entry.path, None),
+    }
+}
+
+fn discard_fingerprint(root: &Path, entry: &Entry) -> Result<Vec<u8>, String> {
+    if entry.section == Section::Staged {
+        return Err("Staged files cannot be discarded".into());
+    }
+    let mut fingerprint = Vec::new();
+    if entry.section == Section::Unstaged {
+        let diff = process::git_command()
+            .current_dir(root)
+            .arg("--literal-pathspecs")
+            .args(["diff", "--raw", "-z", "--no-renames", "--no-ext-diff", "--"])
+            .arg(&entry.path)
+            .output()
+            .map_err(|error| format!("Could not inspect selected file: {error}"))?;
+        if !diff.status.success() {
+            return Err(format!(
+                "Could not inspect selected file: {}",
+                String::from_utf8_lossy(&diff.stderr).trim()
+            ));
+        }
+        fingerprint.extend(diff.stdout);
+        fingerprint.push(0xff);
+    }
+    let content = process::git_command()
+        .current_dir(root)
+        .arg("--literal-pathspecs")
+        .args(["hash-object", "--no-filters", "--"])
+        .arg(&entry.path)
+        .output()
+        .map_err(|error| format!("Could not inspect selected file: {error}"))?;
+    if !content.status.success() {
+        return Err(format!(
+            "Could not inspect selected file: {}",
+            String::from_utf8_lossy(&content.stderr).trim()
+        ));
+    }
+    fingerprint.extend(content.stdout);
+    Ok(fingerprint)
 }
 
 pub fn stage(root: &Path, entry: &Entry) -> Result<(), String> {

@@ -235,6 +235,8 @@ fn app(
     let mut commit_expected: Option<gitview::commit::CommitPreview> = None;
     let mut commit_feedback = String::new();
     let (commit_sender, commit_receiver) = mpsc::channel::<(String, Result<(), String>)>();
+    let mut discard_confirm: Option<gitview::worktree::DiscardPreview> = None;
+    let (discard_sender, discard_receiver) = mpsc::channel::<Result<(), String>>();
     let mut mutation_pending = false;
     let mut status_mutation: Option<u64> = None;
     let mut diff_entry_refresh: Option<(gitview::worktree::Section, gitview::worktree::Section)> =
@@ -539,6 +541,23 @@ fn app(
                 }
             }
         }
+        while let Ok(result) = discard_receiver.try_recv() {
+            mutation_pending = false;
+            discard_confirm = None;
+            commit_feedback = match result {
+                Ok(()) => "Selected file discarded.".into(),
+                Err(error) => error,
+            };
+            status_request += 1;
+            let id = status_request;
+            status_mutation = Some(id);
+            let sender = status_sender.clone();
+            let path = root.to_path_buf();
+            status = None;
+            std::thread::spawn(move || {
+                let _ = sender.send((id, gitview::worktree::load_status(&path)));
+            });
+        }
         terminal.draw(|frame| {
             let help_page = if profiles_view {
                 ui::HelpPage::Profiles
@@ -579,6 +598,11 @@ fn app(
                     staged: commit_expected
                         .as_ref()
                         .map_or(&[], |preview| preview.entries.as_slice()),
+                    pending: mutation_pending,
+                }
+            } else if let Some(preview) = &discard_confirm {
+                Screen::DiscardConfirmation {
+                    entry: &preview.entry,
                     pending: mutation_pending,
                 }
             } else if let Some(message) = &commit_message {
@@ -746,6 +770,26 @@ fn app(
                         commit_message = Some(message.clone());
                         commit_confirm = None;
                     }
+                    _ => {}
+                }
+                continue;
+            }
+            if let Some(preview) = discard_confirm.as_ref() {
+                if mutation_pending {
+                    continue;
+                }
+                match key.code {
+                    KeyCode::Char('?') => help = true,
+                    KeyCode::Char('y') => {
+                        mutation_pending = true;
+                        let preview = preview.clone();
+                        let path = root.to_path_buf();
+                        let sender = discard_sender.clone();
+                        std::thread::spawn(move || {
+                            let _ = sender.send(gitview::worktree::discard(&path, &preview));
+                        });
+                    }
+                    KeyCode::Char('n') | KeyCode::Esc => discard_confirm = None,
                     _ => {}
                 }
                 continue;
@@ -1006,6 +1050,20 @@ fn app(
                             commit_feedback = error;
                         }
                     },
+                    AppAction::PreviewDiscardSelected => {
+                        if let (Some(Ok(entries)), Some(index)) =
+                            (&status, status_selection.selected())
+                            && let Some(entry) = entries.get(index)
+                        {
+                            match gitview::worktree::preview_discard(root, entry) {
+                                Ok(preview) => {
+                                    discard_confirm = Some(preview);
+                                    commit_feedback.clear();
+                                }
+                                Err(error) => commit_feedback = error,
+                            }
+                        }
+                    }
                     AppAction::StageAll => {
                         status_request += 1;
                         let id = status_request;

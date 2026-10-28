@@ -90,6 +90,17 @@ fn lowercase_c_starts_a_commit_only_from_the_working_tree() {
 }
 
 #[test]
+fn lowercase_d_previews_discard_only_from_the_working_tree() {
+    let mut app = AppState::default();
+    assert_eq!(
+        app.handle_key(KeyCode::Char('d'), false),
+        Some(AppAction::PreviewDiscardSelected)
+    );
+    assert_eq!(app.handle_tab(false), Some(AppAction::ReturnToHistory));
+    assert_eq!(app.handle_key(KeyCode::Char('d'), false), None);
+}
+
+#[test]
 fn list_movement_preserves_selection_and_clamps_to_available_rows() {
     assert_eq!(move_down(None, 4), Some(1));
     assert_eq!(move_down(Some(2), 3), Some(2));

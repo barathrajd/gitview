@@ -252,6 +252,7 @@ pub fn render_help_overlay(
         ("Up/Down, j/k", "Select a changed file"),
         ("Enter", "Open file diff"),
         ("c", "Commit staged files"),
+        ("d", "Discard selected unstaged or untracked file"),
         ("s", "Stage selected file"),
         ("u", "Unstage selected file"),
         ("S", "Stage all working tree changes"),
@@ -433,6 +434,10 @@ pub enum Screen<'a> {
         staged: &'a [Entry],
         pending: bool,
     },
+    DiscardConfirmation {
+        entry: &'a Entry,
+        pending: bool,
+    },
     Branches {
         branches: Option<&'a Result<Branches, String>>,
         feedback: &'a str,
@@ -608,6 +613,32 @@ pub fn render(
                 &[("Working", "commit in progress")][..]
             } else {
                 &[("y", "commit"), ("n/Esc", "edit or cancel")][..]
+            };
+            render_key_hints(frame, areas[1], hints);
+        }
+        Screen::DiscardConfirmation { entry, pending } => {
+            let action = match entry.section {
+                crate::worktree::Section::Unstaged => "Restore this file to its staged version?",
+                crate::worktree::Section::Untracked => "Permanently delete this untracked file?",
+                crate::worktree::Section::Staged => "Staged files cannot be discarded.",
+            };
+            let text = if pending {
+                "Applying discard operation...".to_owned()
+            } else {
+                format!("{action}\n\n{}", entry.path.to_string_lossy())
+            };
+            let areas =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
+            frame.render_widget(
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: false })
+                    .block(page_block("CONFIRM DISCARD", border)),
+                areas[0],
+            );
+            let hints = if pending {
+                &[("Working", "discard in progress")][..]
+            } else {
+                &[("y", "discard file"), ("n/Esc", "cancel")][..]
             };
             render_key_hints(frame, areas[1], hints);
         }

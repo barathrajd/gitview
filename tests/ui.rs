@@ -99,6 +99,28 @@ fn commit_dialogs_show_the_message_and_exact_staged_file_list() {
 }
 
 #[test]
+fn discard_dialog_names_the_selected_file_and_requires_confirmation() {
+    let entry = Entry {
+        section: Section::Untracked,
+        path: OsString::from("new file.rs"),
+        original: None,
+    };
+    let rendered = draw(
+        Screen::DiscardConfirmation {
+            entry: &entry,
+            pending: false,
+        },
+        60,
+        12,
+    );
+    assert!(rendered.contains("CONFIRM DISCARD"));
+    assert!(rendered.contains("new file.rs"));
+    assert!(rendered.contains("Permanently delete this untracked file?"));
+    assert!(rendered.contains("discard file"));
+    assert!(rendered.contains("cancel"));
+}
+
+#[test]
 fn renders_help_and_loading_or_empty_history_states() {
     let help = draw(Screen::Help, 80, 24);
     assert!(help.contains("KEYBOARD SHORTCUTS"));
