@@ -1,15 +1,12 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import Navigation from "../components/Navigation.astro";
+import Hero from "../components/Hero.astro";
 ---
 
 <BaseLayout>
-  <main class="mx-auto flex min-h-screen max-w-6xl items-center px-6 py-24">
-    <div>
-      <p class="font-mono text-sm text-emerald-400">GITVIEW / TERMINAL GIT REVIEW</p>
-      <h1 class="mt-5 text-5xl font-semibold tracking-tight text-slate-50">Git history, diffs, and working tree.</h1>
-      <p class="mt-5 max-w-2xl text-lg leading-8 text-slate-400">
-        A keyboard-first terminal interface for reviewing everyday Git changes.
-      </p>
-    </div>
+  <Navigation />
+  <main>
+    <Hero />
   </main>
 </BaseLayout>

@@ -102,7 +102,7 @@ part of the final experience.
 1. [x] Scaffold and build the isolated Astro/Tailwind site with shared layout,
    global theme, SEO metadata, and the site's canonical domain. Verify the
    static output builds from `website/`.
-2. Publish the product story in a responsive hero and terminal preview that
+2. [x] Publish the product story in a responsive hero and terminal preview that
    show supported history, worktree, diff, and staging workflows. Review all
    displayed claims against the current README and release notes.
 3. Add the feature grid and interactive installation guide with Cargo as the
