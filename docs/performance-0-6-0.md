@@ -226,8 +226,14 @@ it, the same sequence ends 772 KiB below the loaded value, so about 12.7 MiB.
 The active layout alone exceeds 8 MiB there, which is why the total stays above
 the budget. Run `comparison_cache_live_allocations` with `--ignored --nocapture`
 to reproduce. This is a single local measurement, not p95 or cross-platform proof.
-Comparison loading still uses one spawned thread per Enter, which can't be
-cancelled when the page closes; that lifecycle remains unreviewed.
+Comparison loading spawns one thread per Enter. Closing the page now sets a
+cancellation flag that stops the remaining per-file syntax preparation and skips
+the result, and a load that hasn't started returns immediately. Git commands
+already running aren't killed; they finish within the 1 MB / 5,000 line output
+limit. The object page keeps its simple load thread, because it only runs those
+bounded Git reads and does no preparation. The cancellation rule is covered by a
+unit test on the preparation loop. I haven't measured it natively, for example
+by pressing Escape during a slow comparison.
 
 Explicit optimized-build diagnostics check a 100 ms first-layout budget and
 50 ms p95 across 100 warm actions at both terminal sizes. These are in-memory
@@ -351,7 +357,7 @@ Loading the blob took 20 ms and listing 10,000 tags took 303 ms. Both happen
 off the UI thread behind a loading state, and these are Git and thread times, not
 promises. All frame times are far below the 50 ms budget, so neither page was
 changed. The numbers exclude terminal I/O, input handling, and syntax work, and
-the object page's per-Enter load thread is still not cancellable on close.
+the object page's load thread still finishes its bounded Git reads after close.
 Linux remains unmeasured.
 
 ## Native navigation latency
@@ -411,7 +417,7 @@ All three pass. The pages run in order in one process, so each warm value
 includes memory left by the earlier pages. Comparison grew the most, using about
 42% of its budget without flattening in this run, so a longer run is needed
 before calling it a plateau. This is one local run on one small fixture. It doesn't
-cover the uncancellable load threads, Linux, or a clean revision.
+cover mid-load cancellation, Linux, or a clean revision.
 
 ### Large comparison fixture
 
@@ -434,7 +440,11 @@ separately. Two runs on macOS ARM64 disagreed:
 Run 1 passed at 100 cycles and exceeded the budget at 300. Run 2 **failed the
 100-cycle budget**. In both, RSS rose in steps and stayed flat for long stretches
 (run 2 held 57,696 KiB for about 100 cycles), but I haven't shown that it stops
-rising. This is an open finding on the large fixture, not a passing check.
+rising. This is an open finding on the large fixture, not a passing check. After the
+load-thread cancellation change, which doesn't affect cycles whose loads finish,
+two more 100-cycle runs grew 1,248 KiB and 9,744 KiB, both within the budget but
+the second close to it. Four runs on the same fixture ranged from 1,248 to
+13,552 KiB, so the variance itself is the finding.
 
 To separate retained data from allocator behavior, the `live_heap_returns_to_baseline_after_closing_a_comparison_page`
 diagnostic in `tests/comparison_cache_live_allocations.rs` opens, loads, renders
@@ -467,7 +477,7 @@ The following checks remain required before release:
 - Cover navigation, debounced search, native large-list navigation, signed-tag/key
   verification behavior, object inspection, mutation progress, and external
   editor/hook/signing responsiveness.
-- Resolve or explain the large-comparison native RSS finding, run medium/stress
+- Resolve or explain the large-comparison native RSS variance, run medium/stress
   fixtures, and complete request lifecycle checks.
 - Collect native Linux evidence and report Git-child CPU separately.
 - Clear the release Clippy gate and complete the existing release gates.

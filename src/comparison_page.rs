@@ -10,7 +10,11 @@ use ratatui::{
 use std::{
     cell::{Cell, RefCell},
     path::Path,
-    sync::mpsc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
 };
 #[derive(PartialEq)]
 enum Mode {
@@ -53,6 +57,28 @@ pub struct ComparisonPage {
     cache: RefCell<Vec<RenderCache>>,
     sender: mpsc::Sender<PreparedResult>,
     receiver: mpsc::Receiver<PreparedResult>,
+    /// Set when the page closes so an abandoned load skips remaining preparation.
+    cancelled: Arc<AtomicBool>,
+}
+/// Prepare each item in order, stopping as soon as `cancelled` is set.
+fn prepare_unless_cancelled<T, U>(
+    items: &[T],
+    cancelled: &AtomicBool,
+    mut prepare: impl FnMut(&T) -> U,
+) -> Option<Vec<U>> {
+    let mut prepared = Vec::with_capacity(items.len());
+    for item in items {
+        if cancelled.load(Ordering::Acquire) {
+            return None;
+        }
+        prepared.push(prepare(item));
+    }
+    (!cancelled.load(Ordering::Acquire)).then_some(prepared)
+}
+impl Drop for ComparisonPage {
+    fn drop(&mut self) {
+        self.cancelled.store(true, Ordering::Release);
+    }
 }
 impl ComparisonPage {
     pub fn open(target: &str, path: Option<&Path>) -> Self {
@@ -79,6 +105,7 @@ impl ComparisonPage {
             cache: RefCell::new(Vec::new()),
             sender,
             receiver,
+            cancelled: Arc::new(AtomicBool::new(false)),
         }
     }
     pub fn tick(&mut self) -> bool {
@@ -134,23 +161,24 @@ impl ComparisonPage {
                     let fields = self.fields.clone();
                     let root = root.to_path_buf();
                     let sender = self.sender.clone();
+                    let cancelled = self.cancelled.clone();
                     self.pending = true;
                     self.feedback.clear();
                     std::thread::spawn(move || {
+                        if cancelled.load(Ordering::Acquire) {
+                            return;
+                        }
                         let path = (!fields[2].is_empty()).then(|| Path::new(&fields[2]));
-                        let result =
-                            comparison::load(&root, &fields[0], &fields[1], path).map(|result| {
-                                let prepared = result
-                                    .files
-                                    .iter()
-                                    .map(|file| {
-                                        crate::ui::prepare_comparison_file(
-                                            &file.patch,
-                                            Path::new(&file.path),
-                                        )
-                                    })
-                                    .collect();
-                                (result, prepared)
+                        let result = comparison::load(&root, &fields[0], &fields[1], path)
+                            .and_then(|result| {
+                                prepare_unless_cancelled(&result.files, &cancelled, |file| {
+                                    crate::ui::prepare_comparison_file(
+                                        &file.patch,
+                                        Path::new(&file.path),
+                                    )
+                                })
+                                .map(|prepared| (result, prepared))
+                                .ok_or_else(|| "Comparison cancelled".to_owned())
                             });
                         let _ = sender.send(result);
                     });
@@ -497,5 +525,30 @@ impl ComparisonPage {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stops_preparing_files_once_the_page_is_closed() {
+        let cancelled = AtomicBool::new(false);
+        let mut calls = 0;
+        let prepared = prepare_unless_cancelled(&[1, 2, 3, 4, 5], &cancelled, |item| {
+            calls += 1;
+            if *item == 2 {
+                cancelled.store(true, Ordering::Release);
+            }
+            *item
+        });
+        assert!(prepared.is_none());
+        assert_eq!(calls, 2);
+        let open = AtomicBool::new(false);
+        assert_eq!(
+            prepare_unless_cancelled(&[1, 2], &open, |item| item * 2),
+            Some(vec![2, 4])
+        );
     }
 }

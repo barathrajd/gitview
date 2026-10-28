@@ -128,8 +128,8 @@ change is selected, and no unverified library-performance claim is assumed.
    diffs, so the growth tracks allocator retention of a roughly 25 MiB
    per-cycle peak, not retained views. Native lifecycle evidence is recorded
    separately in the performance report.
-   The comparison render cache now has the same byte budget; its uncancellable
-   per-Enter load thread remains. Other languages, the complete stress matrix, and
+   The comparison render cache now has the same byte budget; closing the page now
+   cancels its remaining preparation. Other languages, the complete stress matrix, and
    memory investigation remain pending before this milestone can close.
 4. **Idle and large-list fixes (in progress):** unchanged main-loop frames are
    skipped; page completions and status updates request a redraw. Native
