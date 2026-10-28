@@ -543,6 +543,19 @@ ran headless Chrome and a site build during the first part of the pass, so
 timings and RSS may be perturbed. Rerun the pass on a clean commit with the
 machine otherwise idle before treating any value as release evidence.
 
+`scripts/run-release-pass.sh` runs the whole pass in one command. It refuses a
+dirty worktree unless you pass `--allow-dirty`, records the revision and tool
+versions, warns if the load average is high, and writes each check's output and
+exit code to `target/release-pass/<revision>-<time>`. The full pass takes about
+15 minutes. `--skip-slow` omits the native memory scripts and the 30 second idle
+profile for a quick check that isn't release evidence. The command exits with
+status 1 if any check fails. The known-failing `renderer_rss` diagnostic always
+fails today, so expect that status until it is resolved.
+
+```sh
+scripts/run-release-pass.sh
+```
+
 | Check | Result |
 | --- | --- |
 | `cargo fmt --check`, `git diff --check` | Pass |
