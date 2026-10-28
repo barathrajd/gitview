@@ -133,8 +133,9 @@ change is selected, and no unverified library-performance claim is assumed.
    memory investigation remain pending before this milestone can close.
 4. **Idle and large-list fixes (in progress):** unchanged main-loop frames are
    skipped; page completions and status updates request a redraw. Native
-   small-fixture idle measurements pass; large lists and memory cycles remain
-   pending. Continue to use measured evidence to avoid unchanged
+   small-fixture idle measurements pass. Cockpit rendering with 10,000-entry
+   lists measures at most 1.4 ms p95 and needs no change; native navigation,
+   search, other list pages, and memory cycles remain pending. Continue to use measured evidence to avoid unchanged
    redraw/preparation work and excessive request/clone volume. Preserve timers,
    status-watch freshness, live startup data, debounced search, and navigation.
    Recheck new pages, many refs, and large worktrees with CPU/RSS measurements.

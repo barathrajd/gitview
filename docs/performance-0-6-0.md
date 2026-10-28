@@ -289,6 +289,37 @@ sizes, frame timings, failed renderer RSS checks, native RSS measurements,
 toolchain, revision, and binary identity. All evidence comes from the macOS
 implementation worktree; clean-revision and Linux evidence remain required.
 
+## Large cockpit lists
+
+The cockpit renders its history, worktree, and branch lists from in-memory data.
+This diagnostic measures only that rendering. It excludes Git, terminal I/O,
+input handling, and search. Run it explicitly in a release build:
+
+```sh
+cargo test --release --locked --features test-support \
+  --test large_list_performance -- --ignored --nocapture --test-threads=1
+```
+
+Each value is the p95 of 100 frames while the selection jumps through both
+lists, after one warm-up frame. Lengths are history and worktree entries, with
+a tenth as many branches. One run on macOS ARM64 gave:
+
+| List length | p95 at 140x35 | p95 at 80x24 |
+| --- | --- | --- |
+| 100 | 0.22 to 0.29 ms | 0.07 ms |
+| 1,000 | 0.26 to 0.28 ms | 0.10 to 0.14 ms |
+| 10,000 | 1.35 to 1.38 ms | 0.47 to 0.83 ms |
+
+Frame time grows with list length but stays far below the 50 ms budget, so no
+renderer change was made. The native stress fixture (10,000 staged paths, 1,000
+extra refs) also settled at 0.5% of one core over 10 idle seconds, with 25
+terminal output bytes, and slow-preview feedback and cancel took about 12 ms
+(five samples). Its first startup sample took 689 ms and the other four took
+28 to 42 ms; the first run is cold, and the startup budget applies to the small
+fixture. These are single local runs, not p95 proof across 20 starts. Debounced
+search, tag, path-history, and object lists, native navigation latency, and
+Linux remain unmeasured.
+
 ## Review status and remaining work
 
 The following checks remain required before release:
@@ -300,7 +331,7 @@ The following checks remain required before release:
   output limits, very long lines, unusual paths, cache memory plateaus, and
   page/request lifecycle cycles. Current warm-frame coverage is the 400-line
   Rust fixture and two terminal sizes, not the whole matrix.
-- Cover navigation, debounced search, large status/ref lists, signed-tag/key
+- Cover navigation, debounced search, native large-list navigation, signed-tag/key
   verification behavior, object inspection, mutation progress, and external
   editor/hook/signing responsiveness.
 - Run medium/stress fixtures, cache memory plateaus, and request lifecycle checks.
