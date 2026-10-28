@@ -1,4 +1,3 @@
-# Plans
 Gitview is a keyboard-first terminal interface for everyday Git review.
 
 - [git-review-mvp](plans/git-review-mvp.md) — initial review and staging.
@@ -8,3 +7,4 @@ Gitview is a keyboard-first terminal interface for everyday Git review.
 - [release-installation-0-3-1](plans/release-installation-0-3-1.md) — install and release automation.
 - [git-cli-capability-roadmap-2026](plans/git-cli-capability-roadmap-2026.md) — tiered Git coverage.
 - [git-config-profiles](plans/git-config-profiles.md) — isolate account settings by repository folder.
+- [website](plans/website.md) — publish a truthful Gitview product and installation site.
