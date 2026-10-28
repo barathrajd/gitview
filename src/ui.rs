@@ -14,6 +14,7 @@ use ratatui::{
     widgets::{Block, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table, Wrap},
 };
 use std::path::Path;
+use unicode_width::UnicodeWidthChar;
 
 pub const ASCII_BORDER: ratatui::symbols::border::Set<'static> = ratatui::symbols::border::Set {
     top_left: "+",
@@ -1568,14 +1569,11 @@ fn render_diff(
         let panes = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(sections[0]);
         let rows = crate::diff::numbered_side_by_side(message);
-        let left: Vec<Line> = rows
-            .iter()
-            .map(|row| styled_numbered_side(row.old_number, row.old_text))
-            .collect();
-        let right: Vec<Line> = rows
-            .iter()
-            .map(|row| styled_numbered_side(row.new_number, row.new_text))
-            .collect();
+        let content_width = usize::from(panes[0].width.min(panes[1].width))
+            .saturating_sub(2)
+            .saturating_sub(6)
+            .max(1);
+        let (left, right) = aligned_side_by_side_lines(&rows, content_width);
         frame.render_widget(
             Paragraph::new(Text::from(left))
                 .scroll((scroll, 0))
@@ -1864,12 +1862,86 @@ fn diff_line_style(line: &str) -> Style {
     Style::default().fg(color)
 }
 
-fn styled_numbered_side(number: Option<u32>, text: &str) -> Line<'static> {
+fn aligned_side_by_side_lines(
+    rows: &[crate::diff::NumberedDiffRow<'_>],
+    content_width: usize,
+) -> (Vec<Line<'static>>, Vec<Line<'static>>) {
+    let mut old_lines = Vec::new();
+    let mut new_lines = Vec::new();
+
+    for row in rows {
+        let old_wrapped = wrap_diff_line(row.old_text, content_width);
+        let new_wrapped = wrap_diff_line(row.new_text, content_width);
+        let height = old_wrapped.len().max(new_wrapped.len());
+        let old_style = diff_line_style(row.old_text);
+        let new_style = diff_line_style(row.new_text);
+
+        for line_index in 0..height {
+            old_lines.push(numbered_wrapped_line(
+                (line_index == 0).then_some(row.old_number).flatten(),
+                old_wrapped.get(line_index).map_or("", String::as_str),
+                old_style,
+            ));
+            new_lines.push(numbered_wrapped_line(
+                (line_index == 0).then_some(row.new_number).flatten(),
+                new_wrapped.get(line_index).map_or("", String::as_str),
+                new_style,
+            ));
+        }
+    }
+
+    (old_lines, new_lines)
+}
+
+fn numbered_wrapped_line(number: Option<u32>, text: &str, style: Style) -> Line<'static> {
     Line::from(vec![
         Span::styled(format_number(number), Style::default().fg(MUTED)),
         Span::raw(" "),
-        Span::styled(text.to_owned(), diff_line_style(text)),
+        Span::styled(text.to_owned(), style),
     ])
+}
+
+fn wrap_diff_line(text: &str, width: usize) -> Vec<String> {
+    if text.is_empty() {
+        return vec![String::new()];
+    }
+
+    let width = width.max(1);
+    let mut lines = Vec::new();
+    let mut remaining = text;
+
+    while remaining
+        .chars()
+        .map(|character| UnicodeWidthChar::width(character).unwrap_or(0))
+        .sum::<usize>()
+        > width
+    {
+        let mut used_width = 0;
+        let mut last_fit = 0;
+        let mut last_whitespace = None;
+
+        for (index, character) in remaining.char_indices() {
+            let character_width = UnicodeWidthChar::width(character).unwrap_or(0);
+            if used_width + character_width > width {
+                break;
+            }
+            used_width += character_width;
+            last_fit = index + character.len_utf8();
+            if character.is_whitespace() && index > 0 {
+                last_whitespace = Some(index);
+            }
+        }
+
+        let split_at = last_whitespace.unwrap_or(last_fit);
+        if split_at == 0 {
+            break;
+        }
+        lines.push(remaining[..split_at].to_owned());
+        remaining = &remaining[split_at..];
+    }
+
+    lines.push(remaining.to_owned());
+    lines
 }
 
 fn styled_numbered_unified(old: Option<u32>, new: Option<u32>, text: &str) -> Line<'static> {
