@@ -108,9 +108,9 @@ part of the final experience.
 3. [x] Add the feature grid and interactive installation guide with Cargo as the
    primary path, a macOS Apple Silicon release option, accessible tabs, and
    clipboard feedback. Verify links and keyboard interaction.
-4. Add the footer, GitHub Pages workflow, and deployment checklist. Verify the
-   Actions build and deployment configuration; set the custom domain in Pages
-   settings before adding the DNS CNAME to publish at the target subdomain.
+4. [x] Add the footer, GitHub Pages workflow, and deployment checklist. Verify
+   the static build and deployment configuration. To publish, set the custom
+   domain in Pages settings before adding the DNS CNAME to the target subdomain.
 
 ## Risks & open questions
 
