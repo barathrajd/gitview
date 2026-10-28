@@ -12,6 +12,8 @@
 
 ## Next
 
+- Linux x86_64 release — deferred from 0.6.0: native checks, performance
+  evidence, archive with checksum, and installer selection on a Linux runner.
 - macOS desktop app — design the first desktop client after TUI completion.
 
 ## Later

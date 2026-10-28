@@ -1,0 +1,132 @@
+---
+import comparison from "../assets/comparison.svg?raw";
+import object from "../assets/object.svg?raw";
+import branches from "../assets/branches.svg?raw";
+import tags from "../assets/tags.svg?raw";
+import commit from "../assets/commit.svg?raw";
+import amend from "../assets/amend.svg?raw";
+import pathhistory from "../assets/pathhistory.svg?raw";
+import search from "../assets/search.svg?raw";
+import move from "../assets/move.svg?raw";
+import ignoreform from "../assets/ignoreform.svg?raw";
+import help from "../assets/help.svg?raw";
+
+// Every screen below was captured from the real binary built from the 0.6.0
+// development branch. The text of each group follows README.md and the 0.6.0 plan.
+const groups = [
+  {
+    id: "repository",
+    title: "Start a repository",
+    body: "Create a repository or clone one you name, from the command line. Gitview refuses to initialize inside an existing repository and to clone into a non-empty folder, and shows Git's own progress and errors.",
+    transcript: [
+      "$ gitview init notes",
+      "Initialized Git repository at notes",
+      "",
+      "$ gitview clone /tmp/demo/sample-repo copy",
+      "Cloning /tmp/demo/sample-repo...",
+      "Cloning into 'copy'...",
+      "done.",
+      "Clone complete.",
+      "",
+      "$ gitview clone /tmp/demo/sample-repo copy",
+      "Cloning /tmp/demo/sample-repo...",
+      "The clone destination is not empty",
+    ],
+    shots: [],
+  },
+  {
+    id: "worktree",
+    title: "Handle paths with review",
+    body: "Look up the ignore rule for any repository-relative path, stop tracking a file but keep your copy, remove a tracked path, move a clean tracked file, and discard a staged rename. Each action is reviewed before it runs, and Git's own refusals stay visible.",
+    shots: [
+      { svg: ignoreform, label: "Inspect the ignore rule for any repository-relative path" },
+      { svg: move, label: "Move a clean tracked file; Git stages the rename" },
+    ],
+  },
+  {
+    id: "commit",
+    title: "Commit and amend",
+    body: "Write a subject and description, or press Ctrl+E to edit them in your configured Git editor. Saving a changed message commits the reviewed staged changes without a second Enter. Amending HEAD first shows the old and replacement messages. Hooks and signing stay on.",
+    shots: [
+      { svg: commit, label: "Commit composer beside the read-only worktree" },
+      { svg: amend, label: "Amend confirmation with a rewrite warning" },
+    ],
+  },
+  {
+    id: "history",
+    title: "Filter, search, and compare history",
+    body: "Filter history to a literal file or directory, search commits as you type, and compare any two local commits on one page with folding per file. Branches and remote refs already stored locally work as revisions; nothing is fetched.",
+    shots: [
+      { svg: pathhistory, label: "History filtered to docs/notes.md" },
+      { svg: search, label: "Debounced history search" },
+      { svg: comparison, label: "Comparison of two commits across three files" },
+    ],
+  },
+  {
+    id: "refs",
+    title: "Branches and tags",
+    body: "Rename and delete local branches with the destination rechecked first, and return to the previous branch or detached commit. Tags list, create lightweight tags at the reviewed HEAD, verify signatures with Git, and delete locally. Annotated and signed tag creation isn't available.",
+    shots: [
+      { svg: branches, label: "Local branches" },
+      { svg: tags, label: "Local tags" },
+    ],
+  },
+  {
+    id: "inspect",
+    title: "Describe any object",
+    body: "Enter a commit, tag, tree, or blob revision such as HEAD:src/main.rs to see its fixed ID, type, size, nearest-tag description, and a bounded read-only preview.",
+    shots: [{ svg: object, label: "Object description for a commit" }],
+  },
+  {
+    id: "help",
+    title: "Help on every page",
+    body: "Press ? on any page for the actions available there. The footer always lists the keys for the current view.",
+    shots: [{ svg: help, label: "Contextual help over the working tree" }],
+  },
+];
+---
+
+<section id="coming-in-060" class="relative px-5 py-24 sm:px-8 sm:py-32">
+  <div class="mx-auto max-w-7xl">
+    <p class="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-300">Planned · not yet released</p>
+    <h2 class="mt-4 max-w-3xl text-3xl font-semibold tracking-[-0.04em] text-slate-100 sm:text-4xl">Coming in Gitview 0.6.0</h2>
+    <p class="mt-5 max-w-2xl text-base leading-7 text-slate-400">
+      Version 0.6.0 completes six everyday local Git workflows. It targets December 31, 2026 and isn't published yet, so the install options below still install 0.5.0. The screens here come from the development build.
+    </p>
+    <ul class="mt-6 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[11px] text-slate-500">
+      <li>macOS Apple Silicon release</li>
+      <li>Linux packaging planned for the next release</li>
+      <li>No remote, merge, or export workflows</li>
+    </ul>
+
+    <div class="mt-14 flex flex-col gap-16">
+      {groups.map((group) => (
+        <article id={group.id} class="scroll-mt-24">
+          <h3 class="text-xl font-semibold tracking-tight text-slate-100">{group.title}</h3>
+          <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-400">{group.body}</p>
+          {group.transcript && (
+            <figure class="mt-6 m-0">
+              <pre class="overflow-x-auto rounded-2xl border border-white/[0.11] bg-[#080e0c] p-5 font-mono text-[13px] leading-6 text-slate-300" tabindex="0" aria-label="Real output of the gitview init and clone commands">{group.transcript.join("\n")}</pre>
+              <figcaption class="mt-3 px-1 font-mono text-[10px] uppercase tracking-[0.14em] text-slate-600">Output from the development build</figcaption>
+            </figure>
+          )}
+          <div class="mt-6 flex flex-col gap-8">
+            {group.shots.map((shot) => (
+              <figure class="m-0 min-w-0">
+                <div
+                  class="overflow-x-auto rounded-2xl border border-white/[0.11] bg-[#080e0c] shadow-[0_35px_100px_-35px_rgba(16,185,129,0.18)] ring-1 ring-black/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300"
+                  tabindex="0"
+                  role="group"
+                  aria-label={`${shot.label} (scrolls horizontally on narrow screens)`}
+                >
+                  <div class="min-w-[900px]" set:html={shot.svg} />
+                </div>
+                <figcaption class="mt-3 px-1 font-mono text-[10px] uppercase tracking-[0.14em] text-slate-600">{shot.label}</figcaption>
+              </figure>
+            ))}
+          </div>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>

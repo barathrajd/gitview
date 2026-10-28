@@ -27,8 +27,14 @@ The implementation is complete when these outcomes can be checked directly.
   benchmark claim.
 - The terminal preview matches the current Worktree, History, and Inspector
   layout and key hints; its repository content is labeled as sample data.
-  Feature descriptions cover diffs and staging separately without implying
-  remote operations, commit creation, or interactive rebase support.
+  Feature descriptions cover diffs, staging, and commit creation and amend, as
+  shipped in 0.5.0, without implying remote operations or interactive rebase
+  support.
+- A "Coming in 0.6.0" section describes each 0.6.0 workflow with a screenshot of
+  the real binary, is labeled planned and not yet released, and keeps the
+  install instructions on 0.5.0 until the release is published. It states that
+  Linux packaging moves to the next release and that remotes, merge, and export
+  stay out.
 - The install tabs and copy command work with keyboard and pointer input, and
   copy feedback is announced accessibly.
 - The page includes page title, description, canonical URL, Open Graph metadata,
@@ -65,9 +71,10 @@ Out of scope:
   unsupported `curl https://gitview.dev | sh` installer command.
 - Performance benchmark numbers or claims that Gitview is faster than
   another tool.
-- Claims or UI implying push/pull, remote management, commit creation,
-  interactive rebase, conflict resolution, Linux release packaging, or
-  Windows support.
+- Claims or UI implying push/pull, remote management, interactive rebase,
+  conflict resolution, Linux release packaging, or Windows support. Commit
+  creation and amend are shipped and may be described; 0.6.0 features may be
+  described only as planned until release.
 - Additional pages, user accounts, server-side rendering, analytics, or a
   blog/CMS.
 
@@ -117,7 +124,22 @@ part of the final experience.
    checklist. Deploy at the default project URL first, then switch to the
    custom domain and root base after the user adds the domain in Pages settings.
 
+5. [x] Add the "Coming in 0.6.0" section with one screenshot per planned
+   workflow: repository setup (real command output), path operations, commit and
+   amend, history filter/search/comparison, branches and tags, object
+   description, and help. Each screen is captured from the real development
+   binary in a pseudo-terminal at 140x24 on a throwaway sample repository, and
+   converted to an inline SVG with the true colors and a JetBrains Mono grid; no
+   screen is drawn by hand. Label the section planned, keep the install guide on
+   0.5.0, and add a README section that matches. After 0.6.0 is published,
+   recapture the screens from the released binary, retitle the section as
+   shipped, and update the install guide and version badge.
+
 ## Risks & open questions
+
+- **Screenshots can go stale — owner: site maintainer.** The 0.6.0 screens come
+  from a development build. Recapture them from the released binary before
+  calling them shipped, and rerun the capture if a layout or key hint changes.
 
 The remaining release dependency is configuring the custom domain outside the
 site source.

@@ -24,10 +24,10 @@ remotes, merge, or export workflows are complete.
 - The capability matrix accurately marks every included workflow and leaves
   remotes, merge, and export clearly incomplete.
 - The release passes the project's full tests, build, formatting, and lint
-  gates on macOS ARM64 and Linux x86_64.
-- Release automation publishes the crate plus verified macOS ARM64 and Linux
-  x86_64 archives with checksums; `install.sh` selects and verifies the native
-  archive; release notes match the shipped behavior.
+  gates on macOS ARM64. Linux x86_64 is deferred to the next release.
+- Release automation publishes the crate plus a verified macOS ARM64 archive
+  with its checksum; `install.sh` selects and verifies it; release notes match
+  the shipped behavior and say Linux packaging is deferred.
 
 ## In scope / Out of scope
 
@@ -38,8 +38,10 @@ remotes, merge, or export workflows are complete.
 - No implicit network activity. `clone` may access the source the user
   explicitly provides; ongoing remote setup, fetch, pull, and push stay out of
   scope. Comparisons may use remote refs already present locally.
-- Native macOS ARM64 and Linux x86_64 checks and binary archives.
-- Verified platform selection and checksum handling in `install.sh`.
+- Native macOS ARM64 checks and binary archive.
+- Verified checksum handling in `install.sh` for the macOS archive.
+- Linux x86_64 checks, archives, and installer selection are deferred to the
+  next release; 0.6.0 makes no Linux support claim beyond the 0.2.1 notes.
 - Test-first implementation, safety review, accurate capability and release
   documentation, and the existing release-please process.
 
@@ -59,8 +61,8 @@ the matrix. Run Git subprocesses outside rendering and pass paths as arguments
 or NUL-delimited input. Keep review and mutation separate, recheck stale state
 before writes, and retain Git's refusal conditions. Reuse the repository's
 terminal handoff pattern for external editors, with an explicit compatibility
-spike before implementation. Add a native Linux x86_64 release job alongside
-the existing macOS ARM64 and crates.io workflows. Do not publish or tag until
+spike before implementation. Keep the existing macOS ARM64 and crates.io workflows; a native Linux x86_64
+release job is deferred to the next release. Do not publish or tag until
 the user approves the final release candidate.
 
 ## Milestones
@@ -96,9 +98,9 @@ the user approves the final release candidate.
 6. **Coverage and release gate:** complete the approved
    [performance review](gitview-0-6-0-performance.md) and its measured fixes
    before release, then complete capability-matrix acceptance,
-   focused safety review, full test/build/lint checks on both target platforms,
-   Linux and macOS archive checksum verification, installer checks, crate dry
-   run, and release notes. Release only after all included features pass.
+   focused safety review, full test/build/lint checks on macOS ARM64, macOS
+   archive checksum verification, installer checks, crate dry run, and release
+   notes. Linux checks and archives move to the next release. Release only after all included features pass.
 
 ## Risks & open questions
 
@@ -108,9 +110,9 @@ the user approves the final release candidate.
 - **Git safety differences:** removal, move, and ref operations can be refused
   by Git when state changes. Keep those refusals visible and never silently
   force an operation.
-- **Linux archive installation:** verify the archive layout, checksum, and
-  installer path on a clean Linux x86_64 runner before calling the asset
-  supported.
+- **Linux archive installation (deferred):** verifying the archive layout,
+  checksum, and installer path on a clean Linux x86_64 runner moves to the next
+  release. Until then, no Linux asset is published or called supported.
 - **Release gate baseline:** the current checkout has Clippy warnings under
   local Rust 1.99.1. Identify which warnings also occur in the release CI
   toolchain and clear the gate without unrelated refactoring.

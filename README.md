@@ -45,6 +45,31 @@ prebuilt release currently supports macOS Apple Silicon. Linux release
 packaging remains deferred. You can also download the archive from the
 [GitHub releases](https://github.com/barathrajd/gitview/releases).
 
+## What's coming in 0.6.0
+
+Gitview 0.6.0 is planned for December 31, 2026 and isn't released yet. The
+current release is 0.5.0, and `cargo install gitview --locked` installs it. The
+features below are implemented on the development branch and are described in
+[Controls](#controls); they pass acceptance review only when the
+[release gates](RELEASE.md) pass. The [website](https://gitview.barathrajdevarajan.dev/#coming-in-060)
+shows a real screenshot of each one.
+
+- **Repository setup:** `gitview init` and `gitview clone` from the command line.
+- **Path operations:** ignore-rule lookup for any path, stop tracking, confirmed
+  removal and moves of tracked paths, and discard of a staged rename.
+- **Commit editor:** Ctrl+E edits the message in your Git editor, and saving a
+  changed message commits it without a second Enter. Amend keeps its warning.
+- **History:** filter by file or directory, compare two commits on one page, and
+  search commits as you type.
+- **Branches and tags:** rename, delete, and return to the previous branch;
+  list, create (lightweight), verify, and delete local tags.
+- **Inspection:** describe any commit, tag, tree, or blob and compare against
+  remote refs already stored locally. Nothing is fetched.
+
+Linux packaging is deferred to the next release, so 0.6.0 provides the macOS
+Apple Silicon archive and the crate only. Remotes, merge and conflict
+workflows, and export stay out of this release.
+
 ## Build and run
 
 Install Rust and Git, then from the Gitview source directory run:

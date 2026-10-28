@@ -11,8 +11,8 @@ scope on October 29, 2026. Implementation was approved on October 29, 2026.
 ## Success criteria
 
 - Record reproducible release-build baselines and final results on macOS ARM64
-  and Linux x86_64, including revision, Rust/Git versions, machine, fixture,
-  terminal dimensions, sample count, and warm/cold state. Report loading time
+  (Linux x86_64 is deferred to the next release), including revision,
+  Rust/Git versions, machine, fixture, terminal dimensions, sample count, and warm/cold state. Report loading time
   separately from input response and rendering.
 - After warming each supported view/layout at 140x35 and 80x24, the p95 frame
   time for navigation, scrolling, folding, and style/layout switches is at most
@@ -90,7 +90,7 @@ Initial evidence at `a320218`, Darwin ARM64, Rust 1.99.1, Git 2.56.0:
   variants at one width. Apply measured improvements consistently.
 
 **Unknown:** optimized cold-start/first-diff costs, idle cost by repository size,
-maximum cache retention, and responsiveness with slow Git on both platforms.
+maximum cache retention, and responsiveness with slow Git on macOS ARM64 (Linux is deferred).
 Milestone 1 measures these using a temporary harness and repeatable fixtures;
 any remaining uncertainty stays a named release risk. No dependency or framework
 change is selected, and no unverified library-performance claim is assumed.
@@ -149,7 +149,7 @@ change is selected, and no unverified library-performance claim is assumed.
    status-watch freshness, live startup data, debounced search, and navigation.
    Recheck new pages, many refs, and large worktrees with CPU/RSS measurements.
 5. **Release evidence and handoff:** rerun the complete workflow matrix and
-   budgets in release builds on both target platforms. Record before/after
+   budgets in release builds on macOS ARM64 (Linux is deferred). Record before/after
    results and limitations, run feature-enabled safety/UI tests and Clippy,
    clear blockers, and update the 0.6.0 gate. Packaging and user approval of the
    final release candidate remain required by the existing release plan.
@@ -169,9 +169,9 @@ change is selected, and no unverified library-performance claim is assumed.
   are proposed release acceptance targets, not shipped performance claims. If
   measured work cannot meet one, report the blocker and obtain a revised target
   explicitly; never silently relax it or mark the review complete.
-- **Linux measurement access — release owner:** native Linux evidence is still
-  required. If unavailable locally, use a dedicated CI/manual Linux run and
-  keep this gate pending until results exist.
+- **Linux measurement access — release owner:** native Linux evidence is
+  deferred to the next release by the user. 0.6.0 makes no Linux performance
+  or support claim, and the next release must collect it on a Linux runner.
 - **Cache growth/stale results — implementation owner:** use stable content and
   request identities, bound both entries and retained data, and test reload,
   cancellation, mutation, resize, and repeated-view cycles. Fall back to

@@ -22,23 +22,24 @@ Features:
   branch rename/delete/previous checkout, lightweight tag creation and local
   tag verification/deletion, comparisons, and object inspection. Annotated and
   signed tag creation remain unavailable. Release acceptance review is pending.
-- Publish crates.io, macOS ARM64, and Linux x86_64 artifacts with checksums
-  and native installer selection — planned; see the
-  [0.6.0 plan](plans/gitview-0-6-0.md).
+- Publish crates.io and macOS ARM64 artifacts with checksums — planned; see
+  the [0.6.0 plan](plans/gitview-0-6-0.md). Linux x86_64 packaging and native
+  installer selection are deferred to the next release.
 
 Release gate:
 
 - Complete the [whole-TUI performance review](plans/gitview-0-6-0-performance.md)
-  and measured fixes on macOS ARM64 and Linux x86_64. The plan is approved and initial
+  and measured fixes on macOS ARM64; Linux x86_64 evidence is deferred to the
+  next release. The plan is approved and initial
   native preview/idle fixes are measured; full acceptance remains pending.
   See the [performance report](docs/performance-0-6-0.md).
 
 - All included features pass their acceptance checks; excluded workflows stay
   labeled incomplete.
 - Full tests, formatting, build, and Clippy pass on the supported CI toolchain.
-- macOS ARM64 and Linux x86_64 builds and archive checksums are verified.
-- The installer selects the matching archive and verifies its checksum on both
-  platforms.
+- macOS ARM64 builds and the archive checksum are verified. Linux x86_64 is
+  deferred to the next release.
+- The installer verifies the macOS archive checksum.
 - Crate packaging dry run passes; `CHANGELOG.md`, release notes, and
   installation instructions match the actual artifacts.
 - Confirm there is no persistent-data migration and document how to reinstall

@@ -293,7 +293,8 @@ renderer-only diagnostic.
 The [large-diff evidence](performance/macos-large-diff-cache.txt) includes fixture
 sizes, frame timings, failed renderer RSS checks, native RSS measurements,
 toolchain, revision, and binary identity. All evidence comes from the macOS
-implementation worktree; clean-revision and Linux evidence remain required.
+implementation worktree; clean-revision evidence remains required, and Linux
+evidence is deferred to the next release.
 
 ## Large cockpit lists
 
@@ -584,8 +585,9 @@ comparison value is close and agrees with the run-to-run variance already
 recorded for that page.
 
 Release 0.6.0 still isn't ready. Open items: the failing renderer-only RSS
-diagnostic, the deferred comparison memory variance, native Linux x86_64
-evidence, a clean-revision rerun, and the Clippy rerun on the CI toolchain.
+diagnostic, the deferred comparison memory variance, a clean-revision rerun,
+and the Clippy rerun on the CI toolchain. Native Linux x86_64 evidence is
+deferred to the next release and isn't a 0.6.0 gate.
 
 ## Review status and remaining work
 
@@ -603,7 +605,8 @@ The following checks remain required before release:
   editor/hook/signing responsiveness.
 - Resolve or explain the large-comparison native RSS variance, run medium/stress
   fixtures, and complete request lifecycle checks.
-- Collect native Linux evidence and report Git-child CPU separately.
+- Collect native Linux evidence (deferred to the next release) and report
+  Git-child CPU separately.
 - Clear the release Clippy gate and complete the existing release gates.
 
 Feature-enabled tests pass, including stale-state, terminal restoration, and
