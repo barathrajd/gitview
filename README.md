@@ -108,8 +108,13 @@ gitview clone <repository> [directory]
   existing destination.
 - Press **c** in the working-tree view to enter a commit message. The editor
   keeps the read-only worktree beside a short subject and optional description.
-  Press **Tab** to switch fields and **Ctrl+J** to add a description line. You
-  can paste into either field; pasted subject line breaks become spaces, while
+  Press **Tab** to switch fields and **Ctrl+J** to add a description line. Press
+  **Ctrl+E** to edit the subject and description in your configured Git editor.
+  Save and exit to return to the form, then review and press **Enter** to commit.
+  Gitview uses Git's editor selection (`GIT_EDITOR`, `core.editor`, `VISUAL`,
+  `EDITOR`, or Git's fallback). Executable paths and quoted arguments work;
+  shell expressions are unsupported. Editor failures keep the original message.
+  You can paste into either field; pasted subject line breaks become spaces, while
   description line breaks are preserved. Press **Enter** once to commit the
   staged changes; Gitview preserves unstaged edits and Git's configured hooks
   and signing.
@@ -210,7 +215,7 @@ Gitview currently focuses on history and working-tree review, file and hunk
 staging, confirmed discard of selected unstaged and untracked files and staged
 renames, tracked path removal and moves, commit creation from a reviewed staged
 file set, local branch browsing and creation, and folder-scoped Git config
-profiles. Commit editor handoff, tag and remote management, conflict resolution,
+profiles. Tag and remote management, conflict resolution,
 stash, rebase, and submodule workflows are not implemented. See the
 [Git CLI capability matrix](docs/git-cli-capability-matrix.md) for current
 coverage and planned work.

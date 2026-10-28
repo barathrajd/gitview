@@ -340,6 +340,7 @@ pub fn render_help_overlay(
         ("Type", "Write a commit message"),
         ("Tab", "Switch subject and description"),
         ("Ctrl+J", "Add a description line"),
+        ("Ctrl+E", "Edit message in configured Git editor"),
         ("Enter", "Create commit"),
         ("Backspace", "Delete a character"),
         ("Esc", "Cancel commit"),
@@ -1117,10 +1118,28 @@ fn render_commit_workspace(
     workspace: CommitWorkspace<'_>,
     border: ratatui::symbols::border::Set<'static>,
 ) {
+    let hints = if workspace.pending {
+        &[("Working", "commit in progress")][..]
+    } else {
+        &[
+            ("Tab", "switch subject/description"),
+            ("Ctrl+J", "new description line"),
+            ("Ctrl+E", "external editor"),
+            (
+                "Enter",
+                if workspace.amend {
+                    "review warning"
+                } else {
+                    "commit"
+                },
+            ),
+            ("Esc", "cancel"),
+        ][..]
+    };
     let sections = Layout::vertical([
         Constraint::Length(3),
         Constraint::Min(4),
-        Constraint::Length(1),
+        Constraint::Length(hint_row_count(hints, frame.area().width)),
     ])
     .split(frame.area());
     render_repository_header(
@@ -1217,23 +1236,6 @@ fn render_commit_workspace(
             )),
         editor[1],
     );
-    let hints = if workspace.pending {
-        &[("Working", "commit in progress")][..]
-    } else {
-        &[
-            ("Tab", "switch subject/description"),
-            ("Ctrl+J", "new description line"),
-            (
-                "Enter",
-                if workspace.amend {
-                    "review warning"
-                } else {
-                    "commit"
-                },
-            ),
-            ("Esc", "cancel"),
-        ][..]
-    };
     render_key_hints(frame, sections[2], hints);
 }
 

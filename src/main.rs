@@ -11,7 +11,11 @@ use ratatui::{DefaultTerminal, widgets::ListState};
 use std::{
     env, io,
     process::{Command, ExitCode},
-    sync::mpsc,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
     time::{Duration, Instant},
 };
 
@@ -390,10 +394,33 @@ fn app(
         });
     }
     let (event_sender, event_receiver) = mpsc::channel();
+    let event_paused = Arc::new(AtomicBool::new(false));
+    let event_gate = Arc::new(Mutex::new(()));
+    let reader_paused = event_paused.clone();
+    let reader_gate = event_gate.clone();
     std::thread::spawn(move || {
-        while let Ok(event) = event::read() {
-            if event_sender.send(event).is_err() {
+        loop {
+            if reader_paused.load(Ordering::Acquire) {
+                std::thread::sleep(Duration::from_millis(10));
+                continue;
+            }
+            let Ok(_guard) = reader_gate.lock() else {
                 break;
+            };
+            if reader_paused.load(Ordering::Acquire) {
+                continue;
+            }
+            match event::poll(Duration::from_millis(50)) {
+                Ok(true) => match event::read() {
+                    Ok(event) => {
+                        if event_sender.send(event).is_err() {
+                            break;
+                        }
+                    }
+                    Err(_) => break,
+                },
+                Ok(false) => {}
+                Err(_) => break,
             }
         }
     });
@@ -1129,6 +1156,41 @@ fn app(
                         commit_feedback.clear();
                     }
                     KeyCode::Char('?') => help = true,
+                    KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        let message = combined_commit_message(
+                            commit_message.as_deref().unwrap_or_default(),
+                            &commit_description,
+                        );
+                        match gitview::editor::configured_editor(root) {
+                            Err(error) => commit_feedback = error,
+                            Ok(editor) => {
+                                paste_mode.disable()?;
+                                event_paused.store(true, Ordering::Release);
+                                let guard = event_gate
+                                    .lock()
+                                    .map_err(|_| io::Error::other("Input reader unavailable"))?;
+                                ratatui::restore();
+                                let result =
+                                    gitview::editor::edit_with_command(root, &editor, &message);
+                                let restored = ratatui::try_init();
+                                while event_receiver.try_recv().is_ok() {}
+                                drop(guard);
+                                event_paused.store(false, Ordering::Release);
+                                *terminal = restored?;
+                                paste_mode.resume()?;
+                                terminal.clear()?;
+                                match result {
+                                    Ok(edited) => {
+                                        let (subject, description) = split_commit_message(&edited);
+                                        commit_message = Some(subject);
+                                        commit_description = description;
+                                        commit_feedback = "Returned from editor; review the message before committing.".into();
+                                    }
+                                    Err(error) => commit_feedback = error,
+                                }
+                            }
+                        }
+                    }
                     KeyCode::Tab => commit_description_focused = !commit_description_focused,
                     KeyCode::Backspace => {
                         if commit_description_focused {

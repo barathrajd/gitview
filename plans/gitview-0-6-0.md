@@ -72,9 +72,11 @@ the user approves the final release candidate.
    lookup, confirmed tracked-path removal, confirmed moves of clean tracked
    files, and staged-rename discard with stale-state checks are implemented.
    Git's normal safety checks remain enabled for destructive path operations.
-3. **Commit editor handoff:** resolve configured editor invocation, suspend
-   and restore the terminal reliably, reopen the reviewed commit form, and
-   reject stale staged state before the existing Enter-to-commit action.
+3. **Commit editor handoff (complete):** Ctrl+E resolves Git's configured
+   editor, invokes quoted executable arguments without shell evaluation, pauses
+   the input reader, and restores the terminal and reviewed commit form. The
+   original staged snapshot remains required by Enter-to-commit. Editor failure
+   keeps the original message. Verified with an interactive pseudo-terminal.
 4. **Branches and tags:** add branch rename/delete/previous-checkout and local
    tag list/create/verify/delete with previews, confirmations, and stale-ref
    checks.

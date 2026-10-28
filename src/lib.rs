@@ -4,6 +4,7 @@ pub mod commit;
 pub mod config;
 pub mod details;
 pub mod diff;
+pub mod editor;
 pub mod history;
 pub mod process;
 pub mod repository;
