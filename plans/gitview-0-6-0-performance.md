@@ -129,8 +129,11 @@ change is selected, and no unverified library-performance claim is assumed.
    per-cycle peak, not retained views. Native lifecycle evidence is recorded
    separately in the performance report.
    The comparison render cache now has the same byte budget; closing the page now
-   cancels its remaining preparation. Other languages, the complete stress matrix, and
-   memory investigation remain pending before this milestone can close.
+   cancels its remaining preparation, and Escape during a slow load closes the
+   page in a few milliseconds. Twenty file types render warm frames in under
+   0.2 ms; a 450,000-character JSON line is the slowest at 29.6 ms p95. The
+   complete stress matrix and the deferred memory variance remain pending before
+   this milestone can close.
 4. **Idle and large-list fixes (in progress):** unchanged main-loop frames are
    skipped; page completions and status updates request a redraw. Native
    small-fixture idle measurements pass. Cockpit rendering with 10,000-entry
@@ -153,6 +156,12 @@ change is selected, and no unverified library-performance claim is assumed.
 
 ## Risks & open questions
 
+- **Deferred: large-comparison native RSS variance — implementation owner:**
+  100-cycle growth on a 940 KB comparison ranged from 256 to 13,552 KiB across
+  runs, with one run over the 10,240 KiB budget. Live heap stays flat, and a
+  single reused worker thread didn't help. The cause is unknown. Deferred by the
+  user; next ideas are allocator settings and `vmmap` region profiling. It
+  remains an open finding and blocks calling the memory gate passed.
 - **Measurement variance — implementation owner:** use controlled native runs,
   p50/p95 and sample counts; keep timing gates separate from ordinary unit
   tests. If a runner is noisy, repeat controlled measurements and disclose it.

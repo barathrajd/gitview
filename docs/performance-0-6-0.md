@@ -232,8 +232,8 @@ the result, and a load that hasn't started returns immediately. Git commands
 already running aren't killed; they finish within the 1 MB / 5,000 line output
 limit. The object page keeps its simple load thread, because it only runs those
 bounded Git reads and does no preparation. The cancellation rule is covered by a
-unit test on the preparation loop. I haven't measured it natively, for example
-by pressing Escape during a slow comparison.
+unit test on the preparation loop. The native behavior is checked separately
+under "Escape during slow loads".
 
 Explicit optimized-build diagnostics check a 100 ms first-layout budget and
 50 ms p95 across 100 warm actions at both terminal sizes. These are in-memory
@@ -417,7 +417,7 @@ All three pass. The pages run in order in one process, so each warm value
 includes memory left by the earlier pages. Comparison grew the most, using about
 42% of its budget without flattening in this run, so a longer run is needed
 before calling it a plateau. This is one local run on one small fixture. It doesn't
-cover mid-load cancellation, Linux, or a clean revision.
+cover Linux or a clean revision.
 
 ### Large comparison fixture
 
@@ -477,6 +477,60 @@ closed comparison page releases its data and the RSS steps coincide with the
 allocator holding freed memory. It doesn't prove the native process behaves the
 same way, and the budget stays at 10,240 KiB. The test excludes Git, the load
 threads' real timing, and terminal I/O.
+
+## Diffs in other languages
+
+`tests/language_diff_performance.rs` times ordinary diff preparation and warm
+frames for 20 file types. Each fixture replaces 400 lines of a short, typical
+statement in that language, so the patch has 800 rows. It runs after one
+unrelated warm-up so shared syntax setup isn't charged to the first language.
+Run both diagnostics explicitly in a release build:
+
+```sh
+cargo test --release --locked --features test-support \
+  --test language_diff_performance -- --ignored --nocapture --test-threads=1
+```
+
+One run on macOS ARM64 gave these results. Warm p95 covers 100 frames at each of
+140x35 and 80x24 across all four layouts, with the first four of each excluded.
+
+- **Preparation** takes 0.3 to 330 ms and runs off the UI thread behind the
+  loading state. The slowest were C++ (330 ms), C (185 ms), CSS (168 ms),
+  JavaScript (155 ms), and Python (134 ms). The first four layout draws took at
+  most 2.5 ms.
+- **Warm frames** have p95 between 0.15 and 0.19 ms for every language, far
+  below the 50 ms budget.
+- **TypeScript, TSX, and TOML** prepare in about 0.3 ms because Gitview's bundled
+  syntax set has no definition for them, so they show without highlighting. That
+  is a coverage gap, not a performance result, and I didn't change it.
+
+A second diagnostic uses one very long line (10,000, 100,000, and 450,000
+characters, replaced once) in JavaScript, JSON, HTML, and Python. At 450,000
+characters, preparation took 748 ms (JavaScript), 668 ms (Python), 310 ms
+(JSON), and 120 ms (HTML). Warm p95 was 8.1 ms (JavaScript), 8.2 ms (Python),
+8.4 ms (HTML), and **29.6 ms for JSON**, whose first layout draw took 37 ms. The
+JSON line has about 225,000 tokens, so it stays under 50 ms with the least
+margin. Shorter lines were faster. These cover diffs rendered by the ordinary
+diff view, not the comparison page, and the numbers exclude Git and terminal I/O.
+
+## Escape during slow loads
+
+`scripts/check-load-cancel.py` injects a 250 ms delay into every Git command,
+opens the comparison or object page from the history pane, presses Enter, and
+presses Escape while the load is pending. It repeats this five times per page,
+then waits 2.5 seconds to confirm the abandoned load never reopens a result
+screen. It then removes the delay and checks that the next load succeeds.
+
+```sh
+cargo build --release --locked
+python3 scripts/check-load-cancel.py
+```
+
+One run gave Escape-to-cockpit times of 2.3 to 2.8 ms for the comparison page and
+2.4 to 2.5 ms for the object page, against the 100 ms budget. No stale result
+appeared and the next load succeeded. The times include the pseudo-terminal. The
+script checks visible behavior only; it doesn't observe whether syntax
+preparation actually stopped, which the unit test covers.
 
 ## Review status and remaining work
 
