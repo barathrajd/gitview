@@ -25,8 +25,9 @@ The implementation is complete when these outcomes can be checked directly.
 - Every feature and platform statement matches the repository README or a
   released capability. The page makes no unsupported speed comparison or
   benchmark claim.
-- The terminal preview accurately depicts supported history, working-tree,
-  diff, hunk staging, local branch, and profile workflows; it does not imply
+- The terminal preview matches the current Worktree, History, and Inspector
+  layout and key hints; its repository content is labeled as sample data.
+  Feature descriptions cover diffs and staging separately without implying
   remote operations, commit creation, or interactive rebase support.
 - The install tabs and copy command work with keyboard and pointer input, and
   copy feedback is announced accessibly.
@@ -106,8 +107,9 @@ part of the final experience.
    global theme, SEO metadata, and the site's canonical domain. Verify the
    static output builds from `website/`.
 2. [x] Publish the product story in a responsive hero and terminal preview that
-   show supported history, worktree, diff, and staging workflows. Review all
-   displayed claims against the current README and release notes.
+   matches the app's Worktree, History, and Inspector panes. Describe diff and
+   staging workflows in the feature sections; review all claims against the
+   current README and release notes.
 3. [x] Add the feature grid and interactive installation guide with Cargo as the
    primary path, a macOS Apple Silicon release option, accessible tabs, and
    clipboard feedback. Verify links and keyboard interaction.

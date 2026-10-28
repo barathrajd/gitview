@@ -1,84 +1,75 @@
 <div class="terminal-shell relative mx-auto w-full max-w-[1180px] overflow-hidden rounded-2xl border border-white/[0.11] bg-[#080e0c] text-left shadow-[0_35px_100px_-35px_rgba(16,185,129,0.22)] ring-1 ring-black/50">
-  <div class="flex items-center justify-between border-b border-white/[0.08] px-4 py-3 sm:px-5">
-    <div class="flex items-center gap-2" aria-hidden="true">
-      <span class="size-2.5 rounded-full bg-[#fc6a5d]"></span>
-      <span class="size-2.5 rounded-full bg-[#f6bd4f]"></span>
-      <span class="size-2.5 rounded-full bg-[#36c676]"></span>
-    </div>
-    <p class="font-mono text-[11px] tracking-wide text-slate-500 sm:text-xs">gitview <span class="text-slate-700">/</span> studio-api <span class="text-slate-700">·</span> main</p>
-    <span class="flex items-center gap-1.5 font-mono text-[10px] text-emerald-400/80 sm:text-[11px]"><span class="size-1.5 rounded-full bg-emerald-400"></span>REVIEW</span>
+  <div class="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-white/[0.08] px-4 py-3 sm:px-5">
+    <span class="bg-emerald-300 px-2 py-1 font-mono text-[11px] font-bold tracking-wide text-[#06100d]">GITVIEW</span>
+    <span class="font-mono text-[11px] font-medium text-slate-200 sm:text-xs">sample-repo</span>
+    <span class="font-mono text-[10px] text-slate-500 sm:text-xs">branch: <span class="text-slate-300">main</span></span>
+    <span class="font-mono text-[10px] text-slate-500 sm:text-xs">account: <span class="text-slate-300">Primary</span></span>
   </div>
 
-  <div class="grid min-h-[390px] grid-cols-1 md:grid-cols-[0.78fr_0.9fr_1.45fr]">
-    <section class="border-b border-white/[0.07] md:border-r md:border-b-0" aria-label="Commit history preview">
-      <div class="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
-        <h2 class="font-mono text-[10px] font-semibold tracking-[0.16em] text-slate-500">HISTORY</h2>
-        <span class="font-mono text-[10px] text-slate-600">recent</span>
-      </div>
+  <div class="grid min-h-[320px] grid-cols-1 lg:grid-cols-[0.82fr_1.42fr_0.92fr]">
+    <section class="border-b border-white/[0.07] lg:border-r lg:border-b-0" aria-label="Worktree pane">
+      <h2 class="border-b border-white/[0.06] px-3 py-2 font-mono text-[11px] font-semibold text-slate-500">WORKTREE</h2>
       <div class="p-3 font-mono text-[11px] leading-6 sm:text-xs">
-        <div class="flex gap-2 rounded-md bg-emerald-300/[0.08] px-2 text-slate-200">
-          <span class="text-emerald-400">●</span><span class="truncate">Tighten request validation</span>
+        <p class="text-slate-300">Working tree clean</p>
+        <div class="mt-4 space-y-1 text-slate-600">
+          <p><span class="text-emerald-500">●</span> Staged <span class="float-right">0</span></p>
+          <p><span class="text-amber-400">●</span> Changed <span class="float-right">0</span></p>
+          <p><span class="text-cyan-400">●</span> Untracked <span class="float-right">0</span></p>
         </div>
-        <div class="flex gap-2 px-2 text-slate-500"><span class="text-emerald-700">│</span><span>3a72f1c</span></div>
-        <div class="flex gap-2 px-2 text-slate-400"><span class="text-emerald-500">●</span><span class="truncate">Add account profile store</span></div>
-        <div class="flex gap-2 px-2 text-slate-500"><span class="text-emerald-700">│</span><span>main</span><span class="rounded bg-amber-300/10 px-1 text-amber-300">HEAD</span></div>
-        <div class="flex gap-2 px-2 text-slate-400"><span class="text-emerald-500">●</span><span class="truncate">Handle empty repository state</span></div>
-        <div class="flex gap-2 px-2 text-slate-500"><span class="text-emerald-700">│</span><span>v0.5.0</span></div>
-        <div class="flex gap-2 px-2 text-slate-400"><span class="text-emerald-500">●</span><span class="truncate">Refine diff line selection</span></div>
-        <div class="flex gap-2 px-2 text-slate-500"><span class="text-emerald-700">╰─</span><span>1c80b91</span></div>
-        <div class="mt-3 border-t border-white/[0.06] pt-2 text-[10px] text-slate-600">↑↓ browse <span class="text-slate-700">·</span> / search</div>
       </div>
     </section>
 
-    <section class="border-b border-white/[0.07] md:border-r md:border-b-0" aria-label="Working tree preview">
-      <div class="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
-        <h2 class="font-mono text-[10px] font-semibold tracking-[0.16em] text-slate-500">WORKTREE</h2>
-        <span class="font-mono text-[10px] text-amber-300/80">3 changed</span>
-      </div>
-      <div class="space-y-4 p-3 font-mono text-[11px] sm:text-xs">
-        <div>
-          <p class="mb-1.5 flex items-center gap-2 px-2 text-[10px] uppercase tracking-wider text-slate-600"><span class="size-1 rounded-full bg-emerald-400"></span>Staged <span class="ml-auto">1</span></p>
-          <p class="truncate rounded px-2 py-1 text-emerald-300"><span class="mr-1.5 text-emerald-600">●</span>src/auth.rs</p>
-        </div>
-        <div>
-          <p class="mb-1.5 flex items-center gap-2 px-2 text-[10px] uppercase tracking-wider text-slate-600"><span class="size-1 rounded-full bg-amber-300"></span>Unstaged <span class="ml-auto">1</span></p>
-          <p class="truncate rounded bg-white/[0.04] px-2 py-1 text-slate-200"><span class="mr-1.5 text-amber-300">●</span>src/router.rs</p>
-        </div>
-        <div>
-          <p class="mb-1.5 flex items-center gap-2 px-2 text-[10px] uppercase tracking-wider text-slate-600"><span class="size-1 rounded-full bg-cyan-400"></span>Untracked <span class="ml-auto">1</span></p>
-          <p class="truncate px-2 py-1 text-slate-400"><span class="mr-1.5 text-cyan-400">＋</span>src/limits.rs</p>
-        </div>
-        <p class="border-t border-white/[0.06] pt-2 text-[10px] text-slate-600">s stage <span class="text-slate-700">·</span> u unstage</p>
+    <section class="min-w-0 border-b border-white/[0.07] lg:border-r lg:border-b-0" aria-label="History pane">
+      <h2 class="border-b border-white/[0.06] px-3 py-2 font-mono text-[11px] font-semibold text-emerald-300">HISTORY</h2>
+      <div class="space-y-0.5 overflow-hidden p-2 font-mono text-[10px] leading-[1.8] sm:p-3 sm:text-[11px]">
+        <p class="truncate rounded bg-white/[0.05] px-2 py-0.5 text-slate-100"><span class="mr-2 text-emerald-400">›</span><span class="text-emerald-300">●</span> 4b8c2d1 <span class="text-slate-300">feat: add branch filters</span></p>
+        <p class="truncate px-2 text-slate-400"><span class="mr-2 text-emerald-700">│</span><span class="text-slate-500">●</span> a91f73c <span class="text-slate-500">fix: refresh worktree state</span></p>
+        <p class="truncate px-2 text-slate-400"><span class="mr-2 text-emerald-700">│</span><span class="text-slate-500">●</span> d6021ae <span class="text-slate-500">feat: show commit details</span></p>
+        <p class="truncate px-2 text-slate-400"><span class="mr-2 text-emerald-700">│</span><span class="text-slate-500">●</span> 72ce4a0 <span class="text-slate-500">chore: update dependencies</span></p>
+        <p class="truncate px-2 text-slate-500"><span class="mr-2 text-emerald-700">╰─</span><span class="text-slate-600">●</span> 1f68b20 <span class="text-slate-600">docs: clarify install steps</span></p>
       </div>
     </section>
 
-    <section class="min-w-0" aria-label="Diff preview">
-      <div class="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
-        <h2 class="font-mono text-[10px] font-semibold tracking-[0.16em] text-slate-500">DIFF</h2>
-        <span class="truncate font-mono text-[10px] text-slate-600">src/router.rs</span>
-      </div>
-      <div class="overflow-hidden py-3 font-mono text-[10px] leading-[1.8] sm:text-[11px]">
-        <p class="mb-2 truncate px-4 text-slate-600">@@ request.rs:42 · validate input</p>
-        <div class="grid grid-cols-[2.6rem_1fr] bg-red-400/[0.09] text-red-200/90"><span class="pr-3 text-right text-red-300/50">42</span><span class="overflow-hidden whitespace-pre">- let limit = params.limit;</span></div>
-        <div class="grid grid-cols-[2.6rem_1fr] bg-emerald-400/[0.1] text-emerald-200"><span class="pr-3 text-right text-emerald-300/50">42</span><span class="overflow-hidden whitespace-pre">+ let limit = params.limit.clamp(1, 100);</span></div>
-        <div class="grid grid-cols-[2.6rem_1fr] text-slate-500"><span class="pr-3 text-right text-slate-700">43</span><span class="overflow-hidden whitespace-pre">  let page = params.page.unwrap_or(1);</span></div>
-        <div class="grid grid-cols-[2.6rem_1fr] text-slate-500"><span class="pr-3 text-right text-slate-700">44</span><span class="overflow-hidden whitespace-pre">  let results = store.query(page, limit)?;</span></div>
-        <div class="mt-2 grid grid-cols-[2.6rem_1fr] bg-red-400/[0.09] text-red-200/90"><span class="pr-3 text-right text-red-300/50">45</span><span class="overflow-hidden whitespace-pre">- Ok(Json(results))</span></div>
-        <div class="grid grid-cols-[2.6rem_1fr] bg-emerald-400/[0.1] text-emerald-200"><span class="pr-3 text-right text-emerald-300/50">45</span><span class="overflow-hidden whitespace-pre">+ Ok(Json(results))</span></div>
-      </div>
-      <div class="mx-4 flex items-center justify-between border-t border-white/[0.06] py-3 font-mono text-[10px] text-slate-600">
-        <span>hunk 1 of 2</span><span class="text-emerald-400/80">[s] stage hunk</span>
+    <section class="min-w-0" aria-label="Inspector pane">
+      <h2 class="border-b border-white/[0.06] px-3 py-2 font-mono text-[11px] font-semibold text-slate-500">INSPECTOR</h2>
+      <div class="space-y-4 p-3 font-mono text-[10px] leading-5 sm:text-[11px]">
+        <div>
+          <p class="font-semibold text-cyan-300">REPOSITORY</p>
+          <p class="break-all text-slate-400">sample-repo</p>
+        </div>
+        <div>
+          <p class="font-semibold text-cyan-300">BRANCH</p>
+          <p class="text-slate-300">main</p>
+        </div>
+        <div>
+          <p class="font-semibold text-cyan-300">SELECTED COMMIT</p>
+          <p class="break-words text-slate-300">4b8c2d1 · feat: add branch filters</p>
+        </div>
+        <div>
+          <p class="font-semibold text-cyan-300">WORKTREE SUMMARY</p>
+          <p class="text-slate-400">0 staged · 0 changed · 0 untracked</p>
+        </div>
       </div>
     </section>
   </div>
 
-  <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-white/[0.08] bg-[#060b09] px-4 py-3 font-mono text-[10px] sm:px-5 sm:text-[11px]">
-    <div class="flex flex-wrap gap-x-4 gap-y-1 text-slate-500">
-      <span><kbd class="text-slate-200">s</kbd> stage</span>
-      <span><kbd class="text-slate-200">u</kbd> unstage</span>
-      <span><kbd class="text-slate-200">Tab</kbd> views</span>
-      <span><kbd class="text-slate-200">?</kbd> help</span>
+  <div class="border-t border-white/[0.08] bg-[#060b09]">
+    <div class="flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-white/[0.05] px-3 py-2 font-mono text-[9px] uppercase tracking-wide sm:px-4 sm:text-[10px]">
+      <span><b class="font-semibold text-emerald-300">STAGED</b> <span class="text-slate-400">0</span></span>
+      <span><b class="font-semibold text-amber-300">CHANGES</b> <span class="text-slate-400">0</span></span>
+      <span><b class="font-semibold text-cyan-300">UNTRACKED</b> <span class="text-slate-400">0</span></span>
+      <span class="ml-auto font-mono normal-case tracking-normal text-slate-500">main</span>
     </div>
-    <span class="text-emerald-500/70">main <span class="text-slate-700">·</span> working tree</span>
+    <div class="flex flex-wrap gap-x-4 gap-y-2 px-3 py-2 font-mono text-[9px] text-slate-500 sm:px-4 sm:text-[10px]">
+      <span><kbd class="text-slate-200">Tab</kbd> pane</span>
+      <span><kbd class="text-slate-200">W</kbd> worktree</span>
+      <span><kbd class="text-slate-200">Enter/l</kbd> details</span>
+      <span><kbd class="text-slate-200">b</kbd> branches</span>
+      <span><kbd class="text-slate-200">p</kbd> profiles</span>
+      <span><kbd class="text-slate-200">/</kbd> search</span>
+      <span><kbd class="text-slate-200">j/k</kbd> move</span>
+      <span><kbd class="text-slate-200">?</kbd> help</span>
+      <span><kbd class="text-slate-200">q</kbd> quit</span>
+    </div>
   </div>
 </div>
