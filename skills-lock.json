@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "base-ui": {
+      "source": "barathrajd/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/base-ui/SKILL.md",
+      "computedHash": "19b9abe309db71a3a6b93ec8ec5b2ee028ee7857aeb5c20ebf423b35fdf77fb8"
+    },
     "bootstrap-context": {
       "source": "barathrajd/agent-skills",
       "sourceType": "github",
@@ -30,6 +36,12 @@
       "sourceType": "github",
       "skillPath": "skills/project-structure/SKILL.md",
       "computedHash": "420f02c1566f50cac266882b9a640d112694c3e4ecabf2e746c81d53e255ca04"
+    },
+    "react": {
+      "source": "barathrajd/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/react/SKILL.md",
+      "computedHash": "04fde09eac2e462659f16c8b01cfbb90616896b3a826c08047e20e3da7159a2b"
     },
     "release-plan": {
       "source": "barathrajd/agent-skills",
@@ -61,11 +73,53 @@
       "skillPath": "skills/setup-commit-lint/SKILL.md",
       "computedHash": "fd64565861030d69829699105834610ccfd9b8969700e155623d131276b8adfa"
     },
+    "setup-module-federation": {
+      "source": "barathrajd/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/setup-module-federation/SKILL.md",
+      "computedHash": "8b3c3e623a12b1439dc75d34757321edee37d3681a546f9b86c7bc008af695ea"
+    },
+    "setup-release-please": {
+      "source": "barathrajd/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/setup-release-please/SKILL.md",
+      "computedHash": "83255f1ab85a3bcea71eee7bf81f64fc53dd70d61da10f3e75f2efae6b394769"
+    },
+    "setup-rstack": {
+      "source": "barathrajd/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/setup-rstack/SKILL.md",
+      "computedHash": "3a5bb626803467e6bd06e6058672b4334ec5c823ea96f1a0ae8f496da655984e"
+    },
+    "setup-vite-plus": {
+      "source": "barathrajd/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/setup-vite-plus/SKILL.md",
+      "computedHash": "10ea60bba9a47f708b655f3c5c82041d4c2ebeb7e5eb7364974fd4682cea3507"
+    },
+    "stylex": {
+      "source": "barathrajd/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/stylex/SKILL.md",
+      "computedHash": "53762a297fac8a81c9268143cd5e976110e7bae83a1c3c3d7fb5bc0ad6324357"
+    },
+    "tanstack": {
+      "source": "barathrajd/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tanstack/SKILL.md",
+      "computedHash": "7ad28c5a6ad2da43d21f9e5a12698b20216521587bee6fd39517077ee0c1ef74"
+    },
     "write-adr": {
       "source": "barathrajd/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/write-adr/SKILL.md",
       "computedHash": "f5559fb7a553df92e4aba7ecf39acbc75c902367d07c29b98fe37a4bcdd15ec0"
+    },
+    "zustand": {
+      "source": "barathrajd/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/zustand/SKILL.md",
+      "computedHash": "43f990eab50d6b654a857c04be5140bf03744140c01b2880afb7d59010b2f68e"
     }
   }
 }
