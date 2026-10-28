@@ -292,7 +292,7 @@ pub fn render_help_overlay(
         ("Enter, l", "Open selected commit"),
         ("/", "Search commit history"),
         ("o", "Inspect a local Git object"),
-        ("D", "Compare commit snapshots and path summary"),
+        ("D", "Review comparisons with foldable files"),
         ("f", "Filter history by literal path; empty clears"),
         ("b", "Browse local branches"),
         ("Tab", "Open working tree"),
@@ -2846,4 +2846,61 @@ fn styled_numbered_unified(old: Option<u32>, new: Option<u32>, text: &str) -> Li
 
 fn format_number(number: Option<u32>) -> String {
     number.map_or_else(|| "     ".to_owned(), |number| format!("{number:>5}"))
+}
+
+/// Build already-wrapped rows for one file in a stacked comparison.
+pub(crate) fn comparison_file_lines(
+    patch: &str,
+    path: &Path,
+    content_width: usize,
+    raw: bool,
+    split: bool,
+) -> (Vec<Line<'static>>, Vec<Line<'static>>) {
+    let (mut left, mut right) = if split {
+        if raw {
+            aligned_raw_diff_lines(&crate::diff::numbered_side_by_side(patch), content_width)
+        } else {
+            aligned_ide_diff_lines(&build_ide_diff_rows(patch, path), content_width)
+        }
+    } else if raw {
+        let mut lines = Vec::new();
+        for row in crate::diff::numbered_lines(patch) {
+            for (index, chunk) in wrap_diff_line(row.text, content_width).iter().enumerate() {
+                lines.push(Line::from(vec![
+                    Span::styled(
+                        format!(
+                            "{} {} ",
+                            format_number(if index == 0 { row.old_number } else { None }),
+                            format_number(if index == 0 { row.new_number } else { None })
+                        ),
+                        Style::default().fg(MUTED),
+                    ),
+                    Span::styled(chunk.clone(), diff_line_style(row.text)),
+                ]));
+            }
+        }
+        (lines, Vec::new())
+    } else {
+        (
+            aligned_ide_unified_lines(&build_ide_diff_rows(patch, path), content_width),
+            Vec::new(),
+        )
+    };
+    if left.is_empty() && right.is_empty() {
+        left = patch
+            .lines()
+            .flat_map(|line| wrap_diff_line(line, content_width))
+            .map(|line| Line::styled(line, Style::default().fg(MUTED)))
+            .collect();
+        if left.is_empty() {
+            left.push(Line::styled(
+                "No textual changes.",
+                Style::default().fg(MUTED),
+            ));
+        }
+        if split {
+            right = left.clone();
+        }
+    }
+    (left, right)
 }

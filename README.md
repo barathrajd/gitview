@@ -92,12 +92,14 @@ gitview clone <repository> [directory]
 - Press **D** while history is focused to compare two local commit revisions.
   The form starts with the selected commit and its first parent; edit either
   revision with **Tab** to switch fields. Enter an optional literal file or
-  directory path, then press **Enter** for the patch summary and resolved IDs.
-  Press **Enter** again for the diff, **v** to toggle IDE/raw styling, and
-  **Tab** to toggle split/unified layout. **Esc** returns through summary and
-  form; **H** returns to history from the results. Branches and remote refs
-  already stored locally work as revisions; no fetch is performed. A root
-  commit has no parent, so choose an explicit base for that comparison.
+  directory path, then press **Enter** to review all file diffs on one page.
+  Base/target IDs stay visible, and each file header shows additions/deletions.
+  Use **[**/**]** to select a file, **Enter/Space** to fold it, **C** to collapse
+  all files, and **E** to expand all. Use **j/k** to scroll, **v** to toggle
+  IDE/raw styling, and **Tab** to toggle split/unified layout. **Esc** edits the
+  comparison and **H** returns to history. Branches and remote refs already
+  stored locally work as revisions; no fetch is performed. A root commit has
+  no parent, so choose an explicit base for that comparison.
 - Press **o** while history is focused to inspect a local Git object. Enter a
   commit, tag, tree, or blob revision, such as `HEAD`, `HEAD^{tree}`, or
   `HEAD:src/main.rs`. The result shows the fixed object ID, type, size, and

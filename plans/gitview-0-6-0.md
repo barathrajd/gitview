@@ -86,7 +86,8 @@ the user approves the final release candidate.
 5. **History and diff inspection (complete):** literal file/directory
    history is implemented with a persistent, clearable filter and the existing
    200-commit limit. Commit/path comparisons and patch summaries now resolve
-   fixed commit IDs and reuse the read-only diff renderer. Branch names and
+   fixed commit IDs. A single read-only review combines per-file statistics
+   and foldable diffs with shared highlighting and layout toggles. Branch names and
    locally stored remote refs are supported without fetching. Object inspection
    resolves fixed IDs for commits, tags, trees, and blobs; it shows type, size,
    bounded previews, binary notices, and commit descriptions.
