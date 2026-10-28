@@ -279,6 +279,7 @@ pub fn render_help_overlay(
         ("Up/Down, j/k", "Move through commits"),
         ("Enter, l", "Open selected commit"),
         ("/", "Search commit history"),
+        ("D", "Compare commit snapshots and path summary"),
         ("f", "Filter history by literal path; empty clears"),
         ("b", "Browse local branches"),
         ("Tab", "Open working tree"),
@@ -483,6 +484,7 @@ pub struct Cockpit<'a> {
 }
 
 pub enum Screen<'a> {
+    Comparison(&'a crate::comparison_page::ComparisonPage),
     PathHistoryInput {
         path: &'a str,
     },
@@ -631,6 +633,7 @@ pub fn render(
     // next one, including when switching from a wide pane layout to a dialog.
     frame.render_widget(Clear, frame.area());
     match screen {
+        Screen::Comparison(page) => page.render(frame, border),
         Screen::PathHistoryInput { path } => render_message_page(
             frame,
             "HISTORY PATH FILTER",
@@ -1371,6 +1374,7 @@ fn render_cockpit(
             ("W", "worktree"),
             ("Enter/l", "details"),
             ("f", "path history"),
+            ("D", "compare"),
             ("b", "branches"),
             ("p", "profiles"),
             ("/", "search"),

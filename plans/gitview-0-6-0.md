@@ -85,8 +85,10 @@ the user approves the final release candidate.
    deletion with atomic object checks. Annotated/signed creation is not exposed.
 5. **History and diff inspection (in progress):** literal file/directory
    history is implemented with a persistent, clearable filter and the existing
-   200-commit limit. Finish path/commit comparisons, patch summaries, branch and
-   locally available remote-ref comparisons, and object descriptions.
+   200-commit limit. Commit/path comparisons and patch summaries now resolve
+   fixed commit IDs and reuse the read-only diff renderer. Branch names and
+   locally stored remote refs are supported without fetching. Finish object
+   descriptions.
 6. **Coverage and release gate:** complete capability-matrix acceptance,
    focused safety review, full test/build/lint checks on both target platforms,
    Linux and macOS archive checksum verification, installer checks, crate dry

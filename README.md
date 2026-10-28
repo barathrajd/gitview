@@ -89,6 +89,15 @@ gitview clone <repository> [directory]
   repository-relative file or directory. Submit an empty path to clear the
   filter. This view does not follow renames. Search and commit details use the
   filtered history, and the filter remains active across refreshes.
+- Press **D** while history is focused to compare two local commit revisions.
+  The form starts with the selected commit and its first parent; edit either
+  revision with **Tab** to switch fields. Enter an optional literal file or
+  directory path, then press **Enter** for the patch summary and resolved IDs.
+  Press **Enter** again for the diff, **v** to toggle IDE/raw styling, and
+  **Tab** to toggle split/unified layout. **Esc** returns through summary and
+  form; **H** returns to history from the results. Branches and remote refs
+  already stored locally work as revisions; no fetch is performed. A root
+  commit has no parent, so choose an explicit base for that comparison.
 - **Tab** switches between history and the working tree. **/** opens debounced
   history search. **Up/Down** selects a result, **Enter** opens its details,
   **Backspace** edits the query, and **Esc** returns to history.

@@ -313,6 +313,7 @@ fn app(
     let mut diff_entry: Option<gitview::worktree::Entry> = None;
     let mut selected_hunk = 0usize;
     let mut branch_view = false;
+    let mut comparison_page: Option<gitview::comparison_page::ComparisonPage> = None;
     let mut tag_page: Option<gitview::tag_page::TagPage> = None;
     let mut profiles_view = false;
     let mut profile_selection = ListState::default();
@@ -433,6 +434,9 @@ fn app(
         }
     });
     loop {
+        if let Some(page) = &mut comparison_page {
+            page.tick();
+        }
         if let Some(page) = &mut tag_page {
             page.tick();
         }
@@ -841,7 +845,9 @@ fn app(
             } else {
                 ui::HelpPage::History
             };
-            let screen = if let Some(path) = &history_path_input {
+            let screen = if let Some(page) = &comparison_page {
+                Screen::Comparison(page)
+            } else if let Some(path) = &history_path_input {
                 Screen::PathHistoryInput { path }
             } else if let Some(page) = &tag_page {
                 Screen::Tags(page)
@@ -983,6 +989,10 @@ fn app(
             Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
         };
         if let Event::Paste(pasted) = &event {
+            if let Some(page) = &mut comparison_page {
+                page.paste(pasted);
+                continue;
+            }
             if let Some(path) = &mut history_path_input {
                 if !help {
                     path.push_str(pasted);
@@ -1027,6 +1037,12 @@ fn app(
             if help {
                 if matches!(key.code, KeyCode::Esc | KeyCode::Char('?')) {
                     help = false;
+                }
+                continue;
+            }
+            if let Some(page) = &mut comparison_page {
+                if !page.key(root, key.code) {
+                    comparison_page = None;
                 }
                 continue;
             }
@@ -1709,6 +1725,18 @@ fn app(
                         // The initial load, mutations, and explicit `r` refresh it.
                     }
                     AppAction::ReturnToHistory => {}
+                    AppAction::OpenComparison => {
+                        let target = history
+                            .as_ref()
+                            .and_then(|rows| rows.as_ref().ok())
+                            .and_then(|rows| selection.selected().and_then(|index| rows.get(index)))
+                            .and_then(|row| gitview::history::commit_id(row))
+                            .unwrap_or("HEAD");
+                        comparison_page = Some(gitview::comparison_page::ComparisonPage::open(
+                            target,
+                            history_filter.as_deref(),
+                        ));
+                    }
                     AppAction::StartPathHistory => {
                         history_path_input = Some(
                             history_filter

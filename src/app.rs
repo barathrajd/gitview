@@ -13,6 +13,7 @@ pub enum AppAction {
     ReturnToHistory,
     StartSearch,
     StartPathHistory,
+    OpenComparison,
     OpenBranches,
     StageSelected,
     StageAll,
@@ -93,6 +94,7 @@ impl AppState {
 
         match (self.view, key) {
             (_, KeyCode::Char('b')) => Some(AppAction::OpenBranches),
+            (View::History, KeyCode::Char('D')) => Some(AppAction::OpenComparison),
             (View::History, KeyCode::Char('f')) => Some(AppAction::StartPathHistory),
             (View::History, KeyCode::Char('/')) => Some(AppAction::StartSearch),
             (View::History, KeyCode::Up) => Some(AppAction::MoveUp),
