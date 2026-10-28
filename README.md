@@ -124,7 +124,9 @@ gitview clone <repository> [directory]
   staged changes are included, while unstaged edits remain in the worktree.
 - Press **b** to browse local branches. Select one and press **Enter**, or press
   **c** to create a branch from the current commit. Confirm with **y** or cancel
-  with **n** or **Esc**.
+  with **n** or **Esc**. Press **r** to rename the selected branch or **d**
+  to review deletion. Git refuses unmerged or checked-out branch deletion;
+  changed branch tips or checkout state require a new preview.
 - **?** opens help and **Esc** closes it; **q** quits. Each page shows its
   available actions in the footer and help panel.
 

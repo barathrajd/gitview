@@ -60,6 +60,82 @@ fn reports_unborn_branch_without_commits() {
 }
 
 #[test]
+fn renames_then_deletes_a_confirmed_local_branch() {
+    let root = fixture();
+    commit(&root);
+    git(&root, &["branch", "topic"]);
+    let preview = gitview::branches::preview_branch(&root, std::ffi::OsStr::new("topic")).unwrap();
+    gitview::branches::rename_branch(&root, &preview, "renamed").unwrap();
+    let preview =
+        gitview::branches::preview_branch(&root, std::ffi::OsStr::new("renamed")).unwrap();
+    gitview::branches::delete_branch(&root, &preview).unwrap();
+    assert!(
+        !load_branches(&root)
+            .unwrap()
+            .branches
+            .iter()
+            .any(|name| name == "renamed" || name == "topic")
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn refuses_stale_branch_previews_and_deletion_of_the_current_branch() {
+    let root = fixture();
+    commit(&root);
+    git(&root, &["branch", "topic"]);
+    let preview = gitview::branches::preview_branch(&root, std::ffi::OsStr::new("topic")).unwrap();
+    git(&root, &["switch", "-q", "topic"]);
+    assert!(
+        gitview::branches::delete_branch(&root, &preview)
+            .unwrap_err()
+            .contains("changed")
+    );
+    let current = gitview::branches::preview_branch(&root, std::ffi::OsStr::new("topic")).unwrap();
+    assert!(gitview::branches::delete_branch(&root, &current).is_err());
+    assert!(
+        load_branches(&root)
+            .unwrap()
+            .branches
+            .iter()
+            .any(|name| name == "topic")
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn refuses_unmerged_deletion_and_renaming_over_an_existing_branch() {
+    let root = fixture();
+    commit(&root);
+    let original = match load_branches(&root).unwrap().head {
+        HeadState::Attached(name) => name,
+        _ => panic!("expected branch"),
+    };
+    git(&root, &["switch", "-qc", "topic"]);
+    commit(&root);
+    assert!(
+        Command::new("git")
+            .current_dir(&root)
+            .arg("switch")
+            .arg(&original)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let preview = gitview::branches::preview_branch(&root, std::ffi::OsStr::new("topic")).unwrap();
+    assert!(gitview::branches::delete_branch(&root, &preview).is_err());
+    assert!(gitview::branches::rename_branch(&root, &preview, original.to_str().unwrap()).is_err());
+    assert!(
+        load_branches(&root)
+            .unwrap()
+            .branches
+            .iter()
+            .any(|name| name == "topic")
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn lists_local_branches_and_current_or_detached_head() {
     let root = fixture();
     commit(&root);

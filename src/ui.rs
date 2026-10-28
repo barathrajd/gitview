@@ -308,6 +308,8 @@ pub fn render_help_overlay(
         ("Up/Down, j/k", "Select a local branch"),
         ("Enter, l", "Switch to selected branch"),
         ("c", "Create a branch"),
+        ("r", "Rename the selected local branch"),
+        ("d", "Delete selected branch if Git permits"),
         ("y", "Confirm branch operation"),
         ("n, Esc", "Cancel branch operation"),
         ("H", "Open history"),
@@ -318,7 +320,7 @@ pub fn render_help_overlay(
         ("Type", "Enter a local branch name"),
         ("Backspace", "Delete a character"),
         ("Enter", "Continue to confirmation"),
-        ("Esc", "Cancel branch creation"),
+        ("Esc", "Cancel branch name entry"),
     ];
     const IGNORE_PATH_INPUT: &[(&str, &str)] = &[
         ("Type", "Enter a repository-relative path"),
@@ -480,6 +482,10 @@ pub enum Screen<'a> {
     Cockpit(Cockpit<'a>),
     Help,
     BranchInput(&'a str),
+    RenameBranchInput {
+        input: &'a str,
+        name: &'a std::ffi::OsStr,
+    },
     IgnorePathInput {
         path: &'a str,
         feedback: &'a str,
@@ -631,6 +637,13 @@ pub fn render(
             );
             render_key_hints(frame, areas[1], &[("Enter", "continue"), ("Esc", "cancel")]);
         }
+        Screen::RenameBranchInput { input, name } => render_message_page(
+            frame,
+            "RENAME LOCAL BRANCH",
+            &format!("Rename {}\n\nNew name: {input}_", name.to_string_lossy()),
+            border,
+            &[("Enter", "review rename"), ("Esc", "cancel")],
+        ),
         Screen::IgnorePathInput { path, feedback } => {
             let text = format!(
                 "Repository-relative path: {path}_\n\n{}",
@@ -771,6 +784,13 @@ pub fn render(
                     Some(BranchAction::Create { name, base }) => {
                         format!("Create and switch to local branch {name:?} from commit {base}?")
                     }
+                    Some(BranchAction::Rename { preview, name }) => {
+                        format!("Rename local branch {:?} to {name:?}?", preview.name())
+                    }
+                    Some(BranchAction::Delete(preview)) => format!(
+                        "Delete local branch {:?}?\n\nGit refuses unmerged branches and branches checked out in any worktree. No force deletion is used.",
+                        preview.name()
+                    ),
                     None => "Branch operation unavailable".to_owned(),
                 }
             };
@@ -1725,6 +1745,8 @@ fn render_branches(
         ("j/k", "move"),
         ("Enter/l", "switch"),
         ("c", "create"),
+        ("r", "rename"),
+        ("d", "delete"),
         ("Esc/h", "back"),
     ];
     let hint_height = hint_row_count(&hints, frame.area().width);

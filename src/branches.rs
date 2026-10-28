@@ -2,11 +2,101 @@ use std::{ffi::OsString, path::Path, process::Output};
 
 use crate::process;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum HeadState {
     Attached(OsString),
     Detached,
     Unborn(OsString),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BranchPreview {
+    name: OsString,
+    tip: Vec<u8>,
+    head: HeadState,
+    head_commit: Option<String>,
+}
+
+impl BranchPreview {
+    pub fn name(&self) -> &std::ffi::OsStr {
+        &self.name
+    }
+}
+
+pub fn preview_branch(root: &Path, name: &std::ffi::OsStr) -> Result<BranchPreview, String> {
+    let state = load_branches(root)?;
+    if !state.branches.iter().any(|branch| branch == name) {
+        return Err("Selected local branch no longer exists".into());
+    }
+    let mut reference = OsString::from("refs/heads/");
+    reference.push(name);
+    let output = process::git_command()
+        .current_dir(root)
+        .args(["show-ref", "--verify", "--hash"])
+        .arg(reference)
+        .output()
+        .map_err(|error| format!("Could not inspect branch: {error}"))?;
+    if !output.status.success() {
+        return Err(error(&output));
+    }
+    Ok(BranchPreview {
+        name: name.to_owned(),
+        tip: output.stdout,
+        head: state.head,
+        head_commit: state.head_commit,
+    })
+}
+
+fn check_preview(root: &Path, expected: &BranchPreview) -> Result<(), String> {
+    if preview_branch(root, &expected.name)? != *expected {
+        return Err("Branch or checkout changed; review and confirm again".into());
+    }
+    Ok(())
+}
+
+pub fn rename_branch(
+    root: &Path,
+    expected: &BranchPreview,
+    destination: &str,
+) -> Result<(), String> {
+    if destination.is_empty() || destination.starts_with('-') {
+        return Err("Invalid branch name".into());
+    }
+    let reference = format!("refs/heads/{destination}");
+    if !git(root, &["check-ref-format", &reference])?
+        .status
+        .success()
+    {
+        return Err("Invalid branch name".into());
+    }
+    check_preview(root, expected)?;
+    let output = process::git_command()
+        .current_dir(root)
+        .args(["branch", "-m", "--"])
+        .arg(&expected.name)
+        .arg(destination)
+        .output()
+        .map_err(|error| format!("Could not rename branch: {error}"))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(error(&output))
+    }
+}
+
+pub fn delete_branch(root: &Path, expected: &BranchPreview) -> Result<(), String> {
+    check_preview(root, expected)?;
+    let output = process::git_command()
+        .current_dir(root)
+        .args(["branch", "-d", "--"])
+        .arg(&expected.name)
+        .output()
+        .map_err(|error| format!("Could not delete branch: {error}"))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(error(&output))
+    }
 }
 #[derive(Debug)]
 pub struct Branches {

@@ -315,9 +315,10 @@ fn app(
         std::sync::mpsc::channel::<(u64, Result<gitview::branches::Branches, String>)>();
     let mut branch_request = 0u64;
     let (operation_sender, operation_receiver) =
-        std::sync::mpsc::channel::<(bool, Result<(), String>)>();
+        std::sync::mpsc::channel::<(String, Result<(), String>)>();
     let mut branch_confirm: Option<BranchAction> = None;
     let mut branch_input: Option<String> = None;
+    let mut branch_rename: Option<gitview::branches::BranchPreview> = None;
     let mut branch_feedback = String::new();
     let mut ignore_path_input: Option<String> = None;
     let mut remove_path_input: Option<String> = None;
@@ -600,11 +601,10 @@ fn app(
             }
             branches = Some(result);
         }
-        while let Ok((created, result)) = operation_receiver.try_recv() {
+        while let Ok((success_message, result)) = operation_receiver.try_recv() {
             mutation_pending = false;
             branch_feedback = match result {
-                Ok(()) if created => "Branch created and switched successfully.".to_owned(),
-                Ok(()) => "Branch switched successfully.".to_owned(),
+                Ok(()) => success_message,
                 Err(error) => {
                     format!("{error} (branch state refreshed; a hook may have changed HEAD)")
                 }
@@ -876,7 +876,14 @@ fn app(
                     pending: mutation_pending,
                 }
             } else if branch_view && branch_input.is_some() {
-                Screen::BranchInput(branch_input.as_deref().unwrap_or(""))
+                if let Some(preview) = &branch_rename {
+                    Screen::RenameBranchInput {
+                        input: branch_input.as_deref().unwrap_or(""),
+                        name: preview.name(),
+                    }
+                } else {
+                    Screen::BranchInput(branch_input.as_deref().unwrap_or(""))
+                }
             } else if branch_view && (mutation_pending || branch_confirm.is_some()) {
                 Screen::BranchConfirmation {
                     pending: mutation_pending,
@@ -1410,7 +1417,10 @@ fn app(
                 if let Some(input) = &mut branch_input {
                     match key.code {
                         KeyCode::Char('?') => help = true,
-                        KeyCode::Esc => branch_input = None,
+                        KeyCode::Esc => {
+                            branch_input = None;
+                            branch_rename = None;
+                        }
                         KeyCode::Backspace => {
                             input.pop();
                         }
@@ -1418,6 +1428,10 @@ fn app(
                         KeyCode::Enter => {
                             let name = input.clone();
                             branch_input = None;
+                            if let Some(preview) = branch_rename.take() {
+                                branch_confirm = Some(BranchAction::Rename { preview, name });
+                                continue;
+                            }
                             if let Some(Ok(data)) = &branches {
                                 if let Some(base) = &data.head_commit {
                                     if name.is_empty() {
@@ -1447,16 +1461,25 @@ fn app(
                             let path = root.to_path_buf();
                             let sender = operation_sender.clone();
                             std::thread::spawn(move || {
-                                let (created, result) = match action {
-                                    BranchAction::Switch(name) => {
-                                        (false, gitview::branches::switch_branch(&path, &name))
-                                    }
+                                let (success_message, result) = match action {
+                                    BranchAction::Switch(name) => (
+                                        "Branch switched successfully.".to_owned(),
+                                        gitview::branches::switch_branch(&path, &name),
+                                    ),
+                                    BranchAction::Rename { preview, name } => (
+                                        "Branch renamed successfully.".to_owned(),
+                                        gitview::branches::rename_branch(&path, &preview, &name),
+                                    ),
+                                    BranchAction::Delete(preview) => (
+                                        "Branch deleted successfully.".to_owned(),
+                                        gitview::branches::delete_branch(&path, &preview),
+                                    ),
                                     BranchAction::Create { name, base } => (
-                                        true,
+                                        "Branch created and switched successfully.".to_owned(),
                                         gitview::branches::create_branch(&path, &name, &base),
                                     ),
                                 };
-                                let _ = sender.send((created, result));
+                                let _ = sender.send((success_message, result));
                             });
                         }
                         KeyCode::Char('n') | KeyCode::Esc => branch_confirm = None,
@@ -1465,6 +1488,22 @@ fn app(
                     continue;
                 }
                 match navigation_key(key) {
+                    KeyCode::Char('r' | 'd') => {
+                        if let (Some(Ok(data)), Some(index)) =
+                            (&branches, branch_selection.selected())
+                            && let Some(name) = data.branches.get(index)
+                        {
+                            match gitview::branches::preview_branch(root, name) {
+                                Ok(preview) if key.code == KeyCode::Char('r') => {
+                                    branch_rename = Some(preview);
+                                    branch_input = Some(String::new());
+                                    branch_feedback.clear();
+                                }
+                                Ok(preview) => branch_confirm = Some(BranchAction::Delete(preview)),
+                                Err(error) => branch_feedback = error,
+                            }
+                        }
+                    }
                     KeyCode::Char('c') => {
                         if let Some(Ok(data)) = &branches {
                             if data.head_commit.is_some() {
