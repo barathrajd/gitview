@@ -22,6 +22,12 @@ pub struct DiscardPreview {
     fingerprint: Vec<u8>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UntrackPreview {
+    pub entry: Entry,
+    index_entry: Vec<u8>,
+}
+
 pub fn load_status(root: &Path) -> Result<Vec<Entry>, String> {
     let output = process::git_command()
         .current_dir(root)
@@ -163,6 +169,53 @@ pub fn discard(root: &Path, preview: &DiscardPreview) -> Result<(), String> {
         Section::Unstaged => run_action(root, &["restore", "--worktree"], &entry.path, None),
         Section::Untracked => run_action(root, &["clean", "-f"], &entry.path, None),
     }
+}
+
+pub fn preview_untrack(root: &Path, entry: &Entry) -> Result<UntrackPreview, String> {
+    if entry.section == Section::Untracked {
+        return Err("Only tracked files can be untracked with this action".into());
+    }
+    if !load_status(root)?.iter().any(|current| current == entry) {
+        return Err("File status changed; refresh and select it again".into());
+    }
+    Ok(UntrackPreview {
+        entry: entry.clone(),
+        index_entry: index_entry(root, entry)?,
+    })
+}
+
+pub fn untrack(root: &Path, preview: &UntrackPreview) -> Result<(), String> {
+    let entry = &preview.entry;
+    if entry.section == Section::Untracked {
+        return Err("Only tracked files can be untracked with this action".into());
+    }
+    if !load_status(root)?.iter().any(|current| current == entry) {
+        return Err("File status changed; refresh and select it again".into());
+    }
+    if index_entry(root, entry)? != preview.index_entry {
+        return Err("The staged file changed after confirmation; review it again".into());
+    }
+    run_action(root, &["rm", "--cached", "--force"], &entry.path, None)
+}
+
+fn index_entry(root: &Path, entry: &Entry) -> Result<Vec<u8>, String> {
+    let output = process::git_command()
+        .current_dir(root)
+        .arg("--literal-pathspecs")
+        .args(["ls-files", "--stage", "-z", "--"])
+        .arg(&entry.path)
+        .output()
+        .map_err(|error| format!("Could not inspect the staged file: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "Could not inspect the staged file: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    if output.stdout.is_empty() {
+        return Err("The selected path is no longer tracked in the index".into());
+    }
+    Ok(output.stdout)
 }
 
 fn discard_fingerprint(root: &Path, entry: &Entry) -> Result<Vec<u8>, String> {

@@ -154,6 +154,57 @@ fn discards_unstaged_edits_without_reverting_a_staged_rename() {
 }
 
 #[test]
+fn stops_tracking_a_confirmed_path_and_keeps_its_working_copy() {
+    let repo = Repo::new();
+    repo.commit_file("remove me.txt", "tracked content\n");
+    fs::write(repo.path().join("remove me.txt"), "staged edit\n").unwrap();
+    repo.git(&["add", "--", "remove me.txt"]);
+    let entry = worktree::load_status(repo.path()).unwrap().remove(0);
+    let preview = worktree::preview_untrack(repo.path(), &entry).unwrap();
+
+    worktree::untrack(repo.path(), &preview).unwrap();
+
+    assert_eq!(
+        fs::read(repo.path().join("remove me.txt")).unwrap(),
+        b"staged edit\n"
+    );
+    assert_eq!(
+        String::from_utf8(repo.git(&["diff", "--cached", "--name-status"]))
+            .unwrap()
+            .trim(),
+        "D\tremove me.txt"
+    );
+    assert!(
+        worktree::load_status(repo.path())
+            .unwrap()
+            .iter()
+            .any(|entry| {
+                entry.path == "remove me.txt" && entry.section == worktree::Section::Untracked
+            })
+    );
+}
+
+#[test]
+fn refuses_to_untrack_when_the_selected_index_entry_changes_after_confirmation() {
+    let repo = Repo::new();
+    repo.commit_file("tracked.txt", "base\n");
+    fs::write(repo.path().join("tracked.txt"), "first staged version\n").unwrap();
+    repo.git(&["add", "--", "tracked.txt"]);
+    let entry = worktree::load_status(repo.path()).unwrap().remove(0);
+    let preview = worktree::preview_untrack(repo.path(), &entry).unwrap();
+    fs::write(repo.path().join("tracked.txt"), "new staged version\n").unwrap();
+    repo.git(&["add", "--", "tracked.txt"]);
+
+    let error = worktree::untrack(repo.path(), &preview).unwrap_err();
+
+    assert!(error.contains("changed"));
+    assert_eq!(
+        fs::read(repo.path().join("tracked.txt")).unwrap(),
+        b"new staged version\n"
+    );
+}
+
+#[test]
 fn refuses_a_stale_preview_without_removing_the_newer_working_copy() {
     let repo = Repo::new();
     repo.commit_file("tracked.txt", "base\n");

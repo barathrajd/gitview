@@ -229,8 +229,9 @@ of weakening its safety or acceptance criteria.
    complete file navigation, discard confirmation, commit/amend, path
    operations, and working-tree regression coverage. Commit creation from a
    reviewed staged set, confirmed amend with stale HEAD/index checks, file
-   navigation, and selected-path discard are implemented; editor handoff and
-   path operations remain incomplete.
+   navigation, selected-path discard, and confirmed untracking that keeps the
+   working copy are implemented; editor handoff, rename/move, and ordinary path
+   removal remain incomplete.
 3. **November 22–December 5 — finish Basic refs and sharing:** complete local
    branch/tag management, remote setup, explicit fetch, ahead/behind, pull, and
    push with preview and progress/error states.

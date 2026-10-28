@@ -141,6 +141,27 @@ fn commit_message_shows_staged_and_unstaged_files_before_single_enter_commit() {
 }
 
 #[test]
+fn untrack_confirmation_explains_that_the_working_copy_is_kept() {
+    let entry = Entry {
+        section: Section::Staged,
+        path: OsString::from("src/keep-local.rs"),
+        original: None,
+    };
+    let rendered = draw(
+        Screen::UntrackConfirmation {
+            entry: &entry,
+            pending: false,
+        },
+        80,
+        18,
+    );
+    assert!(rendered.contains("CONFIRM STOP TRACKING"));
+    assert!(rendered.contains("keep the working copy"));
+    assert!(rendered.contains("src/keep-local.rs"));
+    assert!(rendered.contains("staged deletion"));
+}
+
+#[test]
 fn amend_confirmation_explains_the_history_rewrite_and_shows_old_and_new_messages() {
     let entries = vec![Entry {
         section: Section::Staged,

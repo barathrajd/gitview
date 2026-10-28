@@ -297,6 +297,8 @@ fn app(
         mpsc::channel::<(String, String, bool, Result<(), String>)>();
     let mut discard_confirm: Option<gitview::worktree::DiscardPreview> = None;
     let (discard_sender, discard_receiver) = mpsc::channel::<Result<(), String>>();
+    let mut untrack_confirm: Option<gitview::worktree::UntrackPreview> = None;
+    let (untrack_sender, untrack_receiver) = mpsc::channel::<Result<(), String>>();
     let mut mutation_pending = false;
     let mut status_mutation: Option<u64> = None;
     let mut diff_entry_refresh: Option<(gitview::worktree::Section, gitview::worktree::Section)> =
@@ -632,6 +634,23 @@ fn app(
                 let _ = sender.send((id, gitview::worktree::load_status(&path)));
             });
         }
+        while let Ok(result) = untrack_receiver.try_recv() {
+            mutation_pending = false;
+            untrack_confirm = None;
+            commit_feedback = match result {
+                Ok(()) => "Stopped tracking the selected file; kept its working copy.".into(),
+                Err(error) => error,
+            };
+            status_request += 1;
+            let id = status_request;
+            status_mutation = Some(id);
+            let sender = status_sender.clone();
+            let path = root.to_path_buf();
+            status = None;
+            std::thread::spawn(move || {
+                let _ = sender.send((id, gitview::worktree::load_status(&path)));
+            });
+        }
         terminal.draw(|frame| {
             let composed_message = combined_commit_message(
                 commit_message.as_deref().unwrap_or_default(),
@@ -685,6 +704,11 @@ fn app(
                 }
             } else if let Some(preview) = &discard_confirm {
                 Screen::DiscardConfirmation {
+                    entry: &preview.entry,
+                    pending: mutation_pending,
+                }
+            } else if let Some(preview) = &untrack_confirm {
+                Screen::UntrackConfirmation {
                     entry: &preview.entry,
                     pending: mutation_pending,
                 }
@@ -937,6 +961,26 @@ fn app(
                         });
                     }
                     KeyCode::Char('n') | KeyCode::Esc => discard_confirm = None,
+                    _ => {}
+                }
+                continue;
+            }
+            if let Some(preview) = untrack_confirm.as_ref() {
+                if mutation_pending {
+                    continue;
+                }
+                match key.code {
+                    KeyCode::Char('?') => help = true,
+                    KeyCode::Char('y') => {
+                        mutation_pending = true;
+                        let preview = preview.clone();
+                        let path = root.to_path_buf();
+                        let sender = untrack_sender.clone();
+                        std::thread::spawn(move || {
+                            let _ = sender.send(gitview::worktree::untrack(&path, &preview));
+                        });
+                    }
+                    KeyCode::Char('n') | KeyCode::Esc => untrack_confirm = None,
                     _ => {}
                 }
                 continue;
@@ -1224,6 +1268,20 @@ fn app(
                             match gitview::worktree::preview_discard(root, entry) {
                                 Ok(preview) => {
                                     discard_confirm = Some(preview);
+                                    commit_feedback.clear();
+                                }
+                                Err(error) => commit_feedback = error,
+                            }
+                        }
+                    }
+                    AppAction::PreviewUntrackSelected => {
+                        if let (Some(Ok(entries)), Some(index)) =
+                            (&status, status_selection.selected())
+                            && let Some(entry) = entries.get(index)
+                        {
+                            match gitview::worktree::preview_untrack(root, entry) {
+                                Ok(preview) => {
+                                    untrack_confirm = Some(preview);
                                     commit_feedback.clear();
                                 }
                                 Err(error) => commit_feedback = error,

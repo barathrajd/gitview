@@ -267,6 +267,7 @@ pub fn render_help_overlay(
         ("c", "Commit staged files"),
         ("a", "Amend the current commit"),
         ("d", "Discard selected unstaged or untracked file"),
+        ("x", "Stop tracking selected file and keep working copy"),
         ("s", "Stage selected file"),
         ("u", "Unstage selected file"),
         ("S", "Stage all working tree changes"),
@@ -474,6 +475,10 @@ pub enum Screen<'a> {
         entry: &'a Entry,
         pending: bool,
     },
+    UntrackConfirmation {
+        entry: &'a Entry,
+        pending: bool,
+    },
     Branches {
         branches: Option<&'a Result<Branches, String>>,
         feedback: &'a str,
@@ -669,6 +674,30 @@ pub fn render(
                 &[("Working", "discard in progress")][..]
             } else {
                 &[("y", "discard file"), ("n/Esc", "cancel")][..]
+            };
+            render_key_hints(frame, areas[1], hints);
+        }
+        Screen::UntrackConfirmation { entry, pending } => {
+            let text = if pending {
+                "Updating the index; keeping the working copy...".to_owned()
+            } else {
+                format!(
+                    "Stop tracking this path and keep the working copy?\n\n{}\n\nThe staged deletion will be included in your next commit.",
+                    entry.path.to_string_lossy()
+                )
+            };
+            let areas =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(frame.area());
+            frame.render_widget(
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: false })
+                    .block(page_block("CONFIRM STOP TRACKING", border)),
+                areas[0],
+            );
+            let hints = if pending {
+                &[("Working", "index update in progress")][..]
+            } else {
+                &[("y", "stop tracking"), ("n/Esc", "cancel")][..]
             };
             render_key_hints(frame, areas[1], hints);
         }

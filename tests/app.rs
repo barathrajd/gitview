@@ -35,7 +35,10 @@ fn capital_w_opens_working_tree_and_capital_s_stages_everything() {
         state.handle_key(KeyCode::Char('S'), false),
         Some(AppAction::StageAll)
     );
-    assert_eq!(state.handle_key(KeyCode::Char('x'), false), None);
+    assert_eq!(
+        state.handle_key(KeyCode::Char('x'), false),
+        Some(AppAction::PreviewUntrackSelected)
+    );
 }
 
 #[test]
@@ -109,6 +112,17 @@ fn lowercase_d_previews_discard_only_from_the_working_tree() {
     );
     assert_eq!(app.handle_tab(false), Some(AppAction::ReturnToHistory));
     assert_eq!(app.handle_key(KeyCode::Char('d'), false), None);
+}
+
+#[test]
+fn lowercase_x_previews_untracking_only_from_the_working_tree() {
+    let mut app = AppState::default();
+    assert_eq!(
+        app.handle_key(KeyCode::Char('x'), false),
+        Some(AppAction::PreviewUntrackSelected)
+    );
+    app.handle_key(KeyCode::Char('H'), false);
+    assert_eq!(app.handle_key(KeyCode::Char('x'), false), None);
 }
 
 #[test]
