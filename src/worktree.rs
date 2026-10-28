@@ -28,6 +28,13 @@ pub struct UntrackPreview {
     index_entry: Vec<u8>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IgnoreRule {
+    pub source: String,
+    pub line: String,
+    pub pattern: String,
+}
+
 pub fn load_status(root: &Path) -> Result<Vec<Entry>, String> {
     let output = process::git_command()
         .current_dir(root)
@@ -196,6 +203,67 @@ pub fn untrack(root: &Path, preview: &UntrackPreview) -> Result<(), String> {
         return Err("The staged file changed after confirmation; review it again".into());
     }
     run_action(root, &["rm", "--cached", "--force"], &entry.path, None)
+}
+
+pub fn ignore_rule(root: &Path, entry: &Entry) -> Result<Option<IgnoreRule>, String> {
+    if !load_status(root)?.iter().any(|current| current == entry) {
+        return Err("File status changed; refresh and select it again".into());
+    }
+    let mut command = process::git_command();
+    command
+        .current_dir(root)
+        .args(["check-ignore", "--verbose", "-z", "--no-index", "--stdin"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("Could not inspect ignore rules: {error}"))?;
+    {
+        let input = child
+            .stdin
+            .as_mut()
+            .ok_or("Could not send the selected path to Git")?;
+        input
+            .write_all(os_str_bytes(&entry.path))
+            .and_then(|()| input.write_all(&[0]))
+            .map_err(|error| format!("Could not send the selected path to Git: {error}"))?;
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|error| format!("Could not inspect ignore rules: {error}"))?;
+    if output.status.code() == Some(1) {
+        return Ok(None);
+    }
+    if !output.status.success() {
+        return Err(format!(
+            "Could not inspect ignore rules: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let mut fields: Vec<_> = output.stdout.split(|byte| *byte == 0).collect();
+    if fields.last().is_some_and(|field| field.is_empty()) {
+        fields.pop();
+    }
+    if fields.len() != 4 {
+        return Err("Git returned an invalid ignore-rule record".into());
+    }
+    Ok(Some(IgnoreRule {
+        source: String::from_utf8_lossy(fields[0]).into_owned(),
+        line: String::from_utf8_lossy(fields[1]).into_owned(),
+        pattern: String::from_utf8_lossy(fields[2]).into_owned(),
+    }))
+}
+
+#[cfg(unix)]
+fn os_str_bytes(value: &std::ffi::OsStr) -> &[u8] {
+    use std::os::unix::ffi::OsStrExt;
+    value.as_bytes()
+}
+
+#[cfg(not(unix))]
+fn os_str_bytes(value: &std::ffi::OsStr) -> &[u8] {
+    value.as_encoded_bytes()
 }
 
 fn index_entry(root: &Path, entry: &Entry) -> Result<Vec<u8>, String> {

@@ -13,6 +13,15 @@ fn render_cockpit(width: u16) -> String {
 }
 
 fn render_cockpit_focused(width: u16, focused: View, profile: &str) -> String {
+    render_cockpit_with_feedback(width, focused, profile, "")
+}
+
+fn render_cockpit_with_feedback(
+    width: u16,
+    focused: View,
+    profile: &str,
+    feedback: &str,
+) -> String {
     let backend = TestBackend::new(width, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     let branches = Branches {
@@ -40,7 +49,7 @@ fn render_cockpit_focused(width: u16, focused: View, profile: &str) -> String {
                     branches: Some(&Ok(branches)),
                     history: Some(&history),
                     status: Some(&status),
-                    feedback: "",
+                    feedback,
                     focused,
                     history_selection: &mut history_selection,
                     working_tree_selection: &mut working_tree_selection,
@@ -57,6 +66,18 @@ fn render_cockpit_focused(width: u16, focused: View, profile: &str) -> String {
         .map(|row| row.iter().map(|cell| cell.symbol()).collect::<String>())
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[test]
+fn renders_ignore_rule_feedback_in_the_worktree_cockpit() {
+    let rendered = render_cockpit_with_feedback(
+        120,
+        View::WorkingTree,
+        "Primary",
+        "Ignored by .gitignore:1 (\"*.log\").",
+    );
+    assert!(rendered.contains("Ignored by .gitignore:1"));
+    assert!(rendered.contains("*.log"));
 }
 
 #[test]

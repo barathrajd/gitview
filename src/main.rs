@@ -299,6 +299,8 @@ fn app(
     let (discard_sender, discard_receiver) = mpsc::channel::<Result<(), String>>();
     let mut untrack_confirm: Option<gitview::worktree::UntrackPreview> = None;
     let (untrack_sender, untrack_receiver) = mpsc::channel::<Result<(), String>>();
+    let (ignore_sender, ignore_receiver) =
+        mpsc::channel::<Result<Option<gitview::worktree::IgnoreRule>, String>>();
     let mut mutation_pending = false;
     let mut status_mutation: Option<u64> = None;
     let mut diff_entry_refresh: Option<(gitview::worktree::Section, gitview::worktree::Section)> =
@@ -650,6 +652,18 @@ fn app(
             std::thread::spawn(move || {
                 let _ = sender.send((id, gitview::worktree::load_status(&path)));
             });
+        }
+        while let Ok(result) = ignore_receiver.try_recv() {
+            commit_feedback = match result {
+                Ok(Some(rule)) => {
+                    format!(
+                        "Ignored by {}:{} ({:?}).",
+                        rule.source, rule.line, rule.pattern
+                    )
+                }
+                Ok(None) => "No ignore rule matches the selected path.".into(),
+                Err(error) => error,
+            };
         }
         terminal.draw(|frame| {
             let composed_message = combined_commit_message(
@@ -1286,6 +1300,19 @@ fn app(
                                 }
                                 Err(error) => commit_feedback = error,
                             }
+                        }
+                    }
+                    AppAction::InspectIgnoreRule => {
+                        if let (Some(Ok(entries)), Some(index)) =
+                            (&status, status_selection.selected())
+                            && let Some(entry) = entries.get(index)
+                        {
+                            let entry = entry.clone();
+                            let sender = ignore_sender.clone();
+                            let path = root.to_path_buf();
+                            std::thread::spawn(move || {
+                                let _ = sender.send(gitview::worktree::ignore_rule(&path, &entry));
+                            });
                         }
                     }
                     AppAction::StageAll => {

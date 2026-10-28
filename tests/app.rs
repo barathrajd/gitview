@@ -126,6 +126,17 @@ fn lowercase_x_previews_untracking_only_from_the_working_tree() {
 }
 
 #[test]
+fn lowercase_i_inspects_ignore_rules_only_from_the_working_tree() {
+    let mut app = AppState::default();
+    assert_eq!(
+        app.handle_key(KeyCode::Char('i'), false),
+        Some(AppAction::InspectIgnoreRule)
+    );
+    app.handle_key(KeyCode::Char('H'), false);
+    assert_eq!(app.handle_key(KeyCode::Char('i'), false), None);
+}
+
+#[test]
 fn list_movement_preserves_selection_and_clamps_to_available_rows() {
     assert_eq!(move_down(None, 4), Some(1));
     assert_eq!(move_down(Some(2), 3), Some(2));
