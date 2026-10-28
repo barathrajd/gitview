@@ -309,6 +309,7 @@ pub fn render_help_overlay(
         ("Enter, l", "Switch to selected branch"),
         ("c", "Create a branch"),
         ("r", "Rename the selected local branch"),
+        ("-", "Review previous checkout"),
         ("d", "Delete selected branch if Git permits"),
         ("y", "Confirm branch operation"),
         ("n, Esc", "Cancel branch operation"),
@@ -781,6 +782,10 @@ pub fn render(
                     Some(BranchAction::Switch(name)) => {
                         format!("Switch to local branch {name:?}?")
                     }
+                    Some(BranchAction::Previous(preview)) => format!(
+                        "Return to {}?\n\nGit's normal checkout safety checks remain enabled.",
+                        preview.destination()
+                    ),
                     Some(BranchAction::Create { name, base }) => {
                         format!("Create and switch to local branch {name:?} from commit {base}?")
                     }
@@ -1746,6 +1751,7 @@ fn render_branches(
         ("Enter/l", "switch"),
         ("c", "create"),
         ("r", "rename"),
+        ("-", "previous checkout"),
         ("d", "delete"),
         ("Esc/h", "back"),
     ];

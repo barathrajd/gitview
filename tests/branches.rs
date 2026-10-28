@@ -60,6 +60,39 @@ fn reports_unborn_branch_without_commits() {
 }
 
 #[test]
+fn returns_to_the_previous_branch_or_detached_commit_after_confirmation() {
+    let root = fixture();
+    commit(&root);
+    let original = load_branches(&root).unwrap().head;
+    git(&root, &["switch", "-qc", "topic"]);
+    let preview = gitview::branches::preview_previous_checkout(&root).unwrap();
+    gitview::branches::switch_previous_checkout(&root, &preview).unwrap();
+    assert_eq!(load_branches(&root).unwrap().head, original);
+    git(&root, &["switch", "--detach", "-q"]);
+    git(&root, &["switch", "-q", "topic"]);
+    let preview = gitview::branches::preview_previous_checkout(&root).unwrap();
+    gitview::branches::switch_previous_checkout(&root, &preview).unwrap();
+    assert_eq!(load_branches(&root).unwrap().head, HeadState::Detached);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn rejects_missing_or_changed_previous_checkout() {
+    let root = fixture();
+    commit(&root);
+    assert!(gitview::branches::preview_previous_checkout(&root).is_err());
+    git(&root, &["switch", "-qc", "topic"]);
+    let preview = gitview::branches::preview_previous_checkout(&root).unwrap();
+    git(&root, &["switch", "-qc", "other"]);
+    assert!(gitview::branches::switch_previous_checkout(&root, &preview).is_err());
+    assert_eq!(
+        load_branches(&root).unwrap().head,
+        HeadState::Attached("other".into())
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn renames_then_deletes_a_confirmed_local_branch() {
     let root = fixture();
     commit(&root);

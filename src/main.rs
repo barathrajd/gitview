@@ -1462,6 +1462,12 @@ fn app(
                             let sender = operation_sender.clone();
                             std::thread::spawn(move || {
                                 let (success_message, result) = match action {
+                                    BranchAction::Previous(preview) => (
+                                        "Returned to previous checkout.".to_owned(),
+                                        gitview::branches::switch_previous_checkout(
+                                            &path, &preview,
+                                        ),
+                                    ),
                                     BranchAction::Switch(name) => (
                                         "Branch switched successfully.".to_owned(),
                                         gitview::branches::switch_branch(&path, &name),
@@ -1488,6 +1494,15 @@ fn app(
                     continue;
                 }
                 match navigation_key(key) {
+                    KeyCode::Char('-') => {
+                        match gitview::branches::preview_previous_checkout(root) {
+                            Ok(preview) => {
+                                branch_confirm = Some(BranchAction::Previous(preview));
+                                branch_feedback.clear();
+                            }
+                            Err(error) => branch_feedback = error,
+                        }
+                    }
                     KeyCode::Char('r' | 'd') => {
                         if let (Some(Ok(data)), Some(index)) =
                             (&branches, branch_selection.selected())

@@ -98,6 +98,94 @@ pub fn delete_branch(root: &Path, expected: &BranchPreview) -> Result<(), String
         Err(error(&output))
     }
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PreviousCheckoutPreview {
+    branch: Option<OsString>,
+    commit: String,
+    current_head: HeadState,
+    current_commit: Option<String>,
+}
+
+impl PreviousCheckoutPreview {
+    pub fn destination(&self) -> String {
+        match &self.branch {
+            Some(branch) => format!(
+                "local branch {} at {}",
+                branch.to_string_lossy(),
+                self.commit
+            ),
+            None => format!("detached HEAD at {}", self.commit),
+        }
+    }
+}
+
+pub fn preview_previous_checkout(root: &Path) -> Result<PreviousCheckoutPreview, String> {
+    let state = load_branches(root)?;
+    let target = git(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            "@{-1}^{commit}",
+        ],
+    )?;
+    if !target.status.success() {
+        return Err(
+            "Previous checkout is unavailable; visit another branch or commit first".into(),
+        );
+    }
+    let commit = String::from_utf8(target.stdout).map_err(|_| "Invalid Git object ID")?;
+    let commit = commit.trim().to_owned();
+    if !(commit.len() == 40 || commit.len() == 64)
+        || !commit.bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err("Invalid previous checkout object ID".into());
+    }
+    let symbolic = git(root, &["rev-parse", "--symbolic-full-name", "@{-1}"])?;
+    if !symbolic.status.success() {
+        return Err(error(&symbolic));
+    }
+    let name = symbolic
+        .stdout
+        .strip_suffix(b"\n")
+        .unwrap_or(&symbolic.stdout);
+    let branch = name.strip_prefix(b"refs/heads/").map(os);
+    Ok(PreviousCheckoutPreview {
+        branch,
+        commit,
+        current_head: state.head,
+        current_commit: state.head_commit,
+    })
+}
+
+pub fn switch_previous_checkout(
+    root: &Path,
+    expected: &PreviousCheckoutPreview,
+) -> Result<(), String> {
+    if preview_previous_checkout(root)? != *expected {
+        return Err("Previous destination or checkout changed; review and confirm again".into());
+    }
+    if let Some(branch) = &expected.branch {
+        return switch_branch(root, branch);
+    }
+    let output = git(
+        root,
+        &[
+            "switch",
+            "--detach",
+            "--no-recurse-submodules",
+            "--",
+            &expected.commit,
+        ],
+    )?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(error(&output))
+    }
+}
 #[derive(Debug)]
 pub struct Branches {
     pub head: HeadState,

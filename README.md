@@ -126,7 +126,9 @@ gitview clone <repository> [directory]
   **c** to create a branch from the current commit. Confirm with **y** or cancel
   with **n** or **Esc**. Press **r** to rename the selected branch or **d**
   to review deletion. Git refuses unmerged or checked-out branch deletion;
-  changed branch tips or checkout state require a new preview.
+  changed branch tips or checkout state require a new preview. Press **-** in
+  the branch screen to review and return to the previous branch or detached
+  commit. The destination and checkout state are rechecked before switching.
 - **?** opens help and **Esc** closes it; **q** quits. Each page shows its
   available actions in the footer and help panel.
 

@@ -32,6 +32,7 @@ pub enum AppAction {
 
 #[derive(Clone)]
 pub enum BranchAction {
+    Previous(crate::branches::PreviousCheckoutPreview),
     Switch(std::ffi::OsString),
     Create {
         name: String,
