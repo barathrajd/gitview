@@ -584,6 +584,15 @@ grew 7,184 KiB (earlier 4,848 KiB) and the small comparison page grew
 comparison value is close and agrees with the run-to-run variance already
 recorded for that page.
 
+A final pass on a clean worktree at revision `3a0df05` repeated every check:
+all passed except the renderer-only RSS diagnostic. Native ordinary-diff memory
+grew 8,752 KiB over 100 cycles (budget 10,240 KiB), startup first-frame p95 was
+44.9 ms, idle CPU 0.23% of one core, and slow-preview feedback and cancel about
+12 ms. That run, not the earlier dirty-worktree pass, is the release evidence.
+
+The earlier text below was written before the release and says 0.6.0 isn't
+ready; it is kept as the record of what was open.
+
 Release 0.6.0 still isn't ready. Open items: the failing renderer-only RSS
 diagnostic, the deferred comparison memory variance, a clean-revision rerun,
 and the Clippy rerun on the CI toolchain. Native Linux x86_64 evidence is

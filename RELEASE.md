@@ -65,13 +65,14 @@ Known issues:
 
 Validation:
 
-- At revision `3a0df05` on macOS Apple Silicon (Rust 1.99.1, Git 2.56.0):
-  formatting, the full test suite, Clippy with the CI command, and the release
-  build passed. The performance diagnostics and pseudo-terminal scripts passed
-  except the known renderer-only memory diagnostic.
-- The release shipped without waiting for the full pre-release pass to finish,
-  the security review, or the shared Definition of Done review, by the
-  maintainer's decision.
+- A full pre-release pass ran on a clean worktree at revision `3a0df05` on
+  macOS Apple Silicon (Rust 1.99.1, Git 2.56.0). Formatting, the full test suite,
+  Clippy with the CI command, the release build, every performance diagnostic,
+  and every pseudo-terminal script passed except the known renderer-only memory
+  diagnostic. Native memory over 100 cycles grew 8,752 KiB for the ordinary
+  diff (budget 10,240 KiB) and 160 KiB for the tag page.
+- The release shipped without the security review or the shared Definition of
+  Done review, by the maintainer's decision.
 
 Downloads:
 
