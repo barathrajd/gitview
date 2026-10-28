@@ -1,0 +1,145 @@
+---
+const cargoCommand = "cargo install gitview --locked";
+const macCommand =
+  "curl -fsSL https://raw.githubusercontent.com/barathrajd/gitview/main/install.sh | bash";
+---
+
+<section id="install" class="relative overflow-hidden border-y border-white/[0.06] bg-[#070c0a] px-5 py-24 sm:px-8 sm:py-32">
+  <div class="pointer-events-none absolute -right-48 top-0 size-[520px] rounded-full bg-cyan-400/[0.035] blur-[110px]" aria-hidden="true"></div>
+  <div class="relative mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-20">
+    <div>
+      <p class="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-300">Get started</p>
+      <h2 class="mt-4 max-w-lg text-3xl font-semibold tracking-[-0.04em] text-slate-100 sm:text-4xl">One install away from a clearer review.</h2>
+      <p class="mt-5 max-w-lg text-base leading-7 text-slate-400">
+        Choose Cargo to build from crates.io, or use the verified prebuilt release on macOS Apple Silicon.
+      </p>
+      <div class="mt-8 space-y-3 font-mono text-xs text-slate-500">
+        <p class="flex gap-3"><span class="text-emerald-400">01</span><span>Install Git and open a repository.</span></p>
+        <p class="flex gap-3"><span class="text-emerald-400">02</span><span>Run <code class="text-slate-300">gitview</code> from your terminal.</span></p>
+        <p class="flex gap-3"><span class="text-emerald-400">03</span><span>Press <kbd class="rounded border border-white/10 px-1.5 py-0.5 text-slate-300">?</kbd> any time for key help.</span></p>
+      </div>
+      <p class="mt-7 max-w-lg text-xs leading-5 text-slate-600">The prebuilt archive supports macOS Apple Silicon. Cargo builds from source on systems with Rust installed; Linux release packaging and Windows support are not currently provided.</p>
+    </div>
+
+    <div class="overflow-hidden rounded-2xl border border-white/[0.1] bg-[#050908] shadow-[0_30px_90px_-55px_rgba(34,211,238,0.3)]">
+      <div class="flex items-center justify-between border-b border-white/[0.08] px-4 py-4 sm:px-6">
+        <div>
+          <p class="font-mono text-xs font-medium text-slate-200">Choose your install</p>
+          <p class="mt-1 font-mono text-[10px] text-slate-600">latest release</p>
+        </div>
+        <a href="https://github.com/barathrajd/gitview/releases" target="_blank" rel="noreferrer" class="font-mono text-[10px] text-slate-500 transition hover:text-emerald-300">all releases ↗</a>
+      </div>
+
+      <div class="border-b border-white/[0.08] px-4 sm:px-6">
+        <div class="flex gap-6" role="tablist" aria-label="Installation method">
+          <button
+            type="button"
+            id="tab-cargo"
+            role="tab"
+            aria-selected="true"
+            aria-controls="panel-cargo"
+            tabindex="0"
+            data-install-tab="cargo"
+            class="install-tab relative py-3.5 font-mono text-xs text-emerald-300"
+          >Cargo</button>
+          <button
+            type="button"
+            id="tab-macos"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panel-macos"
+            tabindex="-1"
+            data-install-tab="macos"
+            class="install-tab relative py-3.5 font-mono text-xs text-slate-500"
+          >macOS prebuilt</button>
+        </div>
+      </div>
+
+      <div id="panel-cargo" role="tabpanel" aria-labelledby="tab-cargo" data-install-panel="cargo" class="p-4 sm:p-6">
+        <p class="font-mono text-[10px] uppercase tracking-wider text-slate-600">Build and install from crates.io</p>
+        <div class="mt-3 flex min-w-0 items-center gap-3 rounded-xl border border-white/[0.08] bg-[#080e0c] p-3 sm:p-4">
+          <span class="font-mono text-sm text-emerald-400">$</span>
+          <code class="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs text-slate-200 sm:text-sm" data-install-command>{cargoCommand}</code>
+          <button type="button" data-copy-command={cargoCommand} class="shrink-0 rounded-lg border border-white/10 px-3 py-2 font-mono text-[10px] text-slate-300 transition hover:border-emerald-300/30 hover:text-emerald-200" aria-label="Copy Cargo install command">Copy</button>
+        </div>
+        <p class="mt-3 min-h-4 font-mono text-[10px] text-slate-600" data-copy-status aria-live="polite"></p>
+        <p class="mt-2 text-xs leading-5 text-slate-500">Requires Rust and Git. Cargo installs the latest published crate.</p>
+      </div>
+
+      <div id="panel-macos" role="tabpanel" aria-labelledby="tab-macos" data-install-panel="macos" class="hidden p-4 sm:p-6" hidden>
+        <p class="font-mono text-[10px] uppercase tracking-wider text-slate-600">Verified binary installer · macOS Apple Silicon</p>
+        <div class="mt-3 flex min-w-0 items-center gap-3 rounded-xl border border-white/[0.08] bg-[#080e0c] p-3 sm:p-4">
+          <span class="font-mono text-sm text-emerald-400">$</span>
+          <code class="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-[10px] text-slate-200 sm:text-xs" data-install-command>{macCommand}</code>
+          <button type="button" data-copy-command={macCommand} class="shrink-0 rounded-lg border border-white/10 px-3 py-2 font-mono text-[10px] text-slate-300 transition hover:border-emerald-300/30 hover:text-emerald-200" aria-label="Copy macOS installer command">Copy</button>
+        </div>
+        <p class="mt-3 min-h-4 font-mono text-[10px] text-slate-600" data-copy-status aria-live="polite"></p>
+        <p class="mt-2 text-xs leading-5 text-slate-500">The installer verifies the release checksum and prompts you to choose the prebuilt binary or Cargo.</p>
+      </div>
+
+      <div class="flex items-center gap-2 border-t border-white/[0.06] px-4 py-3 font-mono text-[10px] text-slate-600 sm:px-6">
+        <svg viewBox="0 0 16 16" fill="none" class="size-3.5 text-emerald-400/70" aria-hidden="true"><path d="M8 1.75 13 4v3.25c0 3.1-2.15 5.5-5 7-2.85-1.5-5-3.9-5-7V4l5-2.25Z" stroke="currentColor" stroke-width="1.2" /><path d="m5.8 8 1.45 1.45L10.3 6.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        Release archives include a SHA-256 checksum.
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-install-tab]"));
+  const panels = Array.from(document.querySelectorAll<HTMLElement>("[data-install-panel]"));
+
+  function activateTab(tab: HTMLButtonElement, moveFocus = false) {
+    const target = tab.dataset.installTab;
+    tabs.forEach((candidate) => {
+      const selected = candidate === tab;
+      candidate.setAttribute("aria-selected", String(selected));
+      candidate.tabIndex = selected ? 0 : -1;
+      candidate.classList.toggle("text-emerald-300", selected);
+      candidate.classList.toggle("text-slate-500", !selected);
+    });
+    panels.forEach((panel) => {
+      const selected = panel.dataset.installPanel === target;
+      panel.hidden = !selected;
+      panel.classList.toggle("hidden", !selected);
+    });
+    if (moveFocus) tab.focus();
+  }
+
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => activateTab(tab));
+    tab.addEventListener("keydown", (event) => {
+      let nextIndex: number | undefined;
+      if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
+      if (event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
+      if (event.key === "Home") nextIndex = 0;
+      if (event.key === "End") nextIndex = tabs.length - 1;
+      if (nextIndex !== undefined) {
+        event.preventDefault();
+        activateTab(tabs[nextIndex], true);
+      }
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-copy-command]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const command = button.dataset.copyCommand;
+      const panel = button.closest<HTMLElement>("[data-install-panel]");
+      const status = panel?.querySelector<HTMLElement>("[data-copy-status]");
+      if (!command || !status) return;
+
+      try {
+        if (!navigator.clipboard) throw new Error("Clipboard API unavailable");
+        await navigator.clipboard.writeText(command);
+        button.textContent = "Copied";
+        status.textContent = "Install command copied to clipboard.";
+      } catch {
+        status.textContent = "Clipboard access unavailable. Select and copy the command above.";
+      }
+
+      window.setTimeout(() => {
+        button.textContent = "Copy";
+      }, 1800);
+    });
+  });
+</script>

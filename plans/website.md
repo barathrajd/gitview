@@ -105,7 +105,7 @@ part of the final experience.
 2. [x] Publish the product story in a responsive hero and terminal preview that
    show supported history, worktree, diff, and staging workflows. Review all
    displayed claims against the current README and release notes.
-3. Add the feature grid and interactive installation guide with Cargo as the
+3. [x] Add the feature grid and interactive installation guide with Cargo as the
    primary path, a macOS Apple Silicon release option, accessible tabs, and
    clipboard feedback. Verify links and keyboard interaction.
 4. Add the footer, GitHub Pages workflow, and deployment checklist. Verify the
