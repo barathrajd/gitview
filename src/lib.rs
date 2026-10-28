@@ -8,5 +8,7 @@ pub mod editor;
 pub mod history;
 pub mod process;
 pub mod repository;
+pub mod tag_page;
+pub mod tags;
 pub mod ui;
 pub mod worktree;

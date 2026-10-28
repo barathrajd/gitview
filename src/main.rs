@@ -307,6 +307,7 @@ fn app(
     let mut diff_entry: Option<gitview::worktree::Entry> = None;
     let mut selected_hunk = 0usize;
     let mut branch_view = false;
+    let mut tag_page: Option<gitview::tag_page::TagPage> = None;
     let mut profiles_view = false;
     let mut profile_selection = ListState::default();
     let mut profile_feedback = String::new();
@@ -426,6 +427,9 @@ fn app(
         }
     });
     loop {
+        if let Some(page) = &mut tag_page {
+            page.tick();
+        }
         while let Ok(entries) = status_watch_receiver.try_recv() {
             if mutation_pending {
                 continue;
@@ -803,7 +807,9 @@ fn app(
             } else {
                 ui::HelpPage::History
             };
-            let screen = if profiles_view {
+            let screen = if let Some(page) = &tag_page {
+                Screen::Tags(page)
+            } else if profiles_view {
                 Screen::Profiles {
                     profiles,
                     selected: profile_selection.selected(),
@@ -941,6 +947,10 @@ fn app(
             Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
         };
         if let Event::Paste(pasted) = &event {
+            if let Some(page) = &mut tag_page {
+                page.paste(pasted);
+                continue;
+            }
             if move_path_input && !help {
                 if move_destination_focused {
                     move_destination.push_str(pasted);
@@ -975,6 +985,20 @@ fn app(
             if help {
                 if matches!(key.code, KeyCode::Esc | KeyCode::Char('?')) {
                     help = false;
+                }
+                continue;
+            }
+            if let Some(page) = &mut tag_page {
+                if !page.key(root, key.code) {
+                    tag_page = None;
+                    history_request += 1;
+                    let id = history_request;
+                    let sender = history_sender.clone();
+                    let path = root.to_path_buf();
+                    history = None;
+                    std::thread::spawn(move || {
+                        let _ = sender.send((id, gitview::history::load_history(&path)));
+                    });
                 }
                 continue;
             }
@@ -1494,6 +1518,9 @@ fn app(
                     continue;
                 }
                 match navigation_key(key) {
+                    KeyCode::Char('t') => {
+                        tag_page = Some(gitview::tag_page::TagPage::open(root));
+                    }
                     KeyCode::Char('-') => {
                         match gitview::branches::preview_previous_checkout(root) {
                             Ok(preview) => {

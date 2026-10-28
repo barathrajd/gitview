@@ -129,6 +129,13 @@ gitview clone <repository> [directory]
   changed branch tips or checkout state require a new preview. Press **-** in
   the branch screen to review and return to the previous branch or detached
   commit. The destination and checkout state are rechecked before switching.
+- Press **t** from branches to open local tags. Use **c** to create a
+  lightweight tag at the reviewed `HEAD`, **d** to confirm local deletion, and
+  **v** to verify the selected tag signature with Git. Lightweight and unsigned
+  tags report verification failure. Use **j/k** to scroll verification output,
+  **r** to refresh the list, and **Esc** to return. Tag creation never replaces
+  an existing tag; deletion rejects a changed object. Annotated and signed tag
+  creation are not available in the TUI.
 - **?** opens help and **Esc** closes it; **q** quits. Each page shows its
   available actions in the footer and help panel.
 
@@ -219,7 +226,7 @@ Gitview currently focuses on history and working-tree review, file and hunk
 staging, confirmed discard of selected unstaged and untracked files and staged
 renames, tracked path removal and moves, commit creation from a reviewed staged
 file set, local branch browsing and creation, and folder-scoped Git config
-profiles. Tag and remote management, conflict resolution,
+profiles. Remote management, annotated and signed tag creation, conflict resolution,
 stash, rebase, and submodule workflows are not implemented. See the
 [Git CLI capability matrix](docs/git-cli-capability-matrix.md) for current
 coverage and planned work.

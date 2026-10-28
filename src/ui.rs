@@ -308,6 +308,7 @@ pub fn render_help_overlay(
         ("Up/Down, j/k", "Select a local branch"),
         ("Enter, l", "Switch to selected branch"),
         ("c", "Create a branch"),
+        ("t", "Open local tags"),
         ("r", "Rename the selected local branch"),
         ("-", "Review previous checkout"),
         ("d", "Delete selected branch if Git permits"),
@@ -480,6 +481,7 @@ pub struct Cockpit<'a> {
 }
 
 pub enum Screen<'a> {
+    Tags(&'a crate::tag_page::TagPage),
     Cockpit(Cockpit<'a>),
     Help,
     BranchInput(&'a str),
@@ -624,6 +626,7 @@ pub fn render(
     // next one, including when switching from a wide pane layout to a dialog.
     frame.render_widget(Clear, frame.area());
     match screen {
+        Screen::Tags(page) => page.render(frame, border),
         Screen::Cockpit(cockpit) => render_cockpit(frame, cockpit, border),
         Screen::Help => render_help(frame, border),
         Screen::BranchInput(input) => {
@@ -1750,6 +1753,7 @@ fn render_branches(
         ("j/k", "move"),
         ("Enter/l", "switch"),
         ("c", "create"),
+        ("t", "tags"),
         ("r", "rename"),
         ("-", "previous checkout"),
         ("d", "delete"),

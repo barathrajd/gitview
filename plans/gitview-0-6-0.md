@@ -77,11 +77,12 @@ the user approves the final release candidate.
    the input reader, and restores the terminal and reviewed commit form. The
    original staged snapshot remains required by Enter-to-commit. Editor failure
    keeps the original message. Verified with an interactive pseudo-terminal.
-4. **Branches and tags (in progress):** confirmed branch rename and deletion
+4. **Branches and tags (complete):** confirmed branch rename and deletion
    are implemented with stale-tip and checkout checks and Git safeguards.
    Previous checkout supports local branches and detached commits with a
-   reviewed destination and stale-state checks. Finish local tag
-   list/create/verify/delete.
+   reviewed destination and stale-state checks. Local tags support listing,
+   lightweight creation at reviewed HEAD, Git signature verification, and
+   deletion with atomic object checks. Annotated/signed creation is not exposed.
 5. **History and diff inspection:** add path history, path/commit comparisons,
    patch summaries, branch and locally available remote-ref comparisons, and
    object descriptions.
