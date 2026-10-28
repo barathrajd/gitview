@@ -111,6 +111,49 @@ fn removes_only_the_confirmed_untracked_path_even_when_it_starts_with_a_dash() {
 }
 
 #[test]
+fn discards_unstaged_edits_without_reverting_a_staged_rename() {
+    let repo = Repo::new();
+    repo.commit_file("old name.txt", "original content\n");
+    fs::rename(
+        repo.path().join("old name.txt"),
+        repo.path().join("new name.txt"),
+    )
+    .unwrap();
+    repo.git(&["add", "-A"]);
+    fs::write(repo.path().join("new name.txt"), "renamed and edited\n").unwrap();
+
+    let entry = worktree::load_status(repo.path())
+        .unwrap()
+        .into_iter()
+        .find(|entry| entry.section == worktree::Section::Unstaged)
+        .unwrap();
+    assert_eq!(entry.path, "new name.txt");
+    assert_eq!(
+        entry.original.as_deref(),
+        Some(std::ffi::OsStr::new("old name.txt"))
+    );
+    let preview = worktree::preview_discard(repo.path(), &entry).unwrap();
+
+    worktree::discard(repo.path(), &preview).unwrap();
+
+    assert!(!repo.path().join("old name.txt").exists());
+    assert_eq!(
+        fs::read(repo.path().join("new name.txt")).unwrap(),
+        b"original content\n"
+    );
+    assert!(
+        worktree::load_status(repo.path())
+            .unwrap()
+            .iter()
+            .any(|entry| {
+                entry.section == worktree::Section::Staged
+                    && entry.path == "new name.txt"
+                    && entry.original.as_deref() == Some(std::ffi::OsStr::new("old name.txt"))
+            })
+    );
+}
+
+#[test]
 fn refuses_a_stale_preview_without_removing_the_newer_working_copy() {
     let repo = Repo::new();
     repo.commit_file("tracked.txt", "base\n");

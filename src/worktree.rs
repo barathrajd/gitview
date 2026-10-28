@@ -141,9 +141,6 @@ pub fn preview_discard(root: &Path, entry: &Entry) -> Result<DiscardPreview, Str
     if entry.section == Section::Staged {
         return Err("Select an unstaged or untracked file to discard".into());
     }
-    if entry.original.is_some() {
-        return Err("Discarding renamed paths is not supported yet".into());
-    }
     if !load_status(root)?.iter().any(|current| current == entry) {
         return Err("File status changed; refresh and select it again".into());
     }
