@@ -144,15 +144,17 @@ config directory. Use it to try the current workflows without changing your
 own repository or Gitview profiles. Create a fresh playground whenever you want
 to reset its state.
 
-From the Gitview source directory, run the launcher:
+Install `cargo-make` once, then run the task from the Gitview source directory:
 
 ```sh
-scripts/run-feature-playground.sh
+cargo install cargo-make
+cargo make playground
 ```
 
-The launcher creates a temporary repository, prints its path, and runs the
-`gitview` binary there with an isolated config directory. The sample repository
-includes:
+The task invokes `scripts/run-feature-playground.sh`, which creates a temporary
+repository, prints its path, and runs the `gitview` binary there with an
+isolated config directory. You can also run that launcher directly. The sample
+repository includes:
 
 - A main branch, a topic branch, a merge commit, and a tag for history and graph
   browsing, search, commit details, and branch switching.

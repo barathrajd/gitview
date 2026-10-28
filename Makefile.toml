@@ -1,0 +1,3 @@
+[tasks.playground]
+description = "Create and open the Gitview feature playground"
+script = "./scripts/run-feature-playground.sh"
