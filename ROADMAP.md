@@ -5,6 +5,10 @@
 - [0.6.0 follow-ups](RELEASE.md#upcoming) — the known issues 0.6.0 shipped
   with: large-comparison memory variance, the renderer-only memory diagnostic,
   the security review, and a clean-revision rerun.
+- [Main and UI refactor](plans/refactor-main-ui.md) — all seven milestones are
+  done on `docs/agent-workspace-plan`: a key-replay test harness, then
+  `main.rs` and `ui.rs` split into `src/app/` and `src/ui/`, plus an inert input
+  router and layout slot. Merge it, then resume the agent workspace.
 - [Git CLI capability roadmap](plans/git-cli-capability-roadmap-2026.md) —
   track remaining Basic, Medium, and Advanced workflows beyond this release.
 
@@ -12,6 +16,10 @@
 
 - Linux x86_64 release — deferred from 0.6.0: native checks, performance
   evidence, archive with checksum, and installer selection on a Linux runner.
+- [Agent workspace](plans/agent-workspace.md) — the PTY pane core is built;
+  next are the pane widget and focus key. Run Claude Code or Codex in a
+  pane inside Gitview, let the agent read and steer Gitview state through a
+  local control channel, then add per-session worktrees.
 - macOS desktop app — design the first desktop client after TUI completion.
 
 ## Later

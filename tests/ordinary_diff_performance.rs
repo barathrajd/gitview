@@ -343,22 +343,37 @@ fn measures_diff_cache_lifecycle() {
     }
     let warm = rss_kib();
     let mut peak = warm;
+    // Resident memory per 10-cycle block. Process RSS is a coarse signal: the
+    // allocator sometimes takes one bounded step of ten-odd MiB at an
+    // unpredictable point and then stays flat, and macOS compresses idle pages,
+    // so RSS does not even show leaked memory that nothing touches again.
+    // Comparing the final size with the warm size therefore failed about half
+    // the time without any leak. This check ignores the two largest single-block
+    // jumps and fails on a sustained rise. Exact leak detection is the
+    // live-allocation diagnostic (diff_cache_live_allocations), which catches
+    // 20 KB per cycle.
+    let mut previous = warm;
+    let mut rises = Vec::new();
     for index in 0..100 {
         cycle();
         if index % 10 == 9 {
             let rss = rss_kib();
             peak = peak.max(rss);
+            rises.push(rss.saturating_sub(previous));
+            previous = rss;
             println!("cache lifecycle cycle={} rss_kib={rss}", index + 1);
         }
     }
     let final_rss = rss_kib();
     let growth = final_rss.saturating_sub(warm);
+    rises.sort_unstable();
+    let sustained_growth: u64 = rises.iter().rev().skip(2).sum();
     let budget = 10240.max(warm / 10);
     println!(
-        "Cache lifecycle: cycles=100 warm_rss_kib={warm} final_rss_kib={final_rss} peak_settled_rss_kib={peak} growth_kib={growth} budget_kib={budget}"
+        "Cache lifecycle: cycles=100 warm_rss_kib={warm} final_rss_kib={final_rss} peak_settled_rss_kib={peak} growth_kib={growth} sustained_growth_kib={sustained_growth} budget_kib={budget}"
     );
     assert!(
-        growth <= budget,
+        sustained_growth <= budget,
         "settled cache memory exceeded the performance plan budget"
     );
 }

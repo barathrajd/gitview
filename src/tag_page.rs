@@ -1,7 +1,7 @@
 use crate::tags::{self, CreatePreview, Tag};
+use crate::ui::Viewport;
 use crossterm::event::KeyCode;
 use ratatui::{
-    Frame,
     layout::{Constraint, Layout},
     style::{Color, Style},
     text::{Line, Span, Text},
@@ -212,9 +212,13 @@ impl TagPage {
         }
         true
     }
-    pub fn render(&self, frame: &mut Frame<'_>, border: ratatui::symbols::border::Set<'static>) {
+    pub fn render(
+        &self,
+        frame: &mut Viewport<'_, '_>,
+        border: ratatui::symbols::border::Set<'static>,
+    ) {
         if let Some(kind) = self.pending_read {
-            crate::ui::render(
+            crate::ui::render_in(
                 frame,
                 crate::ui::Screen::PreviewLoading {
                     message: match kind {

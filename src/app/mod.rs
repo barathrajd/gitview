@@ -1,3 +1,13 @@
+mod drain;
+mod draw;
+mod helpers;
+mod input;
+mod keys;
+mod model;
+mod paste;
+pub mod run;
+pub mod terminal;
+
 use crossterm::event::KeyCode;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

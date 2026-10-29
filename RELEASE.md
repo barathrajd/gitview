@@ -15,9 +15,14 @@ future release and aren't release promises.
   between runs (256 to 13,552 KiB growth over 100 open/close cycles against a
   10,240 KiB budget); live heap stays flat. See the
   [performance report](docs/performance-0-6-0.md).
-- Memory: the renderer-only diff RSS diagnostic still exceeds its budget in a
-  synthetic test, while live heap stays flat. Decide whether to fix, reshape, or
-  retire it.
+- Memory: the renderer-only diff RSS diagnostic
+  (`measures_diff_cache_lifecycle`) exceeded its budget about half the time
+  while live heap stayed flat. Decided: reshape it. RSS shows one bounded
+  allocator step of ten-odd MiB at an unpredictable point, and macOS compression
+  hides idle leaked memory from RSS, so the check now fails on a sustained rise
+  (ignoring the two largest single-block jumps). Leak detection is the
+  live-allocation diagnostic, which catches 20 KB per cycle. The
+  large-comparison variance above is still open.
 - Evidence: rerun the full pre-release pass on a clean revision, and confirm
   Clippy on the CI toolchain from the release pull request.
 - Process: complete the focused security review and the shared Definition of
