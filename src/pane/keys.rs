@@ -74,7 +74,12 @@ fn encode_char(c: char, ctrl: bool) -> Option<Vec<u8>> {
         ']' => 0x1d,
         '^' => 0x1e,
         '_' | '/' => 0x1f,
-        '?' => 0x7f,
+        // crossterm reports bytes 0x1c to 0x1f and 0x7f as Ctrl+4 to Ctrl+8.
+        '4' => 0x1c,
+        '5' => 0x1d,
+        '6' => 0x1e,
+        '7' => 0x1f,
+        '8' | '?' => 0x7f,
         _ => return None,
     };
     Some(vec![code])

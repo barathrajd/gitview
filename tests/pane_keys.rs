@@ -142,6 +142,17 @@ fn keys_that_have_no_terminal_encoding_are_dropped() {
 }
 
 #[test]
+fn legacy_control_codes_arrive_as_control_digits() {
+    // crossterm reports bytes 0x1c to 0x1f, and 0x7f with Ctrl, as Ctrl+4 to
+    // Ctrl+8, so these must encode back to the original bytes.
+    assert_eq!(bytes(KeyCode::Char('4'), CTRL), Some(vec![0x1c]));
+    assert_eq!(bytes(KeyCode::Char('5'), CTRL), Some(vec![0x1d]));
+    assert_eq!(bytes(KeyCode::Char('6'), CTRL), Some(vec![0x1e]));
+    assert_eq!(bytes(KeyCode::Char('7'), CTRL), Some(vec![0x1f]));
+    assert_eq!(bytes(KeyCode::Char('8'), CTRL), Some(vec![0x7f]));
+}
+
+#[test]
 fn key_releases_are_not_sent() {
     let release = KeyEvent {
         code: KeyCode::Char('a'),

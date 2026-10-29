@@ -7,13 +7,20 @@ use std::fmt;
 use std::io::{self, Read, Write};
 use std::num::NonZeroU16;
 use std::path::Path;
-use std::sync::mpsc::{self, Receiver, TryRecvError};
+use std::sync::{
+    Mutex,
+    mpsc::{self, Receiver, TryRecvError},
+};
 use std::thread;
 
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 
 /// Lines of history kept above the visible screen.
 pub const SCROLLBACK_LIMIT: usize = 2000;
+
+/// Pane setup runs one at a time: macOS's `openpty` fails intermittently
+/// ("Unknown error: -6") when several threads call it at once.
+static SETUP: Mutex<()> = Mutex::new(());
 
 /// How many distinct unhandled sequences are remembered.
 const UNHANDLED_LIMIT: usize = 64;
@@ -144,6 +151,9 @@ impl AgentPane {
             return Err(fail("no command given".to_string()));
         }
 
+        let _setup = SETUP
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let pair = native_pty_system()
             .openpty(PtySize {
                 rows,
@@ -226,6 +236,17 @@ impl AgentPane {
         self.state
     }
 
+    /// The operating-system process id, while the program is running.
+    pub fn pid(&self) -> Option<u32> {
+        self.child.process_id()
+    }
+
+    /// The pane's size in rows and columns.
+    pub fn size(&self) -> (u16, u16) {
+        let (rows, columns) = self.parser.screen().size();
+        (rows.get(), columns.get())
+    }
+
     /// The program that was started.
     pub fn command(&self) -> &str {
         &self.command
@@ -292,4 +313,12 @@ impl AgentPane {
 
 fn non_zero(value: u16) -> NonZeroU16 {
     NonZeroU16::new(value).unwrap_or(NonZeroU16::MIN)
+}
+
+impl Drop for AgentPane {
+    /// Closing the pane ends the program; otherwise quitting Gitview would leave
+    /// an agent running with no terminal.
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+    }
 }

@@ -176,3 +176,73 @@ fn generation_changes_only_when_output_arrives() {
 
     assert!(pane.generation() > idle);
 }
+
+fn process_is_alive(pid: u32) -> bool {
+    std::process::Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
+#[test]
+fn dropping_the_pane_kills_the_program() {
+    let pane = AgentPane::spawn(&argv(&["sleep", "30"]), Path::new("."), 24, 80).unwrap();
+    let pid = pane.pid().expect("a running process has an id");
+    assert!(process_is_alive(pid));
+
+    drop(pane);
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while process_is_alive(pid) {
+        assert!(Instant::now() < deadline, "process {pid} outlived the pane");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[test]
+fn reports_its_size() {
+    let mut pane = AgentPane::spawn(&argv(&["cat"]), Path::new("."), 24, 80).unwrap();
+    assert_eq!(pane.size(), (24, 80));
+
+    pane.resize(30, 100);
+
+    assert_eq!(pane.size(), (30, 100));
+}
+
+#[test]
+fn a_program_killed_by_a_signal_reports_no_exit_code() {
+    let mut pane = AgentPane::spawn(
+        &argv(&["sh", "-c", "echo before; kill -9 $$"]),
+        Path::new("."),
+        24,
+        80,
+    )
+    .unwrap();
+
+    wait_until(&mut pane, |pane| {
+        matches!(pane.state(), PaneState::Exited(_))
+    });
+
+    assert_eq!(pane.state(), PaneState::Exited(None));
+    assert!(pane.screen_text().contains("before"));
+}
+
+#[test]
+fn many_panes_can_be_opened_at_once() {
+    let handles: Vec<_> = (0..16)
+        .map(|_| {
+            std::thread::spawn(|| {
+                for _ in 0..5 {
+                    let pane = AgentPane::spawn(&argv(&["true"]), Path::new("."), 24, 80)
+                        .expect("opening a pane must not fail under concurrency");
+                    drop(pane);
+                }
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+}
