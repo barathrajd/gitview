@@ -8,7 +8,7 @@ use crate::{
 use ratatui::widgets::ListState;
 use std::path::Path;
 
-use super::PreparedDiff;
+use super::prepared::PreparedDiff;
 
 pub struct Cockpit<'a> {
     pub repository: &'a Path,

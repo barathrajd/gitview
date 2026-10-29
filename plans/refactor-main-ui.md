@@ -115,8 +115,22 @@ move with an edit.
   old loop shows only `continue`/`return` rewrites, function wrappers,
   `Env` destructuring, two reborrows, and rustfmt braces. The key groups were
   extracted together in one commit, not one per screen.
-- [ ] **6. Split `ui.rs`:** The `src/ui/` tree, one area per commit, with the
+- [x] **6. Split `ui.rs`:** The `src/ui/` tree, one area per commit, with the
   diff engine last because it holds the performance-sensitive caches.
+  *Done:* three commits (foundation, screens and panels, diff engine) produced
+  `ui/{theme, hints, help, screen, render, commit, cockpit, branches, panels,
+  diff, diff_rows, diff_layout, prepared}`; the largest file is 528 lines, and
+  `ui/mod.rs` only declares modules and re-exports the same public and
+  crate-visible paths. All 78 items are verbatim apart from `pub(super)` and
+  rustfmt re-wrapping; two `PreparedDiff` members were widened for `diff.rs`.
+  Before and after: the diff live-allocation diagnostic is identical (1942 KiB
+  live, 25320 KiB peak), and language diff timings are within noise (worst warm
+  p95 0.194 ms before, 0.188 ms after). **Known flake:**
+  `measures_diff_cache_lifecycle` is bimodal on this machine under load. Its
+  early "warm" RSS reading lands near 47 or 62 MiB, so it fails its 10 MiB
+  growth budget about half the time on the unsplit code too (2 of 3 runs), with
+  the same final RSS (about 63-66 MiB). This is the large-comparison memory
+  variance already listed under the 0.6.0 follow-ups.
 - [ ] **7. Input router and layout slot:** Add the focus-aware router and the
   side-pane slot, both inert, with tests that Gitview is the only target. Then
   resume milestone 1 of the agent workspace plan.

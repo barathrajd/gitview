@@ -7,12 +7,14 @@ use ratatui::{
     widgets::{Paragraph, Wrap},
 };
 
-use super::hints::{hint_row_count, render_key_hints};
-use super::theme::page_block;
-use super::{
-    PreparedDiff, aligned_ide_diff_lines, aligned_ide_unified_lines, aligned_raw_diff_lines,
-    cached_ide_diff_rows, styled_numbered_unified,
+use super::diff_layout::{
+    aligned_ide_diff_lines, aligned_ide_unified_lines, aligned_raw_diff_lines,
+    styled_numbered_unified,
 };
+use super::diff_rows::cached_ide_diff_rows;
+use super::hints::{hint_row_count, render_key_hints};
+use super::prepared::PreparedDiff;
+use super::theme::page_block;
 
 pub(super) fn render_diff(
     frame: &mut Frame<'_>,
