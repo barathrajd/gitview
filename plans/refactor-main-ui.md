@@ -97,7 +97,14 @@ move with an edit.
   previous-checkout; the external editors (`Ctrl+E` in the composer, `e` on the
   profile page), which the scripted host only runs inline; and the profile
   `r` reload, which needs the global Git config context.
-- [ ] **4. Extract `App` state:** Field move only, no logic change.
+- [x] **4. Extract `App` state:** Field move only, no logic change.
+  *Done:* `app::model::App` holds the loop's 92 fields (flags, selections,
+  pending operations, channels, workers); setup code is unchanged and moves its
+  locals into the struct just before the loop. A token-level comparison of old
+  and new `run_app`, ignoring the `app.` prefix, differs only by dropped `mut`s,
+  the struct literal, two `format!` captures, shorthand fixes, and rustfmt
+  braces. Locals shadowing a field name (`diff`, `details`, cloned senders)
+  stay local. Drop order of the workers and channels is now field order.
 - [ ] **5. Split handlers:** Per-screen modules under `src/app/`; `main.rs`
   shrinks to the size limit.
 - [ ] **6. Split `ui.rs`:** The `src/ui/` tree, one area per commit, with the
