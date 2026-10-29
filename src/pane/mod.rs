@@ -1,6 +1,9 @@
 mod keys;
+mod queries;
 
 pub use keys::{FOCUS_KEY_LABEL, encode_key, encode_paste, is_focus_key};
+
+use queries::QueryScanner;
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -138,6 +141,7 @@ pub struct AgentPane {
     state: PaneState,
     command: String,
     generation: u64,
+    queries: QueryScanner,
 }
 
 impl AgentPane {
@@ -203,6 +207,7 @@ impl AgentPane {
             state: PaneState::Running,
             command,
             generation: 0,
+            queries: QueryScanner::default(),
         })
     }
 
@@ -212,6 +217,7 @@ impl AgentPane {
         loop {
             match self.output.try_recv() {
                 Ok(bytes) => {
+                    self.queries.scan(&bytes);
                     self.parser.process(&bytes);
                     self.generation += 1;
                 }
@@ -266,6 +272,12 @@ impl AgentPane {
     /// The window title the program set, if any.
     pub fn title(&self) -> Option<&str> {
         self.parser.callbacks().title.as_deref()
+    }
+
+    /// Questions the program asked its terminal, with how many times each.
+    /// Nothing answers them yet, so a program waiting on a reply may stall.
+    pub fn unanswered_queries(&self) -> Vec<(String, u32)> {
+        self.queries.counts()
     }
 
     /// Escape sequences the emulator did not understand, with how many times

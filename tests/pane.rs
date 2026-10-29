@@ -246,3 +246,85 @@ fn many_panes_can_be_opened_at_once() {
         handle.join().unwrap();
     }
 }
+
+#[test]
+fn counts_the_terminal_queries_a_program_sends() {
+    // Gitview does not answer these yet; a program waiting on a reply may stall,
+    // so they are recorded.
+    let script = r"printf '\033[6n\033[6n\033[c\033[>0c\033[?u\033[?2026$p\033]11;?\007\033]10;?\033\\\033[>0q\033[18t'";
+    let mut pane = AgentPane::spawn(&argv(&["sh", "-c", script]), Path::new("."), 24, 80).unwrap();
+
+    wait_until(&mut pane, |pane| {
+        matches!(pane.state(), PaneState::Exited(_))
+    });
+
+    let queries = pane.unanswered_queries();
+    let count = |name: &str| {
+        queries
+            .iter()
+            .find(|(query, _)| query == name)
+            .map_or(0, |(_, count)| *count)
+    };
+    assert_eq!(count("cursor position (CSI 6 n)"), 2, "{queries:?}");
+    assert_eq!(count("device attributes (CSI c)"), 1, "{queries:?}");
+    assert_eq!(
+        count("secondary device attributes (CSI > c)"),
+        1,
+        "{queries:?}"
+    );
+    assert_eq!(count("kitty keyboard flags (CSI ? u)"), 1, "{queries:?}");
+    assert_eq!(count("mode status (CSI ? Pm $ p)"), 1, "{queries:?}");
+    assert_eq!(count("background color (OSC 11)"), 1, "{queries:?}");
+    assert_eq!(count("foreground color (OSC 10)"), 1, "{queries:?}");
+    assert_eq!(count("terminal version (CSI > q)"), 1, "{queries:?}");
+    assert_eq!(count("text area size (CSI 18 t)"), 1, "{queries:?}");
+}
+
+#[test]
+fn finds_a_query_split_across_reads() {
+    // The shell writes the sequence in two parts with a pause between them.
+    let script = r"printf '\033[6'; sleep 0.2; printf 'n'; sleep 0.2";
+    let mut pane = AgentPane::spawn(&argv(&["sh", "-c", script]), Path::new("."), 24, 80).unwrap();
+
+    wait_until(&mut pane, |pane| {
+        matches!(pane.state(), PaneState::Exited(_))
+    });
+
+    assert_eq!(
+        pane.unanswered_queries(),
+        vec![("cursor position (CSI 6 n)".to_owned(), 1)]
+    );
+}
+
+#[test]
+fn ordinary_output_is_not_mistaken_for_a_query() {
+    let mut pane = AgentPane::spawn(
+        &argv(&["sh", "-c", r"printf 'plain \033[31mred\033[0m 6n c'"]),
+        Path::new("."),
+        24,
+        80,
+    )
+    .unwrap();
+
+    wait_until(&mut pane, |pane| {
+        matches!(pane.state(), PaneState::Exited(_))
+    });
+
+    assert!(pane.unanswered_queries().is_empty());
+}
+
+#[test]
+fn a_query_is_counted_once_when_more_output_follows() {
+    let script =
+        r"printf '\033[6n'; sleep 0.2; printf 'more output'; sleep 0.2; printf ' and more'";
+    let mut pane = AgentPane::spawn(&argv(&["sh", "-c", script]), Path::new("."), 24, 80).unwrap();
+
+    wait_until(&mut pane, |pane| {
+        matches!(pane.state(), PaneState::Exited(_))
+    });
+
+    assert_eq!(
+        pane.unanswered_queries(),
+        vec![("cursor position (CSI 6 n)".to_owned(), 1)]
+    );
+}
