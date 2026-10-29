@@ -8,15 +8,17 @@ use ratatui::{
 };
 use std::path::Path;
 
+use super::branches::render_branches;
+use super::cockpit::render_cockpit;
+use super::commit::{
+    AmendConfirmation, CommitWorkspace, render_amend_confirmation, render_commit_workspace,
+};
+use super::diff::render_diff;
 use super::help::{render_help, render_message_page};
 use super::hints::render_key_hints;
+use super::panels::{render_commit_details, render_history, render_search, render_working_tree};
 use super::screen::{HistoryScreen, Screen};
 use super::theme::{ACCENT, BAR_BACKGROUND, MUTED, page_block};
-use super::{
-    AmendConfirmation, CommitWorkspace, render_amend_confirmation, render_branches, render_cockpit,
-    render_commit_details, render_commit_workspace, render_diff, render_history, render_search,
-    render_working_tree,
-};
 
 pub fn render(
     frame: &mut Frame<'_>,
