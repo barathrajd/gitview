@@ -116,3 +116,63 @@ fn starts_the_command_in_the_given_directory() {
     let name = dir.path().file_name().unwrap().to_str().unwrap();
     assert!(pane.screen_text().contains(name), "{}", pane.screen_text());
 }
+
+#[test]
+fn records_sequences_the_emulator_does_not_understand() {
+    let mut pane = AgentPane::spawn(
+        &argv(&[
+            "sh",
+            "-c",
+            r"printf '\033[99z\033[99z\033]7777;payload\007\033(Zdone'",
+        ]),
+        Path::new("."),
+        24,
+        80,
+    )
+    .unwrap();
+
+    wait_until(&mut pane, |pane| {
+        matches!(pane.state(), PaneState::Exited(_))
+    });
+
+    let unhandled = pane.unhandled_sequences();
+    assert!(
+        unhandled.contains(&("CSI 99z".to_owned(), 2)),
+        "{unhandled:?}"
+    );
+    assert!(
+        unhandled.contains(&("OSC 7777".to_owned(), 1)),
+        "{unhandled:?}"
+    );
+    assert!(pane.screen_text().contains("done"));
+}
+
+#[test]
+fn remembers_the_window_title_the_program_sets() {
+    let mut pane = AgentPane::spawn(
+        &argv(&["sh", "-c", r"printf '\033]2;Fix the parser\007ready'"]),
+        Path::new("."),
+        24,
+        80,
+    )
+    .unwrap();
+
+    wait_until(&mut pane, |pane| pane.screen_text().contains("ready"));
+
+    assert_eq!(pane.title(), Some("Fix the parser"));
+}
+
+#[test]
+fn generation_changes_only_when_output_arrives() {
+    let mut pane = AgentPane::spawn(&argv(&["cat"]), Path::new("."), 24, 80).unwrap();
+    pane.poll();
+    let idle = pane.generation();
+    std::thread::sleep(Duration::from_millis(50));
+    pane.poll();
+    assert_eq!(pane.generation(), idle, "no output yet");
+
+    pane.send(b"hi\n").unwrap();
+    wait_until(&mut pane, |pane| pane.screen_text().contains("hi"));
+
+    assert!(pane.generation() > idle);
+}

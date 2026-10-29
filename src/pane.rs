@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Read, Write};
 use std::num::NonZeroU16;
@@ -9,6 +10,90 @@ use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system}
 
 /// Lines of history kept above the visible screen.
 pub const SCROLLBACK_LIMIT: usize = 2000;
+
+/// How many distinct unhandled sequences are remembered.
+const UNHANDLED_LIMIT: usize = 64;
+
+/// Notes what the emulator could not interpret, so gaps in terminal support
+/// show up as data instead of garbled output. Also remembers the window title.
+#[derive(Default)]
+struct Recorder {
+    unhandled: BTreeMap<String, u32>,
+    title: Option<String>,
+}
+
+impl Recorder {
+    fn note(&mut self, sequence: String) {
+        if self.unhandled.len() < UNHANDLED_LIMIT || self.unhandled.contains_key(&sequence) {
+            *self.unhandled.entry(sequence).or_default() += 1;
+        }
+    }
+}
+
+fn printable(byte: u8) -> char {
+    if byte.is_ascii_graphic() {
+        char::from(byte)
+    } else {
+        '?'
+    }
+}
+
+impl vt100::Callbacks for Recorder {
+    fn set_window_title(&mut self, _: &mut vt100::Screen, title: &[u8]) {
+        self.title = Some(String::from_utf8_lossy(title).into_owned());
+    }
+
+    fn unhandled_char(&mut self, _: &mut vt100::Screen, c: char) {
+        self.note(format!("char {c:?}"));
+    }
+
+    fn unhandled_control(&mut self, _: &mut vt100::Screen, byte: u8) {
+        self.note(format!("control 0x{byte:02x}"));
+    }
+
+    fn unhandled_escape(
+        &mut self,
+        _: &mut vt100::Screen,
+        i1: Option<u8>,
+        i2: Option<u8>,
+        byte: u8,
+    ) {
+        let intermediates: String = [i1, i2].into_iter().flatten().map(printable).collect();
+        self.note(format!("ESC {intermediates}{}", printable(byte)));
+    }
+
+    fn unhandled_csi(
+        &mut self,
+        _: &mut vt100::Screen,
+        i1: Option<u8>,
+        i2: Option<u8>,
+        params: &[&[u16]],
+        c: char,
+    ) {
+        let params = params
+            .iter()
+            .map(|group| {
+                group
+                    .iter()
+                    .map(u16::to_string)
+                    .collect::<Vec<_>>()
+                    .join(":")
+            })
+            .collect::<Vec<_>>()
+            .join(";");
+        let lead: String = i1.into_iter().map(printable).collect();
+        let tail: String = i2.into_iter().map(printable).collect();
+        self.note(format!("CSI {lead}{params}{tail}{c}"));
+    }
+
+    fn unhandled_osc(&mut self, _: &mut vt100::Screen, params: &[&[u8]]) {
+        let number = params
+            .first()
+            .map(|first| String::from_utf8_lossy(first).into_owned())
+            .unwrap_or_default();
+        self.note(format!("OSC {number}"));
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaneState {
@@ -38,8 +123,10 @@ pub struct AgentPane {
     writer: Box<dyn Write + Send>,
     child: Box<dyn Child + Send + Sync>,
     output: Receiver<Vec<u8>>,
-    parser: vt100::Parser,
+    parser: vt100::Parser<Recorder>,
     state: PaneState,
+    command: String,
+    generation: u64,
 }
 
 impl AgentPane {
@@ -93,8 +180,15 @@ impl AgentPane {
             writer,
             child,
             output,
-            parser: vt100::Parser::new(non_zero(rows), non_zero(cols), SCROLLBACK_LIMIT),
+            parser: vt100::Parser::new_with_callbacks(
+                non_zero(rows),
+                non_zero(cols),
+                SCROLLBACK_LIMIT,
+                Recorder::default(),
+            ),
             state: PaneState::Running,
+            command,
+            generation: 0,
         })
     }
 
@@ -103,7 +197,10 @@ impl AgentPane {
         let mut closed = false;
         loop {
             match self.output.try_recv() {
-                Ok(bytes) => self.parser.process(&bytes),
+                Ok(bytes) => {
+                    self.parser.process(&bytes);
+                    self.generation += 1;
+                }
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
                     closed = true;
@@ -123,6 +220,38 @@ impl AgentPane {
 
     pub fn state(&self) -> PaneState {
         self.state
+    }
+
+    /// The program that was started.
+    pub fn command(&self) -> &str {
+        &self.command
+    }
+
+    /// The emulated screen, including the cursor and the input modes the
+    /// program asked for.
+    pub fn screen(&self) -> &vt100::Screen {
+        self.parser.screen()
+    }
+
+    /// Increases whenever output has been applied, so callers know to redraw.
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// The window title the program set, if any.
+    pub fn title(&self) -> Option<&str> {
+        self.parser.callbacks().title.as_deref()
+    }
+
+    /// Escape sequences the emulator did not understand, with how many times
+    /// each was seen.
+    pub fn unhandled_sequences(&self) -> Vec<(String, u32)> {
+        self.parser
+            .callbacks()
+            .unhandled
+            .iter()
+            .map(|(sequence, count)| (sequence.clone(), *count))
+            .collect()
     }
 
     pub fn send(&mut self, bytes: &[u8]) -> io::Result<()> {
