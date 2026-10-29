@@ -68,10 +68,15 @@ move with an edit.
 
 ## Milestones
 
-- [ ] **1. Drivable `app`:** Make `app` generic over the backend and take the
+- [x] **1. Drivable `app`:** Make `app` generic over the backend and take the
   event receiver; move it into the library. Add one replay test (open and close
   help). `main` behavior is unchanged; run the existing PTY test
   (`tests/cockpit_live.rs`) to confirm.
+  *Done:* `app::run::run_app` is generic over a `Host` trait (events plus
+  running an external program); `TerminalHost` is the real one and
+  `tests/app_replay.rs` has the scripted one. One difference: the profile
+  editor now goes through `run_external`, so it also pauses the input reader and
+  clears the screen on return, as the commit editor already did.
 - [ ] **2. Characterize history, search, diff, help:** Key-sequence tests for
   selection, search, filter by path, diff view modes, hunk navigation, and the
   help pages.

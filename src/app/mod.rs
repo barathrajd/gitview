@@ -1,3 +1,6 @@
+pub mod run;
+pub mod terminal;
+
 use crossterm::event::KeyCode;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
