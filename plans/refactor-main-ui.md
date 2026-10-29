@@ -91,12 +91,14 @@ move with an edit.
   *Done:* `tests/app_replay_worktree.rs` (stage, unstage, stage all, commit
   composer, narrow layout) and `tests/app_replay_pages.rs` (branches, tags,
   object, comparison, profiles). Mutating flows are checked against Git; 15
-  repeated parallel runs showed no flakes. **Not characterized; smoke-test by
-  hand before milestone 6 ships:** discard, ignore rules, move, remove, and
-  untrack; amend; tag create, delete, and verify; branch rename and
-  previous-checkout; the external editors (`Ctrl+E` in the composer, `e` on the
-  profile page), which the scripted host only runs inline; and the profile
-  `r` reload, which needs the global Git config context.
+  repeated parallel runs showed no flakes. **Follow-up (done):** the flows first
+  left for a hand smoke test are now scripted in `tests/app_replay_mutations.rs`
+  (discard, ignore rules, stop tracking, remove, move, amend, tag create,
+  verify, and delete, branch rename, previous checkout) and
+  `tests/app_replay_editors.rs` (the commit editor's success, failure, and
+  unchanged-message paths, and the profile registry editor and `r` reload). The
+  editor test sets `GIT_EDITOR` and `VISUAL` once, before any thread starts,
+  because Git prefers `GIT_EDITOR` over `core.editor`.
 - [x] **4. Extract `App` state:** Field move only, no logic change.
   *Done:* `app::model::App` holds the loop's 92 fields (flags, selections,
   pending operations, channels, workers); setup code is unchanged and moves its
@@ -125,12 +127,11 @@ move with an edit.
   rustfmt re-wrapping; two `PreparedDiff` members were widened for `diff.rs`.
   Before and after: the diff live-allocation diagnostic is identical (1942 KiB
   live, 25320 KiB peak), and language diff timings are within noise (worst warm
-  p95 0.194 ms before, 0.188 ms after). **Known flake:**
-  `measures_diff_cache_lifecycle` is bimodal on this machine under load. Its
-  early "warm" RSS reading lands near 47 or 62 MiB, so it fails its 10 MiB
-  growth budget about half the time on the unsplit code too (2 of 3 runs), with
-  the same final RSS (about 63-66 MiB). This is the large-comparison memory
-  variance already listed under the 0.6.0 follow-ups.
+  p95 0.194 ms before, 0.188 ms after). **Flake (fixed afterwards):**
+  `measures_diff_cache_lifecycle` failed about half the time on the unsplit code
+  too: RSS makes one bounded step of ten-odd MiB at an unpredictable point, and
+  macOS compression hides idle leaked memory. It now fails on sustained growth
+  instead of final-minus-warm, and 14 consecutive runs passed.
 - [x] **7. Input router and layout slot:** Add the focus-aware router and the
   side-pane slot, both inert, with tests that Gitview is the only target. Then
   resume milestone 1 of the agent workspace plan.
