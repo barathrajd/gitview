@@ -361,7 +361,6 @@ pub fn run_app_with_agent<H: Host>(
         profile_label,
         focus: input::Focus::default(),
         pane,
-        pane_visible: false,
     };
     let mut env = Env {
         terminal,
@@ -380,7 +379,7 @@ pub fn run_app_with_agent<H: Host>(
             Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
         };
         app.needs_redraw = true;
-        match input::route(app.focus, app.pane_visible, &event) {
+        match input::route(app.focus, app.pane.is_some(), &event) {
             Route::ToggleFocus => {
                 agent::toggle_focus(&mut app);
                 continue;

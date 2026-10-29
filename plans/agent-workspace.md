@@ -139,9 +139,22 @@ since review.
     sent as Alt+Enter, which agents read as a newline. Not yet checked inside
     a live prompt, since the probes send no prompt.
   - A plain `sh` also asks for 8-bit meta mode (`CSI ? 1034 h`); harmless.
-- [ ] **2. Wire the CLI and layout:** Add `--run`, `--claude`, and `--codex`,
+- [x] **2. Wire the CLI and layout:** Add `--run`, `--claude`, and `--codex`,
   missing-executable errors, a narrow-terminal layout (agent full screen with a
   toggle), and help text. Test exit, crash, and kill paths.
+  *Done:* `--claude` and `--codex` are shortcuts for those commands, and like
+  `--run` they pass everything after the flag to the program. The program is
+  looked up on `PATH` before Gitview touches the terminal; a missing shortcut
+  names the product and suggests `gitview --run <command>`, and an empty `PATH`
+  entry is skipped so a repository can't make Gitview run a program it ships.
+  Side by side starts at 119 columns (Gitview keeps 60). On a narrower terminal
+  the focus key swaps Gitview and the agent, each full screen, and a one-line
+  bar under Gitview shows the agent's status and the key; the bar drops the
+  hint once the agent has ended, and a terminal under 3 rows shows Gitview
+  alone. The agent is told its size whenever it is brought forward, never fewer
+  than one row. `--help` and the README describe all of it. The exit, crash,
+  and kill paths run against the real binary in a pseudo-terminal, including a
+  live resize between the layouts.
 - [ ] **3. Refresh on change:** Add the debounced watcher and stale-result
   handling. Test rapid edits, large trees, and ignored paths; check CPU use
   while idle.

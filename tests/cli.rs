@@ -277,3 +277,44 @@ fn version_and_help_show_navigation_keys() {
     assert!(text.contains(" h "));
     assert!(text.contains(" l "));
 }
+
+#[test]
+fn help_documents_the_agent_pane() {
+    let output = Command::new(env!("CARGO_BIN_EXE_gitview"))
+        .arg("--help")
+        .current_dir(std::env::temp_dir())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let help = String::from_utf8_lossy(&output.stdout);
+    for expected in [
+        "gitview [--ascii] --run <command> [args...]",
+        "gitview [--ascii] --claude [args...]",
+        "gitview [--ascii] --codex [args...]",
+        "Ctrl+\\",
+        "Everything after --run, --claude, or --codex goes to that program",
+        "full screen",
+    ] {
+        assert!(
+            help.contains(expected),
+            "help is missing {expected:?}:\n{help}"
+        );
+    }
+}
+
+#[test]
+fn flags_after_an_agent_flag_belong_to_the_program() {
+    // `--help` after `--run` is the program's, so Gitview does not print its own
+    // help. With no such program installed the run fails with the program error,
+    // not with the usage text.
+    let output = Command::new(env!("CARGO_BIN_EXE_gitview"))
+        .args(["--run", "gitview-no-such-agent", "--help"])
+        .current_dir(std::env::temp_dir())
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("Usage: gitview"));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("`gitview-no-such-agent`"));
+}

@@ -25,8 +25,16 @@ const LEAVE_ALTERNATE_SCREEN: &str = "\x1b[?1049l";
 const SHOW_CURSOR: &str = "\x1b[?25h";
 const DISABLE_BRACKETED_PASTE: &str = "\x1b[?2004l";
 
+/// The terminal as an emulator sees it, fed incrementally so a resize keeps
+/// the picture right.
+struct Emulator {
+    parser: vt100::Parser,
+    consumed: usize,
+}
+
 struct Session {
     _only_session: std::sync::MutexGuard<'static, ()>,
+    emulator: Mutex<Emulator>,
     child: Child,
     master: Option<fs::File>,
     close_reader: Arc<AtomicBool>,
@@ -36,7 +44,15 @@ struct Session {
 }
 
 impl Session {
+    /// Starts `gitview --ascii --run <agent...>`.
     fn start(agent: &[&str]) -> Self {
+        let mut args = vec!["--run"];
+        args.extend_from_slice(agent);
+        Self::start_with(&args, None)
+    }
+
+    /// Starts `gitview --ascii <args...>`; `path` replaces the search path.
+    fn start_with(args: &[&str], path: Option<&std::ffi::OsStr>) -> Self {
         let only_session = ONE_SESSION
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -89,11 +105,13 @@ impl Session {
         };
 
         let mut command = Command::new(env!("CARGO_BIN_EXE_gitview"));
+        if let Some(path) = path {
+            command.env("PATH", path);
+        }
         command
             .current_dir(&repository)
             .arg("--ascii")
-            .arg("--run")
-            .args(agent)
+            .args(args)
             .stdin(Stdio::from(slave.try_clone().unwrap()))
             .stdout(Stdio::from(slave.try_clone().unwrap()))
             .stderr(Stdio::from(slave.try_clone().unwrap()));
@@ -138,8 +156,17 @@ impl Session {
                 }
             }
         });
+        let emulator = Mutex::new(Emulator {
+            parser: vt100::Parser::new(
+                std::num::NonZeroU16::new(40).unwrap(),
+                std::num::NonZeroU16::new(140).unwrap(),
+                0,
+            ),
+            consumed: 0,
+        });
         Self {
             _only_session: only_session,
+            emulator,
             child,
             master: Some(master),
             close_reader,
@@ -157,13 +184,30 @@ impl Session {
     /// What a terminal would be showing: Gitview only repaints changed cells,
     /// so text is read from an emulated screen, not from the byte stream.
     fn screen(&self) -> String {
-        let mut parser = vt100::Parser::new(
-            std::num::NonZeroU16::new(40).unwrap(),
-            std::num::NonZeroU16::new(140).unwrap(),
-            0,
+        let output = self.output.lock().unwrap();
+        let mut emulator = self.emulator.lock().unwrap();
+        let consumed = emulator.consumed;
+        emulator.parser.process(&output[consumed..]);
+        emulator.consumed = output.len();
+        emulator.parser.screen().contents()
+    }
+
+    /// Resizes the terminal; Gitview hears about it through SIGWINCH.
+    fn resize(&mut self, columns: u16, rows: u16) {
+        // Apply what was drawn at the old size before the picture changes size.
+        let _ = self.screen();
+        let size = libc::winsize {
+            ws_row: rows,
+            ws_col: columns,
+            ws_xpixel: 0,
+            ws_ypixel: 0,
+        };
+        let master = std::os::fd::AsRawFd::as_raw_fd(self.master.as_ref().unwrap());
+        assert_eq!(unsafe { libc::ioctl(master, libc::TIOCSWINSZ, &size) }, 0);
+        self.emulator.lock().unwrap().parser.screen_mut().set_size(
+            std::num::NonZeroU16::new(rows).unwrap(),
+            std::num::NonZeroU16::new(columns).unwrap(),
         );
-        parser.process(&self.output.lock().unwrap());
-        parser.screen().contents()
     }
 
     fn wait_for(&self, expected: &str) {
@@ -358,4 +402,108 @@ fn closing_the_terminal_ends_gitview_and_the_agent() {
     wait_until_dead(pid);
     session.finish();
     let _ = fs::remove_file(pid_file);
+}
+
+/// A folder holding an executable `name` that prints its arguments and waits,
+/// followed by the real search path so `git` is still found.
+fn path_with_fake(name: &str) -> (tempfile::TempDir, std::ffi::OsString) {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let program = dir.path().join(name);
+    fs::write(
+        &program,
+        format!("#!/bin/sh\necho \"fake {name} args: $*\"\nexec sleep 60\n"),
+    )
+    .unwrap();
+    fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).unwrap();
+    let mut folders = vec![dir.path().to_path_buf()];
+    folders.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap()));
+    (dir, std::env::join_paths(folders).unwrap())
+}
+
+#[test]
+fn claude_runs_the_claude_program_with_the_rest_of_the_line() {
+    let (_dir, path) = path_with_fake("claude");
+    let mut session =
+        Session::start_with(&["--claude", "--resume", "--model", "opus"], Some(&path));
+
+    session.wait_for("fake claude args: --resume --model opus");
+    session.wait_for("AGENT · claude · running");
+    session.send(b"q");
+
+    assert!(session.wait_for_exit());
+    session.assert_terminal_restored();
+    session.finish();
+}
+
+#[test]
+fn codex_runs_the_codex_program() {
+    let (_dir, path) = path_with_fake("codex");
+    let mut session = Session::start_with(&["--codex"], Some(&path));
+
+    session.wait_for("fake codex args:");
+    session.wait_for("AGENT · codex · running");
+    session.send(b"q");
+
+    assert!(session.wait_for_exit());
+    session.finish();
+}
+
+#[test]
+fn a_missing_program_stops_before_the_terminal_is_touched() {
+    let empty = tempfile::tempdir().unwrap();
+    let mut session = Session::start_with(&["--claude"], Some(empty.path().as_os_str()));
+
+    let succeeded = session.wait_for_exit();
+
+    assert!(!succeeded);
+    let text = session.text();
+    assert!(
+        text.contains("Claude Code (`claude`) was not found on your PATH"),
+        "{text:?}"
+    );
+    assert!(text.contains("gitview --run <command>"), "{text:?}");
+    assert!(
+        !text.contains("\x1b[?1049h"),
+        "entered the alternate screen: {text:?}"
+    );
+    assert!(
+        !text.contains("\x1b[?2004h"),
+        "enabled bracketed paste: {text:?}"
+    );
+    session.finish();
+}
+
+#[test]
+fn resizing_the_terminal_moves_between_side_by_side_and_narrow_layouts() {
+    // Prints its size at start and again whenever it is told the size changed.
+    let script = "trap 'stty size' WINCH; stty size; while :; do sleep 0.05; done";
+    let mut session = Session::start(&["sh", "-c", script]);
+
+    // Wide: side by side. 140 columns split in half is 70, minus the border.
+    session.wait_for("38 68");
+    session.wait_for("AGENT · sh · running");
+    assert!(session.screen().contains("Ctrl+\\ focuses the agent"));
+
+    // Narrow: Gitview in front, the agent reduced to a bar and not resized.
+    session.resize(80, 24);
+    session.wait_for("Ctrl+\\ opens the agent");
+    assert!(!session.screen().contains("focuses the agent"));
+
+    // The focus key brings the agent forward, and it learns its new size.
+    session.send(&[0x1c]);
+    session.wait_for("22 78");
+    session.wait_for("returns to Gitview");
+
+    // Wide again: side by side, and the agent is told once more.
+    session.resize(140, 40);
+    session.wait_for("38 68");
+    session.wait_for("returns to Gitview");
+    session.send(&[0x1c]);
+    session.wait_for("focuses the agent");
+    session.send(b"q");
+
+    assert!(session.wait_for_exit());
+    session.assert_terminal_restored();
+    session.finish();
 }

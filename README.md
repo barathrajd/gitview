@@ -106,6 +106,33 @@ gitview init [directory]
 gitview clone <repository> [directory]
 ```
 
+## Run a coding agent beside Gitview
+
+Run Claude Code, Codex, or any other program in a pane next to the Git views, so
+you can watch what it changes and review it without leaving the terminal.
+Gitview hosts a program you already have installed. It doesn't call model
+providers or store keys.
+
+```sh
+gitview --claude
+gitview --codex
+gitview --run aider --model sonnet
+```
+
+Everything after `--claude`, `--codex`, or `--run` goes to that program, and the
+program ends when you quit Gitview. If it isn't on your `PATH`, Gitview says so
+before it changes the terminal.
+
+Press `Ctrl+\` to move focus between Gitview and the agent; the pane's border
+shows the key. While the agent has focus, every key and paste goes to it
+unchanged except `Ctrl+\`, so Gitview's own keys, including **q**, reach the
+agent. While Gitview has focus, nothing reaches the agent. Focus returns to
+Gitview when the program ends.
+
+On a terminal 119 columns or wider, the agent sits to the right of Gitview. On a
+narrower one, Gitview and the agent take turns filling the screen, and a bar at
+the bottom shows the agent's status and the focus key while Gitview is in front.
+
 ## Controls
 
 - **Up/Down** or **j/k** navigate lists and scroll diffs. **Enter** or **l**
@@ -287,6 +314,13 @@ profiles. Remote management, annotated and signed tag creation, conflict resolut
 stash, rebase, and submodule workflows are not implemented. See the
 [Git CLI capability matrix](docs/git-cli-capability-matrix.md) for current
 coverage and planned work.
+
+The agent pane is a first version, checked on macOS with `claude` and `codex`.
+It doesn't forward mouse input, and it doesn't answer the questions programs ask
+their terminal, such as the cursor position or the theme colors; the programs
+start without the answers. Shift+Enter is sent as Alt+Enter, which agents read
+as a new line. Gitview doesn't yet watch for files the agent changes beyond its
+usual status refresh.
 
 History is limited to 200 commits. Diffs are limited to 1 MB or 5,000 lines and
 indicate truncation; binary changes show Git's binary notice. IDE diffs show

@@ -21,19 +21,23 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
         ..
     } = env;
     if app.needs_redraw {
-        // Where the agent pane goes, and the size its program should believe.
+        // Where Gitview and the agent go, and the size the agent should believe.
         let size = terminal.size().map_err(backend_error)?;
-        let total = Rect::new(0, 0, size.width, size.height);
-        let side_width = app.pane.as_ref().map(|_| total.width / 2);
-        let (main, side) = ui::split_side_pane(total, side_width);
-        app.pane_visible = side.is_some();
-        if !app.pane_visible && app.focus == Focus::Agent {
-            app.focus = Focus::Gitview;
-        }
-        if let (Some(area), Some(pane)) = (side, app.pane.as_mut()) {
+        let layout = ui::plan_agent_layout(
+            Rect::new(0, 0, size.width, size.height),
+            app.pane.is_some(),
+            app.focus == Focus::Agent,
+        );
+        let pane_area = match layout {
+            ui::AgentLayout::SideBySide { agent, .. } => Some(agent),
+            ui::AgentLayout::AgentFull(area) => Some(area),
+            _ => None,
+        };
+        if let (Some(area), Some(pane)) = (pane_area, app.pane.as_mut()) {
             let inner = ui::agent_pane_inner(area);
-            if pane.size() != (inner.height, inner.width) {
-                pane.resize(inner.height, inner.width);
+            let (rows, columns) = (inner.height.max(1), inner.width.max(1));
+            if pane.size() != (rows, columns) {
+                pane.resize(rows, columns);
             }
         }
         terminal
@@ -241,14 +245,27 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                         working_tree_selection: &mut app.status_selection,
                     })
                 };
-                let mut viewport = ui::Viewport::new(frame, main);
-                ui::render_in(&mut viewport, screen, app.border);
-                if app.help {
-                    ui::render_help_overlay_in(&mut viewport, help_page, app.border);
+                let gitview_area = match layout {
+                    ui::AgentLayout::GitviewOnly(area) => Some(area),
+                    ui::AgentLayout::SideBySide { gitview, .. }
+                    | ui::AgentLayout::GitviewWithBar { gitview, .. } => Some(gitview),
+                    ui::AgentLayout::AgentFull(_) => None,
+                };
+                if let Some(area) = gitview_area {
+                    let mut viewport = ui::Viewport::new(frame, area);
+                    ui::render_in(&mut viewport, screen, app.border);
+                    if app.help {
+                        ui::render_help_overlay_in(&mut viewport, help_page, app.border);
+                    }
                 }
-                if let (Some(area), Some(pane)) = (side, app.pane.as_ref()) {
+                if let (Some(area), Some(pane)) = (pane_area, app.pane.as_ref()) {
                     let focused = app.focus == Focus::Agent;
                     ui::render_agent_pane(&mut ui::Viewport::new(frame, area), area, pane, focused);
+                }
+                if let (ui::AgentLayout::GitviewWithBar { bar, .. }, Some(pane)) =
+                    (layout, app.pane.as_ref())
+                {
+                    ui::render_agent_bar(&mut ui::Viewport::new(frame, bar), bar, pane);
                 }
             })
             .map_err(backend_error)?;

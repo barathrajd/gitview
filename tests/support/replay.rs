@@ -26,6 +26,8 @@ pub enum Step {
     WaitFor(&'static str),
     /// Wait until the screen no longer contains the text.
     WaitForGone(&'static str),
+    /// Wait until the file's trimmed contents equal the text.
+    WaitForFile(PathBuf, &'static str),
     /// A bracketed paste.
     Paste(&'static str),
     /// Print the current screen to stderr (visible with `--nocapture`).
@@ -79,6 +81,9 @@ impl Host for ScriptedHost {
                 self.steps.pop_front();
                 return Ok(event);
             }
+            Some(Step::WaitForFile(path, expected)) => {
+                std::fs::read_to_string(path).map_or(true, |text| text.trim() != *expected)
+            }
             Some(Step::Paste(text)) => {
                 let event = Event::Paste((*text).to_owned());
                 self.steps.pop_front();
@@ -103,6 +108,7 @@ impl Host for ScriptedHost {
             self.steps.front().map(|step| match step {
                 Step::WaitFor(text) => format!("`{text}` to appear"),
                 Step::WaitForGone(text) => format!("`{text}` to disappear"),
+                Step::WaitForFile(path, text) => format!("{} to hold `{text}`", path.display()),
                 _ => String::new(),
             })
         );

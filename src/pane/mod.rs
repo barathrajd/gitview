@@ -1,7 +1,9 @@
 mod keys;
+mod launch;
 mod queries;
 
 pub use keys::{FOCUS_KEY_LABEL, encode_key, encode_paste, is_focus_key};
+pub use launch::{AgentRequest, check_installed, find_executable, split_agent_args};
 
 use queries::QueryScanner;
 
