@@ -28,6 +28,11 @@ pub enum Step {
     WaitForGone(&'static str),
     /// Wait until the file's trimmed contents equal the text.
     WaitForFile(PathBuf, &'static str),
+    /// Runs a closure on the test thread, for changing the repository while the
+    /// app is running.
+    Do(Box<dyn FnOnce()>),
+    /// Does nothing for this long, for letting a background start-up finish.
+    Pause(Duration),
     /// A bracketed paste.
     Paste(&'static str),
     /// Print the current screen to stderr (visible with `--nocapture`).
@@ -83,6 +88,19 @@ impl Host for ScriptedHost {
             }
             Some(Step::WaitForFile(path, expected)) => {
                 std::fs::read_to_string(path).map_or(true, |text| text.trim() != *expected)
+            }
+            Some(Step::Do(_)) => {
+                let Some(Step::Do(action)) = self.steps.pop_front() else {
+                    unreachable!()
+                };
+                action();
+                return Err(RecvTimeoutError::Timeout);
+            }
+            Some(Step::Pause(duration)) => {
+                let duration = *duration;
+                self.steps.pop_front();
+                std::thread::sleep(duration);
+                return Err(RecvTimeoutError::Timeout);
             }
             Some(Step::Paste(text)) => {
                 let event = Event::Paste((*text).to_owned());

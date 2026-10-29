@@ -20,6 +20,7 @@ use super::{
     keys,
     model::App,
     paste,
+    refresh::{self, Refresh, Watching},
 };
 
 /// What a piece of the event loop decided about the current event.
@@ -238,26 +239,9 @@ pub fn run_app_with_agent<H: Host>(
             let _ = sender.send((0, crate::worktree::load_status(&path)));
         });
     }
-    {
-        let sender = status_watch_sender;
-        let path = root.to_path_buf();
-        std::thread::spawn(move || {
-            let mut previous = None;
-            loop {
-                std::thread::sleep(Duration::from_millis(750));
-                let Ok(entries) = crate::worktree::load_status(&path) else {
-                    continue;
-                };
-                if previous.as_ref() != Some(&entries) {
-                    match sender.try_send(entries.clone()) {
-                        Ok(()) => previous = Some(entries),
-                        Err(std::sync::mpsc::TrySendError::Full(_)) => {}
-                        Err(std::sync::mpsc::TrySendError::Disconnected(_)) => return,
-                    }
-                }
-            }
-        });
-    }
+    // Changes are noticed by a file watcher that starts in the background, with
+    // polling as the fallback.
+    let watching = Watching::begin(root, status_watch_sender);
     {
         let sender = branch_sender.clone();
         let path = root.to_path_buf();
@@ -359,6 +343,9 @@ pub fn run_app_with_agent<H: Host>(
         status_selection,
         needs_redraw: true,
         profile_label,
+        watching,
+        refresh: Refresh::default(),
+        diff_refresh: None,
         focus: input::Focus::default(),
         pane,
     };
@@ -372,6 +359,7 @@ pub fn run_app_with_agent<H: Host>(
     loop {
         step!(drain::drain_results(&mut app, &mut env));
         agent::poll(&mut app);
+        refresh::step(&mut app, &mut env);
         step!(draw::draw_screen(&mut app, &mut env));
         let event = match env.host.next_event(env.terminal, Duration::from_millis(50)) {
             Ok(event) => event,
