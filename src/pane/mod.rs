@@ -1,3 +1,7 @@
+mod keys;
+
+pub use keys::{encode_key, encode_paste};
+
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Read, Write};
