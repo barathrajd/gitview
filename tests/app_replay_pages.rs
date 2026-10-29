@@ -1,0 +1,222 @@
+//! Characterization tests for the branch, tag, object, comparison, and
+//! profile pages. Mutating flows are checked against Git itself.
+
+#[path = "support/replay.rs"]
+mod replay;
+
+use crossterm::event::KeyCode::{Enter, Esc, Tab};
+use replay::{Repo, Step, Step::*, replay};
+
+/// `with_changes` plus a `feature` branch and an annotated `v2.0` tag.
+fn repository() -> Repo {
+    let repository = Repo::with_changes();
+    repository.git(&["branch", "feature"]);
+    repository.git(&["tag", "-a", "v2.0", "-m", "Release two"]);
+    repository
+}
+
+/// Opens the branch list. `feature` sorts above the current `main`, and the
+/// first row starts selected.
+fn branch_steps() -> Vec<Step> {
+    vec![WaitFor("Change library"), Char('b'), WaitFor("feature")]
+}
+
+/// Opens the History pane, where the page-launching keys live.
+fn history_steps() -> Vec<Step> {
+    vec![WaitFor("Change library"), Key(Tab)]
+}
+
+fn current_branch(repository: &Repo) -> String {
+    repository
+        .output(&["branch", "--show-current"])
+        .trim()
+        .to_owned()
+}
+
+#[test]
+fn branch_list_marks_the_current_branch() {
+    let repository = repository();
+
+    let screen = replay(&repository.path(), branch_steps());
+
+    assert!(
+        screen.contains("Local branches - current: main"),
+        "{screen}"
+    );
+    assert!(screen.contains("* main"), "{screen}");
+    let selected = screen.lines().find(|line| line.contains('›')).unwrap();
+    assert!(selected.contains("feature"), "{screen}");
+}
+
+#[test]
+fn entering_the_current_branch_reports_it_without_switching() {
+    let repository = repository();
+    let mut steps = branch_steps();
+    steps.extend([Char('j'), Key(Enter), WaitFor("Already on this branch.")]);
+
+    replay(&repository.path(), steps);
+
+    assert_eq!(current_branch(&repository), "main");
+}
+
+#[test]
+fn switching_a_branch_needs_confirmation() {
+    let repository = repository();
+    let mut steps = branch_steps();
+    steps.extend([
+        Key(Enter),
+        WaitFor("Switch to local branch \"feature\"?"),
+        Char('y'),
+        WaitFor("current: feature"),
+    ]);
+    replay(&repository.path(), steps);
+    assert_eq!(current_branch(&repository), "feature");
+
+    let repository = self::repository();
+    let mut steps = branch_steps();
+    steps.extend([
+        Key(Enter),
+        WaitFor("CONFIRM BRANCH OPERATION"),
+        Char('n'),
+        WaitForGone("CONFIRM BRANCH OPERATION"),
+    ]);
+    replay(&repository.path(), steps);
+    assert_eq!(current_branch(&repository), "main");
+}
+
+#[test]
+fn creating_a_branch_asks_for_a_name_then_confirmation() {
+    let repository = repository();
+    let mut steps = branch_steps();
+    steps.extend([
+        Char('c'),
+        WaitFor("New local branch name:"),
+        Text("topic"),
+        Key(Enter),
+        WaitFor("Create and switch to local branch \"topic\""),
+        Char('y'),
+        WaitFor("current: topic"),
+    ]);
+
+    replay(&repository.path(), steps);
+
+    assert_eq!(current_branch(&repository), "topic");
+}
+
+#[test]
+fn deleting_a_branch_needs_confirmation_and_never_forces() {
+    let repository = repository();
+    let mut steps = branch_steps();
+    steps.extend([
+        Char('d'),
+        WaitFor("Delete local branch \"feature\"?"),
+        WaitFor("No force deletion is used."),
+        Char('y'),
+        WaitFor("Local branches - current: main"),
+        WaitForGone("feature"),
+    ]);
+
+    replay(&repository.path(), steps);
+
+    assert!(
+        repository
+            .output(&["branch", "--list", "feature"])
+            .is_empty()
+    );
+}
+
+#[test]
+fn tag_page_lists_tags_by_kind_and_escape_returns_to_branches() {
+    let repository = repository();
+    let mut steps = branch_steps();
+    steps.extend([
+        Char('t'),
+        WaitFor("LOCAL TAGS"),
+        WaitFor("[annotated]"),
+        Key(Esc),
+        WaitFor("Local branches - current: main"),
+    ]);
+
+    replay(&repository.path(), steps);
+}
+
+#[test]
+fn tag_page_shows_lightweight_and_annotated_tags() {
+    let repository = repository();
+    let mut steps = branch_steps();
+    steps.extend([Char('t'), WaitFor("[annotated]")]);
+
+    let screen = replay(&repository.path(), steps);
+
+    assert!(screen.contains("v1.0  [lightweight]"), "{screen}");
+    assert!(screen.contains("v2.0  [annotated]"), "{screen}");
+}
+
+#[test]
+fn object_page_describes_the_selected_commit_and_escape_edits_the_revision() {
+    let repository = repository();
+    let mut steps = history_steps();
+    steps.extend([
+        Char('o'),
+        WaitFor("INSPECT GIT OBJECT"),
+        Key(Enter),
+        WaitFor("OBJECT DESCRIPTION"),
+    ]);
+    let screen = replay(&repository.path(), steps);
+    assert!(screen.contains("Type: commit"), "{screen}");
+    assert!(screen.contains("Describe: v2.0"), "{screen}");
+
+    let mut steps = history_steps();
+    steps.extend([
+        Char('o'),
+        Key(Enter),
+        WaitFor("OBJECT DESCRIPTION"),
+        Key(Esc),
+        WaitFor("INSPECT GIT OBJECT"),
+    ]);
+    replay(&repository.path(), steps);
+}
+
+#[test]
+fn comparison_page_reviews_the_selected_commit_and_escape_edits_the_form() {
+    let repository = repository();
+    let mut steps = history_steps();
+    steps.extend([
+        Char('D'),
+        WaitFor("COMPARE COMMIT SNAPSHOTS"),
+        Key(Enter),
+        WaitFor("COMPARISON REVIEW"),
+        WaitFor("▾ src/lib.rs"),
+    ]);
+    let screen = replay(&repository.path(), steps);
+    assert!(screen.contains("+2 -2"), "{screen}");
+    assert!(screen.contains("1 first changed"), "{screen}");
+
+    let mut steps = history_steps();
+    steps.extend([
+        Char('D'),
+        Key(Enter),
+        WaitFor("COMPARISON REVIEW"),
+        Key(Esc),
+        WaitFor("COMPARE COMMIT SNAPSHOTS"),
+    ]);
+    replay(&repository.path(), steps);
+}
+
+#[test]
+fn profile_page_shows_the_account_and_escape_returns_to_history() {
+    let repository = repository();
+    let mut steps = history_steps();
+    steps.extend([
+        Char('p'),
+        WaitFor("GIT CONFIG PROFILES"),
+        WaitFor("Active account: Primary"),
+        WaitFor("No folder profiles configured."),
+        Key(Esc),
+        WaitForGone("GIT CONFIG PROFILES"),
+    ]);
+
+    let screen = replay(&repository.path(), steps);
+
+    assert!(screen.contains("Change library"), "{screen}");
+}

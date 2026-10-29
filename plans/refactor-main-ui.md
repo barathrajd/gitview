@@ -85,9 +85,18 @@ move with an edit.
   they are tested there. The harness loads default keybindings, never the
   user's file. Mutation checks (breaking `v`, `Esc` in help, and `]`) each fail
   at least one test.
-- [ ] **3. Characterize the rest:** Worktree stage and unstage, branches,
+- [x] **3. Characterize the rest:** Worktree stage and unstage, branches,
   tags, object and comparison pages, commit, and profiles, plus a narrow
   terminal case.
+  *Done:* `tests/app_replay_worktree.rs` (stage, unstage, stage all, commit
+  composer, narrow layout) and `tests/app_replay_pages.rs` (branches, tags,
+  object, comparison, profiles). Mutating flows are checked against Git; 15
+  repeated parallel runs showed no flakes. **Not characterized; smoke-test by
+  hand before milestone 6 ships:** discard, ignore rules, move, remove, and
+  untrack; amend; tag create, delete, and verify; branch rename and
+  previous-checkout; the external editors (`Ctrl+E` in the composer, `e` on the
+  profile page), which the scripted host only runs inline; and the profile
+  `r` reload, which needs the global Git config context.
 - [ ] **4. Extract `App` state:** Field move only, no logic change.
 - [ ] **5. Split handlers:** Per-screen modules under `src/app/`; `main.rs`
   shrinks to the size limit.

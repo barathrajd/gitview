@@ -165,6 +165,9 @@ impl Repo {
             dir: tempfile::tempdir().unwrap(),
         };
         repo.git(&["init", "-q", "-b", "main"]);
+        // The app runs plain `git commit`, so the identity must be in the repo.
+        repo.git(&["config", "user.name", "Test"]);
+        repo.git(&["config", "user.email", "test@example.com"]);
         repo
     }
 
@@ -180,6 +183,17 @@ impl Repo {
             .status()
             .unwrap();
         assert!(status.success(), "git {args:?}");
+    }
+
+    /// Runs Git and returns its stdout.
+    pub fn output(&self, args: &[&str]) -> String {
+        let output = Command::new("git")
+            .current_dir(self.dir.path())
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "git {args:?}");
+        String::from_utf8(output.stdout).unwrap()
     }
 
     pub fn write(&self, relative: &str, contents: &str) {
@@ -211,6 +225,19 @@ impl Repo {
         repo.commit_all("Add library");
         repo.write("src/lib.rs", &lines("first changed", "last changed"));
         repo.commit_all("Change library");
+        repo
+    }
+
+    /// `with_history` plus a `v1.0` tag at HEAD and one file in each worktree
+    /// section: `staged.txt` (staged), `README.md` (edited), `notes.txt`
+    /// (untracked).
+    pub fn with_changes() -> Self {
+        let repo = Self::with_history();
+        repo.git(&["tag", "v1.0"]);
+        repo.write("README.md", "# Demo\nmore\n");
+        repo.write("notes.txt", "new\n");
+        repo.write("staged.txt", "s\n");
+        repo.git(&["add", "staged.txt"]);
         repo
     }
 }
