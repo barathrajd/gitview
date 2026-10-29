@@ -105,8 +105,16 @@ move with an edit.
   the struct literal, two `format!` captures, shorthand fixes, and rustfmt
   braces. Locals shadowing a field name (`diff`, `details`, cloned senders)
   stay local. Drop order of the workers and channels is now field order.
-- [ ] **5. Split handlers:** Per-screen modules under `src/app/`; `main.rs`
+- [x] **5. Split handlers:** Per-screen modules under `src/app/`; `main.rs`
   shrinks to the size limit.
+  *Done:* `run.rs` is the setup and a 25-line loop (354 lines). Each event
+  step is a function returning `Flow` (`Next`, `Handled`, `Quit`) instead of
+  using `continue`: `drain`, `draw`, `paste`, and `keys/{overlays, prompts,
+  commit, confirm, search, branches, views}`, tried in the old priority order.
+  Largest file is 518 lines; `main.rs` is 146. A token comparison against the
+  old loop shows only `continue`/`return` rewrites, function wrappers,
+  `Env` destructuring, two reborrows, and rustfmt braces. The key groups were
+  extracted together in one commit, not one per screen.
 - [ ] **6. Split `ui.rs`:** The `src/ui/` tree, one area per commit, with the
   diff engine last because it holds the performance-sensitive caches.
 - [ ] **7. Input router and layout slot:** Add the focus-aware router and the
