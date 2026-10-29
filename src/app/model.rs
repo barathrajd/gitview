@@ -115,7 +115,5 @@ pub(super) struct App {
     pub(super) focus: Focus,
     /// The agent pane, when Gitview was started with one.
     pub(super) pane: Option<AgentPane>,
-    /// Whether the pane fits on screen at the current terminal size.
-    pub(super) pane_visible: bool,
     pub(super) needs_redraw: bool,
 }

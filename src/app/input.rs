@@ -25,11 +25,11 @@ pub(super) enum Route {
     ToggleFocus,
 }
 
-/// The route for `event`. `pane_visible` is whether an agent pane is on screen;
-/// without one, everything stays with Gitview so input can't vanish into a pane
-/// the user can't see.
-pub(super) fn route(focus: Focus, pane_visible: bool, event: &Event) -> Route {
-    if !pane_visible {
+/// The route for `event`. `has_pane` is whether an agent was started; without
+/// one, everything stays with Gitview. With one, the focus key always reaches
+/// it: side by side, or by swapping full screens on a narrow terminal.
+pub(super) fn route(focus: Focus, has_pane: bool, event: &Event) -> Route {
+    if !has_pane {
         return Route::Gitview;
     }
     if let Event::Key(key) = event
@@ -95,7 +95,7 @@ mod tests {
     }
 
     #[test]
-    fn without_a_visible_pane_everything_goes_to_gitview() {
+    fn without_a_pane_everything_goes_to_gitview() {
         for focus in [Focus::Gitview, Focus::Agent] {
             for event in ordinary_events()
                 .into_iter()
