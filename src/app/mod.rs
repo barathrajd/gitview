@@ -1,6 +1,7 @@
 mod drain;
 mod draw;
 mod helpers;
+mod input;
 mod keys;
 mod model;
 mod paste;

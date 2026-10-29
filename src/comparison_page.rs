@@ -1,7 +1,7 @@
 use crate::comparison::{self, Comparison};
+use crate::ui::Viewport;
 use crossterm::event::KeyCode;
 use ratatui::{
-    Frame,
     layout::{Constraint, Layout, Rect},
     style::{Color, Style},
     text::{Line, Span, Text},
@@ -227,7 +227,11 @@ impl ComparisonPage {
         }
         true
     }
-    pub fn render(&self, frame: &mut Frame<'_>, border: ratatui::symbols::border::Set<'static>) {
+    pub fn render(
+        &self,
+        frame: &mut Viewport<'_, '_>,
+        border: ratatui::symbols::border::Set<'static>,
+    ) {
         use crate::ui::{
             ACCENT, MUTED, hint_row_count, page_block, render_key_hints, selection_style,
         };
@@ -325,7 +329,7 @@ impl ComparisonPage {
     }
     fn render_review(
         &self,
-        frame: &mut Frame<'_>,
+        frame: &mut Viewport<'_, '_>,
         area: Rect,
         result: &Comparison,
         border: ratatui::symbols::border::Set<'static>,

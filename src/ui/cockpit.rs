@@ -1,3 +1,4 @@
+use crate::ui::Viewport;
 use crate::{
     app::View,
     branches::{Branches, HeadState},
@@ -5,7 +6,6 @@ use crate::{
     worktree::{Entry, Section},
 };
 use ratatui::{
-    Frame,
     layout::{Constraint, Layout},
     style::{Color, Style},
     text::{Line, Span},
@@ -20,7 +20,7 @@ use super::screen::Cockpit;
 use super::theme::{ACCENT, BORDER, MUTED, page_block};
 
 pub(super) fn render_cockpit(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     cockpit: Cockpit<'_>,
     border: ratatui::symbols::border::Set<'static>,
 ) {
@@ -165,7 +165,7 @@ pub(super) fn render_cockpit(
 }
 
 pub(super) fn render_worktree_panel(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     area: ratatui::layout::Rect,
     title: &'static str,
     status: Option<&Result<Vec<Entry>, String>>,
@@ -246,7 +246,7 @@ pub(super) fn worktree_items(
 }
 
 pub(super) fn render_history_panel(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     area: ratatui::layout::Rect,
     history: Option<&Result<Vec<String>, String>>,
     selection: &mut ListState,
@@ -286,7 +286,7 @@ pub(super) struct Inspector<'a> {
 }
 
 pub(super) fn render_inspector(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     area: ratatui::layout::Rect,
     inspector: Inspector<'_>,
     border: ratatui::symbols::border::Set<'static>,
@@ -350,7 +350,7 @@ pub(super) fn render_inspector(
 }
 
 pub(super) fn render_panel_list(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     area: ratatui::layout::Rect,
     title: &'static str,
     items: Vec<ListItem<'_>>,

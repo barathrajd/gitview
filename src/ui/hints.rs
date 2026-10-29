@@ -1,5 +1,5 @@
+use crate::ui::Viewport;
 use ratatui::{
-    Frame,
     style::{Color, Style},
     text::{Line, Span, Text},
     widgets::Paragraph,
@@ -33,7 +33,7 @@ pub(super) fn hint_rows<'a>(
 }
 
 pub(crate) fn render_key_hints(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     area: ratatui::layout::Rect,
     hints: &[(&str, &str)],
 ) {
@@ -41,7 +41,7 @@ pub(crate) fn render_key_hints(
 }
 
 pub(super) fn render_key_hints_padded(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     area: ratatui::layout::Rect,
     hints: &[(&str, &str)],
 ) {
@@ -49,7 +49,7 @@ pub(super) fn render_key_hints_padded(
 }
 
 pub(super) fn render_key_hints_with_spacing(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     area: ratatui::layout::Rect,
     hints: &[(&str, &str)],
     compact: bool,

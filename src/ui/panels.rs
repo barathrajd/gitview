@@ -1,10 +1,10 @@
+use crate::ui::Viewport;
 use crate::{
     details::CommitDetails,
     history,
     worktree::{Entry, Section},
 };
 use ratatui::{
-    Frame,
     layout::{Constraint, Layout},
     style::{Color, Style},
     widgets::{List, ListItem, ListState, Paragraph},
@@ -17,7 +17,7 @@ use super::screen::HistoryScreen;
 use super::theme::page_block;
 
 pub(super) fn render_commit_details(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     details: &(u64, Option<Result<CommitDetails, String>>),
     selection: &mut ListState,
     border: ratatui::symbols::border::Set<'static>,
@@ -75,7 +75,7 @@ pub(super) fn render_commit_details(
 }
 
 pub(super) fn render_working_tree(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     status: Option<&Result<Vec<Entry>, String>>,
     selection: &mut ListState,
     border: ratatui::symbols::border::Set<'static>,
@@ -129,7 +129,7 @@ pub(super) fn worktree_selection_style(
 }
 
 pub(super) fn render_history(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     screen: HistoryScreen<'_>,
     border: ratatui::symbols::border::Set<'static>,
 ) {
@@ -180,7 +180,7 @@ pub(super) fn render_history(
 }
 
 pub(super) fn render_search(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     history: Option<&Result<Vec<String>, String>>,
     matches: &[usize],
     query: &str,

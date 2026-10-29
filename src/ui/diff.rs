@@ -1,6 +1,6 @@
+use crate::ui::Viewport;
 use crate::worktree::{Entry, Section};
 use ratatui::{
-    Frame,
     layout::{Constraint, Layout},
     style::{Color, Style},
     text::{Line, Text},
@@ -17,7 +17,7 @@ use super::prepared::PreparedDiff;
 use super::theme::page_block;
 
 pub(super) fn render_diff(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     diff: &(u64, Option<Result<String, String>>),
     scroll: u16,
     selected_hunk: usize,

@@ -9,7 +9,7 @@ use std::{
 
 use ratatui::widgets::ListState;
 
-use super::helpers::CommitReadResult;
+use super::{helpers::CommitReadResult, input::Focus};
 use crate::{
     app::{AppState, BranchAction},
     read_worker::LatestRead,
@@ -111,5 +111,8 @@ pub(super) struct App {
     pub(super) status_request: u64,
     pub(super) status_selection: ListState,
     pub(super) profile_label: String,
+    pub(super) focus: Focus,
+    /// Width of the side pane, when one is open. No pane exists yet.
+    pub(super) side_pane_width: Option<u16>,
     pub(super) needs_redraw: bool,
 }

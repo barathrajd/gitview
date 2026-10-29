@@ -1,3 +1,4 @@
+use crate::ui::Viewport;
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
@@ -98,7 +99,10 @@ pub(super) const HELP_ROWS: &[(&str, &str, &str, &str)] = &[
     ),
 ];
 
-pub(super) fn render_help(frame: &mut Frame<'_>, border: ratatui::symbols::border::Set<'static>) {
+pub(super) fn render_help(
+    frame: &mut Viewport<'_, '_>,
+    border: ratatui::symbols::border::Set<'static>,
+) {
     let rows = HELP_ROWS
         .iter()
         .map(|(key1, details1, key2, details2)| {
@@ -137,8 +141,8 @@ pub(super) fn render_help(frame: &mut Frame<'_>, border: ratatui::symbols::borde
     );
 }
 
-pub fn render_help_overlay(
-    frame: &mut Frame<'_>,
+pub fn render_help_overlay_in(
+    frame: &mut Viewport<'_, '_>,
     page: HelpPage,
     border: ratatui::symbols::border::Set<'static>,
 ) {
@@ -319,7 +323,7 @@ pub fn render_help_overlay(
 }
 
 pub(super) fn render_message_page(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     title: &'static str,
     message: &str,
     border: ratatui::symbols::border::Set<'static>,
@@ -337,4 +341,14 @@ pub(super) fn render_message_page(
         areas[0],
     );
     render_key_hints(frame, areas[1], hints);
+}
+
+/// Renders the help overlay over the whole frame.
+pub fn render_help_overlay(
+    frame: &mut Frame<'_>,
+    page: HelpPage,
+    border: ratatui::symbols::border::Set<'static>,
+) {
+    let area = frame.area();
+    render_help_overlay_in(&mut Viewport::new(frame, area), page, border);
 }

@@ -1,3 +1,4 @@
+use crate::ui::Viewport;
 use crate::{app::BranchAction, config::FolderProfile};
 use ratatui::{
     Frame,
@@ -20,8 +21,8 @@ use super::panels::{render_commit_details, render_history, render_search, render
 use super::screen::{HistoryScreen, Screen};
 use super::theme::{ACCENT, BAR_BACKGROUND, MUTED, page_block};
 
-pub fn render(
-    frame: &mut Frame<'_>,
+pub fn render_in(
+    frame: &mut Viewport<'_, '_>,
     screen: Screen<'_>,
     border: ratatui::symbols::border::Set<'static>,
 ) {
@@ -453,7 +454,7 @@ pub fn render(
 }
 
 pub(super) fn render_profiles(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     profiles: &[FolderProfile],
     selected: Option<usize>,
     active_profile: &str,
@@ -525,4 +526,14 @@ pub(super) fn render_profiles(
             ("q", "quit"),
         ],
     );
+}
+
+/// Renders `screen` over the whole frame.
+pub fn render(
+    frame: &mut Frame<'_>,
+    screen: Screen<'_>,
+    border: ratatui::symbols::border::Set<'static>,
+) {
+    let area = frame.area();
+    render_in(&mut Viewport::new(frame, area), screen, border);
 }

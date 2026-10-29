@@ -1,6 +1,6 @@
 use crate::branches::{Branches, HeadState};
+use crate::ui::Viewport;
 use ratatui::{
-    Frame,
     layout::{Constraint, Layout},
     widgets::{List, ListItem, ListState, Paragraph, Wrap},
 };
@@ -9,7 +9,7 @@ use super::hints::{hint_row_count, render_key_hints};
 use super::theme::{page_block, selection_style};
 
 pub(super) fn render_branches(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     branches: Option<&Result<Branches, String>>,
     feedback: &str,
     selection: &mut ListState,

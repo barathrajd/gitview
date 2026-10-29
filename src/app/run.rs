@@ -12,10 +12,15 @@ use crossterm::event::{Event, KeyEventKind};
 use ratatui::{Terminal, backend::Backend, widgets::ListState};
 
 pub use super::helpers::Navigation;
-use super::{drain, draw, helpers::CommitReadResult, keys, model::App, paste};
+use super::{
+    drain, draw,
+    helpers::CommitReadResult,
+    input::{self, Focus},
+    keys,
+    model::App,
+    paste,
+};
 
-/// What `run_app` needs from the terminal it runs in. The real terminal and the
-/// in-memory test backend each provide one.
 /// What a piece of the event loop decided about the current event.
 pub(super) enum Flow {
     /// Not handled here; try the next handler.
@@ -47,6 +52,8 @@ macro_rules! step {
     };
 }
 
+/// What `run_app` needs from the terminal it runs in. The real terminal and the
+/// in-memory test backend each provide one.
 pub trait Host {
     type Backend: Backend;
 
@@ -316,6 +323,8 @@ pub fn run_app<H: Host>(
         status_selection,
         needs_redraw: true,
         profile_label,
+        focus: Focus::default(),
+        side_pane_width: None,
     };
     let mut env = Env {
         terminal,
@@ -333,6 +342,9 @@ pub fn run_app<H: Host>(
             Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
         };
         app.needs_redraw = true;
+        match input::route(app.focus, &event) {
+            Focus::Gitview => {}
+        }
         step!(paste::handle_paste(&mut app, &mut env, &event));
         if let Event::Key(key) = event
             && key.kind == KeyEventKind::Press

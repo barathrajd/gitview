@@ -131,9 +131,19 @@ move with an edit.
   growth budget about half the time on the unsplit code too (2 of 3 runs), with
   the same final RSS (about 63-66 MiB). This is the large-comparison memory
   variance already listed under the 0.6.0 follow-ups.
-- [ ] **7. Input router and layout slot:** Add the focus-aware router and the
+- [x] **7. Input router and layout slot:** Add the focus-aware router and the
   side-pane slot, both inert, with tests that Gitview is the only target. Then
   resume milestone 1 of the agent workspace plan.
+  *Done:* `app::input` routes every event through `route(focus, event)`, and
+  `Focus` has the single target `Gitview`. `ui::Viewport` wraps a `Frame` with
+  a sub-area that every screen draws into (clipped to it), `ui::render_in` and
+  `render_help_overlay_in` take one, and `ui::split_side_pane` carves a pane off
+  the right (refused below 20 columns for the pane or 60 for Gitview). The draw
+  step calls it with no pane requested, so the output is byte-identical to the
+  plain frame (tested). The public `render` and `render_help_overlay` keep their
+  `Frame` signatures; `ObjectPage`, `ComparisonPage`, and `TagPage::render` now
+  take a `Viewport`. Render timings and the diff live-allocation numbers match
+  the milestone 6 results.
 
 ## Risks & open questions
 

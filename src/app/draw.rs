@@ -223,9 +223,12 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                         working_tree_selection: &mut app.status_selection,
                     })
                 };
-                ui::render(frame, screen, app.border);
+                // Gitview gets the whole frame until a side pane asks for room.
+                let (main, _side) = ui::split_side_pane(frame.area(), app.side_pane_width);
+                let mut viewport = ui::Viewport::new(frame, main);
+                ui::render_in(&mut viewport, screen, app.border);
                 if app.help {
-                    ui::render_help_overlay(frame, help_page, app.border);
+                    ui::render_help_overlay_in(&mut viewport, help_page, app.border);
                 }
             })
             .map_err(backend_error)?;

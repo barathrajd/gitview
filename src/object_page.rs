@@ -1,10 +1,10 @@
+use crate::ui::Viewport;
 use crate::{
     object::{self, ObjectDescription},
     ui::{ACCENT, MUTED, hint_row_count, page_block, render_key_hints},
 };
 use crossterm::event::KeyCode;
 use ratatui::{
-    Frame,
     layout::{Constraint, Layout},
     style::{Color, Style},
     text::{Line, Span, Text},
@@ -91,7 +91,11 @@ impl ObjectPage {
         }
         true
     }
-    pub fn render(&self, frame: &mut Frame<'_>, border: ratatui::symbols::border::Set<'static>) {
+    pub fn render(
+        &self,
+        frame: &mut Viewport<'_, '_>,
+        border: ratatui::symbols::border::Set<'static>,
+    ) {
         let hints: &[(&str, &str)] = if self.pending {
             &[("Working", "inspecting object"), ("Esc", "return")]
         } else if self.editing {

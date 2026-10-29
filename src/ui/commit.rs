@@ -1,9 +1,9 @@
+use crate::ui::Viewport;
 use crate::{
     branches::{Branches, HeadState},
     worktree::Entry,
 };
 use ratatui::{
-    Frame,
     layout::{Constraint, Layout},
     style::{Color, Style},
     text::{Line, Span, Text},
@@ -40,7 +40,7 @@ pub(super) struct AmendConfirmation<'a> {
 }
 
 pub(super) fn render_repository_header(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     area: ratatui::layout::Rect,
     repository: &Path,
     profile: &str,
@@ -82,7 +82,7 @@ pub(super) fn render_repository_header(
 }
 
 pub(super) fn render_commit_workspace(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     workspace: CommitWorkspace<'_>,
     border: ratatui::symbols::border::Set<'static>,
 ) {
@@ -208,7 +208,7 @@ pub(super) fn render_commit_workspace(
 }
 
 pub(super) fn render_amend_confirmation(
-    frame: &mut Frame<'_>,
+    frame: &mut Viewport<'_, '_>,
     confirmation: AmendConfirmation<'_>,
     border: ratatui::symbols::border::Set<'static>,
 ) {
