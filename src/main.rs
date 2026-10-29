@@ -32,7 +32,7 @@ fn run() -> Result<(), String> {
     }
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "Usage: gitview [--ascii] [--version]\n       gitview [--ascii] --run <command> [args...]\n       gitview init [directory]\n       gitview clone <repository> [directory]\n       gitview --shell-integration\n\nOpen the current Git repository. Use init or clone to set up a repository.\nUse --run to start a program, such as a coding agent, in a pane beside Gitview; Ctrl+\\ moves focus between them. Use --ascii for plain terminal borders. Folder-specific Git config profiles are loaded automatically. Run --shell-integration for the optional zsh hook.\n\n{HELP}"
+            "Usage: gitview [--ascii] [--version]\n       gitview [--ascii] --run <command> [args...]\n       gitview [--ascii] --claude [args...]\n       gitview [--ascii] --codex [args...]\n       gitview init [directory]\n       gitview clone <repository> [directory]\n       gitview --shell-integration\n\nOpen the current Git repository. Use init or clone to set up a repository.\nUse --run, --claude, or --codex to start a coding agent, or any program, in a pane beside Gitview. Everything after --run, --claude, or --codex goes to that program, and it ends when you quit Gitview. Ctrl+\\ moves focus between Gitview and the agent; on a terminal too narrow for two panes (under 119 columns) they take turns filling the full screen. Use --ascii for plain terminal borders. Folder-specific Git config profiles are loaded automatically. Run --shell-integration for the optional zsh hook.\n\n{HELP}"
         );
         return Ok(());
     }
