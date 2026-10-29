@@ -9,7 +9,11 @@ use std::{
 
 use ratatui::widgets::ListState;
 
-use super::{helpers::CommitReadResult, input::Focus};
+use super::{
+    helpers::CommitReadResult,
+    input::Focus,
+    refresh::{Refresh, Watching},
+};
 use crate::pane::AgentPane;
 use crate::{
     app::{AppState, BranchAction},
@@ -115,5 +119,11 @@ pub(super) struct App {
     pub(super) focus: Focus,
     /// The agent pane, when Gitview was started with one.
     pub(super) pane: Option<AgentPane>,
+    /// How repository changes are noticed, and which views need reloading.
+    pub(super) watching: Watching,
+    pub(super) refresh: Refresh,
+    /// A reload of the open diff: its request id, and the scroll position and
+    /// hunk to put back when the new text arrives.
+    pub(super) diff_refresh: Option<(u64, u16, usize)>,
     pub(super) needs_redraw: bool,
 }

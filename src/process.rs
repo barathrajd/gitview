@@ -29,6 +29,10 @@ pub fn update_git_config_context(context: GitConfigContext) -> Result<(), String
 /// Create every Git subprocess with the selected account config applied.
 pub fn git_command() -> Command {
     let mut command = Command::new("git");
+    // Reads must not write: without this Git may rewrite `.git/index` to refresh
+    // cached file data, which a file watcher would take for a change. Locks Git
+    // needs for real changes are unaffected.
+    command.env("GIT_OPTIONAL_LOCKS", "0");
     if let Some(context) = GIT_CONFIG_CONTEXT.get() {
         let context = context.read().unwrap_or_else(|error| error.into_inner());
         context.apply(&mut command);

@@ -155,9 +155,33 @@ since review.
   than one row. `--help` and the README describe all of it. The exit, crash,
   and kill paths run against the real binary in a pseudo-terminal, including a
   live resize between the layouts.
-- [ ] **3. Refresh on change:** Add the debounced watcher and stale-result
+- [x] **3. Refresh on change:** Add the debounced watcher and stale-result
   handling. Test rapid edits, large trees, and ignored paths; check CPU use
   while idle.
+  *Done:* `watch::RepoWatcher` (the `notify` crate) reports working-file,
+  index, and ref changes. Only `HEAD`, `index`, `packed-refs`, and `refs/**`
+  count under `.git`, lock files and reads never do, and a linked worktree
+  watches its own files plus the shared refs. A burst settles after 120 ms of
+  quiet, and no change is held back more than 400 ms. The watcher starts in the
+  background (a fixed 0.3 s or more, whatever the tree size) and a full refresh
+  follows when it is ready; if it can't start, or `GITVIEW_NO_WATCH` is set, the
+  old polling runs. History, branches, the working tree, and an open diff
+  reload on their own. Each view has a reload slot: a burst becomes one more
+  reload, a slot waits as long as its last reload took (at least 150 ms), and
+  nothing starts during the user's own Git operation. Requests reuse the loop's
+  ids, so a late result can't overwrite a newer one. Selections follow the same
+  commit or branch, an open diff keeps its scroll and hunk and follows its file
+  between the staged and unstaged lists. One related fix: every Git command now
+  sets `GIT_OPTIONAL_LOCKS=0`, because a background `git status` rewrote the
+  index (taking `index.lock`, which can make an agent's `git add` fail) and a
+  watcher would have seen that as a change.
+
+  *Measured* (release build, 200-file repository, `git` children included):
+  idle CPU fell from **2.08%** of a core to **0.08%**, and idle `git status`
+  runs from 7 in 5 s to 0. An edit appears in under 1.5 s end to end and costs 1
+  to 3 `git status` runs. With the polling fallback the idle cost is 2.73%.
+  Not measured: very large repositories, and Linux (inotify watch limits are the
+  likely failure there, which is what the fallback is for).
 - [ ] **4. Control channel and MCP:** Add the socket, permissions, and the
   read-only tools with size limits. Test with a real Claude session and with a
   scripted client, including unauthorized and malformed requests.

@@ -6,6 +6,7 @@ mod input;
 mod keys;
 mod model;
 mod paste;
+mod refresh;
 pub mod run;
 pub mod terminal;
 

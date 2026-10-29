@@ -52,11 +52,27 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
     }
     while let Ok((id, result)) = app.receiver.try_recv() {
         app.needs_redraw = true;
+        app.refresh.history.finish(id, Instant::now());
         if id != app.history_request {
             continue;
         }
-        if result.as_ref().is_ok_and(|rows| !rows.is_empty()) {
-            app.selection.select(Some(0));
+        // A reload keeps the same commit selected, wherever it moved to.
+        let selected_commit = app
+            .history
+            .as_ref()
+            .and_then(|rows| rows.as_ref().ok())
+            .zip(app.selection.selected())
+            .and_then(|(rows, index)| rows.get(index))
+            .and_then(|row| crate::history::commit_id(row))
+            .map(str::to_owned);
+        if let Ok(rows) = &result
+            && !rows.is_empty()
+        {
+            let kept = selected_commit.as_deref().and_then(|wanted| {
+                rows.iter()
+                    .position(|row| crate::history::commit_id(row) == Some(wanted))
+            });
+            app.selection.select(Some(kept.unwrap_or(0)));
         }
         app.history = Some(result);
         if app.searching {
@@ -113,7 +129,11 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
             }
         }
     }
-    if let Some((id, result)) = app.ordinary_diff_worker.take_result()
+    let diff_result = app.ordinary_diff_worker.take_result();
+    if let Some((id, _)) = &diff_result {
+        app.refresh.diff.finish(*id, Instant::now());
+    }
+    if let Some((id, result)) = diff_result
         && let Some((active, value)) = &mut app.diff
         && *active == id
     {
@@ -128,11 +148,35 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
                 app.prepared_diff = None;
             }
         }
-        app.selected_hunk = 0;
-        app.diff_scroll = 0;
+        // A reload for new text puts the reader back where they were; opening a
+        // diff starts at the top.
+        let place = app
+            .diff_refresh
+            .filter(|(refresh_id, ..)| *refresh_id == id);
+        if let Some((_, scroll, hunk)) = place {
+            app.diff_refresh = None;
+            let (lines, hunks) = app
+                .diff
+                .as_ref()
+                .and_then(|(_, shown)| shown.as_ref())
+                .and_then(|shown| shown.as_ref().ok())
+                .map_or((0, 0), |text| {
+                    (
+                        text.lines().count(),
+                        text.lines().filter(|line| line.starts_with("@@ ")).count(),
+                    )
+                });
+            app.diff_scroll =
+                scroll.min(u16::try_from(lines.saturating_sub(1)).unwrap_or(u16::MAX));
+            app.selected_hunk = hunk.min(hunks.saturating_sub(1));
+        } else {
+            app.selected_hunk = 0;
+            app.diff_scroll = 0;
+        }
     }
     while let Ok((id, result)) = app.status_receiver.try_recv() {
         app.needs_redraw = true;
+        app.refresh.status.finish(id, Instant::now());
         let is_mutation = app.status_mutation == Some(id);
         if is_mutation {
             app.mutation_pending = false;
@@ -227,14 +271,27 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
             app.status_selection.select(None);
         }
         app.status = Some(result);
+        super::refresh::retarget_open_diff(app);
     }
     while let Ok((id, result)) = app.branch_receiver.try_recv() {
         app.needs_redraw = true;
+        app.refresh.branches.finish(id, Instant::now());
         if id != app.branch_request {
             continue;
         }
-        if result.as_ref().is_ok_and(|data| !data.branches.is_empty()) {
-            app.branch_selection.select(Some(0));
+        let selected_branch = app
+            .branches
+            .as_ref()
+            .and_then(|data| data.as_ref().ok())
+            .zip(app.branch_selection.selected())
+            .and_then(|(data, index)| data.branches.get(index))
+            .cloned();
+        if let Ok(data) = &result
+            && !data.branches.is_empty()
+        {
+            let kept = selected_branch
+                .and_then(|wanted| data.branches.iter().position(|name| *name == wanted));
+            app.branch_selection.select(Some(kept.unwrap_or(0)));
         } else {
             app.branch_selection.select(None);
         }

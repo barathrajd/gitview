@@ -19,4 +19,5 @@ pub mod repository;
 pub mod tag_page;
 pub mod tags;
 pub mod ui;
+pub mod watch;
 pub mod worktree;
