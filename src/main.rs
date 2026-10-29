@@ -1,7 +1,7 @@
 use crossterm_keybind::KeyBindTrait;
 use gitview::{
     app::{
-        run::{Navigation, run_app},
+        run::{Navigation, run_app_with_agent},
         terminal::{BracketedPasteMode, TerminalHost},
     },
     ui::HELP,
@@ -10,6 +10,22 @@ use std::{env, process::ExitCode};
 
 fn run() -> Result<(), String> {
     let args: Vec<_> = env::args_os().skip(1).collect();
+    // Everything after --run is the agent's command line, so flags such as
+    // --help belong to the agent, not to Gitview.
+    let (args, agent) = match args.iter().position(|arg| arg == "--run") {
+        Some(index) => {
+            let command = args[index + 1..]
+                .iter()
+                .map(|part| part.to_str().map(str::to_owned))
+                .collect::<Option<Vec<_>>>()
+                .ok_or("--run needs a command made of valid UTF-8")?;
+            if command.is_empty() {
+                return Err("--run needs a command, for example: gitview --run claude".into());
+            }
+            (args[..index].to_vec(), Some(command))
+        }
+        None => (args, None),
+    };
     if args.iter().any(|arg| arg == "--shell-integration") {
         print_shell_integration();
         return Ok(());
@@ -28,7 +44,7 @@ fn run() -> Result<(), String> {
     }
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "Usage: gitview [--ascii] [--version]\n       gitview init [directory]\n       gitview clone <repository> [directory]\n       gitview --shell-integration\n\nOpen the current Git repository. Use init or clone to set up a repository.\nUse --ascii for plain terminal borders. Folder-specific Git config profiles are loaded automatically. Run --shell-integration for the optional zsh hook.\n\n{HELP}"
+            "Usage: gitview [--ascii] [--version]\n       gitview [--ascii] --run <command> [args...]\n       gitview init [directory]\n       gitview clone <repository> [directory]\n       gitview --shell-integration\n\nOpen the current Git repository. Use init or clone to set up a repository.\nUse --run to start a program, such as a coding agent, in a pane beside Gitview; Ctrl+\\ moves focus between them. Use --ascii for plain terminal borders. Folder-specific Git config profiles are loaded automatically. Run --shell-integration for the optional zsh hook.\n\n{HELP}"
         );
         return Ok(());
     }
@@ -79,7 +95,7 @@ fn run() -> Result<(), String> {
         }
     };
     let mut host = TerminalHost::new(paste_mode);
-    let result = run_app(
+    let result = run_app_with_agent(
         &mut terminal,
         &mut host,
         &root,
@@ -87,6 +103,7 @@ fn run() -> Result<(), String> {
         profile_label,
         &config_dir,
         &mut profiles,
+        agent,
     );
     let paste_result = host.disable_paste();
     ratatui::restore();

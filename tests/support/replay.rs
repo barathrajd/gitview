@@ -13,7 +13,7 @@ use std::{
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm_keybind::KeyBindTrait;
-use gitview::app::run::{Host, Navigation, run_app};
+use gitview::app::run::{Host, Navigation, run_app_with_agent};
 use ratatui::{Terminal, backend::TestBackend};
 
 pub enum Step {
@@ -26,6 +26,8 @@ pub enum Step {
     WaitFor(&'static str),
     /// Wait until the screen no longer contains the text.
     WaitForGone(&'static str),
+    /// A bracketed paste.
+    Paste(&'static str),
     /// Print the current screen to stderr (visible with `--nocapture`).
     Dump,
 }
@@ -77,6 +79,11 @@ impl Host for ScriptedHost {
                 self.steps.pop_front();
                 return Ok(event);
             }
+            Some(Step::Paste(text)) => {
+                let event = Event::Paste((*text).to_owned());
+                self.steps.pop_front();
+                return Ok(event);
+            }
             Some(Step::Text(_)) => unreachable!("text steps are expanded into chars"),
             Some(Step::Dump) => {
                 eprintln!("{screen}");
@@ -123,6 +130,18 @@ pub fn replay_sized(
     height: u16,
     steps: impl IntoIterator<Item = Step>,
 ) -> String {
+    replay_with_agent(root, None, width, height, steps)
+}
+
+/// Like `replay_sized`, with an agent pane running `agent` (a command and its
+/// arguments) beside Gitview.
+pub fn replay_with_agent(
+    root: &Path,
+    agent: Option<&[&str]>,
+    width: u16,
+    height: u16,
+    steps: impl IntoIterator<Item = Step>,
+) -> String {
     // Defaults only, never the user's keybinding file. A second call reports
     // "already initialized", which is fine.
     let _ = Navigation::init_and_load(None::<()>);
@@ -140,7 +159,7 @@ pub fn replay_sized(
         last_screen: String::new(),
     };
     let mut profiles = Vec::new();
-    run_app(
+    run_app_with_agent(
         &mut terminal,
         &mut host,
         root,
@@ -148,6 +167,7 @@ pub fn replay_sized(
         "Primary".to_owned(),
         root,
         &mut profiles,
+        agent.map(|command| command.iter().map(|part| part.to_string()).collect()),
     )
     .unwrap();
     assert!(host.steps.is_empty(), "script did not finish");

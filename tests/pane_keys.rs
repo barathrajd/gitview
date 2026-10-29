@@ -6,7 +6,7 @@ use std::{
 };
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
-use gitview::pane::{AgentPane, encode_key, encode_paste};
+use gitview::pane::{AgentPane, FOCUS_KEY_LABEL, encode_key, encode_paste, is_focus_key};
 
 fn key(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
     KeyEvent::new(code, modifiers)
@@ -238,4 +238,19 @@ fn a_program_in_a_terminal_receives_exactly_these_bytes() {
     }
 
     wait_for(&mut pane, "^[[A^C^[b^[[3~");
+}
+
+#[test]
+fn the_focus_key_is_ctrl_backslash_in_both_of_its_forms() {
+    assert_eq!(FOCUS_KEY_LABEL, "Ctrl+\\");
+    assert!(is_focus_key(&key(KeyCode::Char('\\'), CTRL)));
+    assert!(is_focus_key(&key(KeyCode::Char('4'), CTRL)));
+    assert!(!is_focus_key(&key(KeyCode::Char('\\'), NONE)));
+    assert!(!is_focus_key(&key(KeyCode::Char('5'), CTRL)));
+    assert!(!is_focus_key(&key(KeyCode::Char('c'), CTRL)));
+    let release = KeyEvent {
+        kind: KeyEventKind::Release,
+        ..key(KeyCode::Char('\\'), CTRL)
+    };
+    assert!(!is_focus_key(&release));
 }

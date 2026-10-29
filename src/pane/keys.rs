@@ -2,6 +2,9 @@
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
+/// What the focus key is called in the interface.
+pub const FOCUS_KEY_LABEL: &str = "Ctrl+\\";
+
 const ESCAPE: u8 = 0x1b;
 /// Codes for F5 to F12 in `CSI code ~` form; F1 to F4 use `SS3 P` to `SS3 S`.
 const FUNCTION_CODES: [u8; 8] = [15, 17, 18, 19, 20, 21, 23, 24];
@@ -114,4 +117,13 @@ pub fn encode_paste(text: &str, bracketed: bool) -> Vec<u8> {
     } else {
         text.replace("\r\n", "\r").replace('\n', "\r").into_bytes()
     }
+}
+
+/// Whether `key` is the key that moves focus between Gitview and the agent:
+/// Ctrl+\\, which agents don't use. Terminals without the kitty keyboard
+/// protocol send byte 0x1c, which crossterm reports as Ctrl+4.
+pub fn is_focus_key(key: &KeyEvent) -> bool {
+    key.kind == KeyEventKind::Press
+        && key.modifiers.contains(KeyModifiers::CONTROL)
+        && matches!(key.code, KeyCode::Char('\\' | '4'))
 }

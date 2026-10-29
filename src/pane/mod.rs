@@ -1,6 +1,6 @@
 mod keys;
 
-pub use keys::{encode_key, encode_paste};
+pub use keys::{FOCUS_KEY_LABEL, encode_key, encode_paste, is_focus_key};
 
 use std::collections::BTreeMap;
 use std::fmt;

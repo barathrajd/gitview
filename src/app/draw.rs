@@ -1,7 +1,10 @@
 use std::io;
 
+use ratatui::layout::Rect;
+
 use super::{
     helpers::*,
+    input::Focus,
     model::App,
     run::{Env, Flow, Host},
 };
@@ -18,6 +21,21 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
         ..
     } = env;
     if app.needs_redraw {
+        // Where the agent pane goes, and the size its program should believe.
+        let size = terminal.size().map_err(backend_error)?;
+        let total = Rect::new(0, 0, size.width, size.height);
+        let side_width = app.pane.as_ref().map(|_| total.width / 2);
+        let (main, side) = ui::split_side_pane(total, side_width);
+        app.pane_visible = side.is_some();
+        if !app.pane_visible && app.focus == Focus::Agent {
+            app.focus = Focus::Gitview;
+        }
+        if let (Some(area), Some(pane)) = (side, app.pane.as_mut()) {
+            let inner = ui::agent_pane_inner(area);
+            if pane.size() != (inner.height, inner.width) {
+                pane.resize(inner.height, inner.width);
+            }
+        }
         terminal
             .draw(|frame| {
                 let workspace_feedback = if app.app_state.view() == View::History {
@@ -223,12 +241,14 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                         working_tree_selection: &mut app.status_selection,
                     })
                 };
-                // Gitview gets the whole frame until a side pane asks for room.
-                let (main, _side) = ui::split_side_pane(frame.area(), app.side_pane_width);
                 let mut viewport = ui::Viewport::new(frame, main);
                 ui::render_in(&mut viewport, screen, app.border);
                 if app.help {
                     ui::render_help_overlay_in(&mut viewport, help_page, app.border);
+                }
+                if let (Some(area), Some(pane)) = (side, app.pane.as_ref()) {
+                    let focused = app.focus == Focus::Agent;
+                    ui::render_agent_pane(&mut ui::Viewport::new(frame, area), area, pane, focused);
                 }
             })
             .map_err(backend_error)?;

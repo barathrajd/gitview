@@ -6,7 +6,9 @@ use ratatui::{
     widgets::{Block, Borders, Widget},
 };
 
-use crate::pane::{AgentPane, PaneState};
+use unicode_width::UnicodeWidthStr;
+
+use crate::pane::{AgentPane, FOCUS_KEY_LABEL, PaneState};
 
 use super::{
     theme::{ACCENT, MUTED},
@@ -74,6 +76,39 @@ fn title(pane: &AgentPane) -> String {
     format!(" AGENT · {} · {status} ", pane.command())
 }
 
+/// The reminder of the focus key, as long as fits beside the title: the status
+/// matters more than the hint, so the hint shrinks, then disappears.
+fn focus_hint(title: &str, width: u16, focused: bool) -> String {
+    let room = usize::from(width.saturating_sub(2));
+    let action = if focused {
+        "returns to Gitview"
+    } else {
+        "focuses the agent"
+    };
+    [
+        format!(" {FOCUS_KEY_LABEL} {action} "),
+        format!(" {FOCUS_KEY_LABEL} "),
+    ]
+    .into_iter()
+    .find(|hint| title.width() + hint.width() <= room)
+    .unwrap_or_default()
+}
+
+fn frame_block(title: String, hint: String, color: Color) -> Block<'static> {
+    let style = Style::default().fg(color);
+    Block::default()
+        .borders(Borders::ALL)
+        .border_style(style)
+        .title(Line::from(title).style(style))
+        .title(Line::from(hint).right_aligned().style(style))
+}
+
+/// The part of `area` where the program's screen is drawn, inside the border.
+/// The program should be told this size.
+pub fn agent_pane_inner(area: Rect) -> Rect {
+    frame_block(String::new(), String::new(), Color::Reset).inner(area)
+}
+
 /// Draws `pane` in `area` with a border, and puts the terminal cursor where the
 /// program's cursor is when `focused`.
 pub fn render_agent_pane(
@@ -83,10 +118,9 @@ pub fn render_agent_pane(
     focused: bool,
 ) {
     let border_color = if focused { ACCENT } else { MUTED };
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(border_color))
-        .title(Line::from(title(pane)).style(Style::default().fg(border_color)));
+    let title = title(pane);
+    let hint = focus_hint(&title, area.width, focused);
+    let block = frame_block(title, hint, border_color);
     let inner = block.inner(area);
     viewport.render_widget(block, area);
     viewport.render_widget(PaneScreen(pane.screen()), inner);

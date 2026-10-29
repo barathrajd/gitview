@@ -179,3 +179,35 @@ fn nothing_is_drawn_outside_the_given_area() {
         }
     }
 }
+
+fn top_row(pane: &AgentPane, width: u16) -> String {
+    let mut terminal = Terminal::new(TestBackend::new(width, 6)).unwrap();
+    terminal
+        .draw(|frame| {
+            let area = Rect::new(0, 0, width, 6);
+            render_agent_pane(&mut Viewport::new(frame, area), area, pane, false);
+        })
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    (0..width)
+        .map(|x| buffer[(x, 0)].symbol().to_owned())
+        .collect()
+}
+
+#[test]
+fn the_focus_hint_gives_way_to_the_status_as_the_pane_narrows() {
+    let pane = pane_showing("printf 'hello'; sleep 5", "hello");
+
+    let wide = top_row(&pane, 70);
+    assert!(wide.contains("running"), "{wide}");
+    assert!(wide.contains("Ctrl+\\ focuses the agent"), "{wide}");
+
+    let medium = top_row(&pane, 36);
+    assert!(medium.contains("running"), "{medium}");
+    assert!(medium.contains("Ctrl+\\"), "{medium}");
+    assert!(!medium.contains("focuses"), "{medium}");
+
+    let narrow = top_row(&pane, 31);
+    assert!(narrow.contains("running"), "{narrow}");
+    assert!(!narrow.contains("Ctrl"), "{narrow}");
+}
