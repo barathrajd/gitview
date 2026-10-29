@@ -9,7 +9,7 @@ use std::{
 
 use ratatui::widgets::ListState;
 
-use super::run::CommitReadResult;
+use super::helpers::CommitReadResult;
 use crate::{
     app::{AppState, BranchAction},
     read_worker::LatestRead,

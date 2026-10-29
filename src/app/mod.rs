@@ -1,3 +1,4 @@
+mod helpers;
 mod model;
 pub mod run;
 pub mod terminal;
