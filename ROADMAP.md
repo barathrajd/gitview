@@ -16,10 +16,11 @@
 
 - Linux x86_64 release — deferred from 0.6.0: native checks, performance
   evidence, archive with checksum, and installer selection on a Linux runner.
-- [Agent workspace](plans/agent-workspace.md) — milestones 1 and 2 are done:
+- [Agent workspace](plans/agent-workspace.md) — milestones 1 to 3 are done:
   `gitview --claude`, `--codex`, or `--run <command>` shows a program in a pane
-  with a focus key, full screen on narrow terminals. Next is refreshing the Git
-  views when the agent changes files. Run Claude Code or Codex in a pane inside
+  with a focus key, full screen on narrow terminals, and the Git views refresh
+  by themselves as the agent works. Next is the control channel that lets the
+  agent read Gitview's state. Run Claude Code or Codex in a pane inside
   Gitview, let the agent read and steer Gitview state through a
   local control channel, then add per-session worktrees.
 - macOS desktop app — design the first desktop client after TUI completion.

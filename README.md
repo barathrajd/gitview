@@ -133,6 +133,16 @@ On a terminal 119 columns or wider, the agent sits to the right of Gitview. On a
 narrower one, Gitview and the agent take turns filling the screen, and a bar at
 the bottom shows the agent's status and the focus key while Gitview is in front.
 
+Gitview refreshes by itself when the repository changes, so you can watch an
+agent work. Edits to working files, staging, commits, and branch switches appear
+in the working tree, history, and branch name within about a second, without a
+key press. An open working-tree diff reloads in place and keeps your scroll
+position, and a history or branch selection stays on the same commit or branch.
+Gitview watches the repository with the operating system's file notifications,
+so an idle Gitview runs no Git commands. If your file system doesn't support
+them, for example a network drive, Gitview falls back to checking the working
+tree every second or so; set `GITVIEW_NO_WATCH=1` to choose that.
+
 ## Controls
 
 - **Up/Down** or **j/k** navigate lists and scroll diffs. **Enter** or **l**
@@ -319,8 +329,7 @@ The agent pane is a first version, checked on macOS with `claude` and `codex`.
 It doesn't forward mouse input, and it doesn't answer the questions programs ask
 their terminal, such as the cursor position or the theme colors; the programs
 start without the answers. Shift+Enter is sent as Alt+Enter, which agents read
-as a new line. Gitview doesn't yet watch for files the agent changes beyond its
-usual status refresh.
+as a new line.
 
 History is limited to 200 commits. Diffs are limited to 1 MB or 5,000 lines and
 indicate truncation; binary changes show Git's binary notice. IDE diffs show
