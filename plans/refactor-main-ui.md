@@ -77,9 +77,14 @@ move with an edit.
   `tests/app_replay.rs` has the scripted one. One difference: the profile
   editor now goes through `run_external`, so it also pauses the input reader and
   clears the screen on return, as the commit editor already did.
-- [ ] **2. Characterize history, search, diff, help:** Key-sequence tests for
+- [x] **2. Characterize history, search, diff, help:** Key-sequence tests for
   selection, search, filter by path, diff view modes, hunk navigation, and the
   help pages.
+  *Done:* 15 tests in `tests/app_replay.rs` on a shared harness
+  (`tests/support/replay.rs`). Hunk keys exist only on working-tree diffs, so
+  they are tested there. The harness loads default keybindings, never the
+  user's file. Mutation checks (breaking `v`, `Esc` in help, and `]`) each fail
+  at least one test.
 - [ ] **3. Characterize the rest:** Worktree stage and unstage, branches,
   tags, object and comparison pages, commit, and profiles, plus a narrow
   terminal case.
