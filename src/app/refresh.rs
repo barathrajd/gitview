@@ -9,7 +9,10 @@
 //! newer one.
 
 use std::{
-    sync::mpsc::{self, Receiver, SyncSender, TryRecvError},
+    sync::{
+        Arc, Mutex,
+        mpsc::{self, Receiver, SyncSender, TryRecvError},
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -27,11 +30,38 @@ use crate::{
 /// The least time a view waits between two reloads.
 const MIN_GAP: Duration = Duration::from_millis(150);
 
+/// When a reload's work actually ended, written by the thread that did it. The
+/// loop reads results later, sometimes much later if it was busy, so reading the
+/// clock when a result is picked up would overstate how long Git took.
+#[derive(Clone, Default)]
+pub(super) struct Completion(Arc<Mutex<Option<Instant>>>);
+
+impl Completion {
+    /// Records that the work has just ended.
+    pub(super) fn mark(&self) {
+        self.mark_at(Instant::now());
+    }
+
+    fn mark_at(&self, at: Instant) {
+        *self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(at);
+    }
+
+    fn at(&self) -> Option<Instant> {
+        *self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}
+
 /// One view's reload bookkeeping.
 #[derive(Default)]
 pub(super) struct Slot {
     wanted: bool,
-    in_flight: Option<(u64, Instant)>,
+    in_flight: Option<(u64, Instant, Completion)>,
     not_before: Option<Instant>,
 }
 
@@ -46,19 +76,26 @@ impl Slot {
             && self.not_before.is_none_or(|earliest| now >= earliest)
     }
 
-    fn start(&mut self, id: u64, now: Instant) {
+    /// Starts a reload; the thread doing the work marks the returned handle when
+    /// it ends.
+    fn start(&mut self, id: u64, now: Instant) -> Completion {
+        let completion = Completion::default();
         self.wanted = false;
-        self.in_flight = Some((id, now));
+        self.in_flight = Some((id, now, completion.clone()));
+        completion
     }
 
     /// Records that a result with request `id` arrived. A result for a newer
     /// request than ours also ends ours: it was superseded and won't be answered.
+    /// The wait before the next reload counts from when the work ended, not from
+    /// when the loop got round to reading the result.
     pub(super) fn finish(&mut self, id: u64, now: Instant) {
-        if let Some((started_id, started)) = self.in_flight
-            && id >= started_id
+        if let Some((started_id, started, completion)) = &self.in_flight
+            && id >= *started_id
         {
+            let ended = completion.at().unwrap_or(now).max(*started);
+            self.not_before = Some(ended + MIN_GAP.max(ended.duration_since(*started)));
             self.in_flight = None;
-            self.not_before = Some(now + MIN_GAP.max(now.duration_since(started)));
         }
     }
 
@@ -210,37 +247,40 @@ fn start_wanted(app: &mut App, root: &std::path::Path) {
     if due.status {
         app.status_request += 1;
         let id = app.status_request;
-        app.refresh.status.start(id, now);
+        let completion = app.refresh.status.start(id, now);
         let sender = app.status_sender.clone();
         let path = root.to_path_buf();
         thread::spawn(move || {
-            let _ = sender.send((id, crate::worktree::load_status(&path)));
+            let result = crate::worktree::load_status(&path);
+            completion.mark();
+            let _ = sender.send((id, result));
         });
     }
 
     if due.history {
         app.history_request += 1;
         let id = app.history_request;
-        app.refresh.history.start(id, now);
+        let completion = app.refresh.history.start(id, now);
         let sender = app.history_sender.clone();
         let path = root.to_path_buf();
         let filter = app.history_filter.clone();
         thread::spawn(move || {
-            let _ = sender.send((
-                id,
-                crate::history::load_history_for_path(&path, filter.as_deref()),
-            ));
+            let result = crate::history::load_history_for_path(&path, filter.as_deref());
+            completion.mark();
+            let _ = sender.send((id, result));
         });
     }
 
     if due.branches {
         app.branch_request += 1;
         let id = app.branch_request;
-        app.refresh.branches.start(id, now);
+        let completion = app.refresh.branches.start(id, now);
         let sender = app.branch_sender.clone();
         let path = root.to_path_buf();
         thread::spawn(move || {
-            let _ = sender.send((id, crate::branches::load_branches(&path)));
+            let result = crate::branches::load_branches(&path);
+            completion.mark();
+            let _ = sender.send((id, result));
         });
     }
 
@@ -259,7 +299,9 @@ fn reload_open_diff(app: &mut App, now: Instant) {
     };
     app.request_id += 1;
     let id = app.request_id;
-    app.refresh.diff.start(id, now);
+    // The diff worker reports no completion time, so its wait counts from when
+    // its result is read.
+    let _ = app.refresh.diff.start(id, now);
     app.diff_refresh = Some((id, app.diff_scroll, app.selected_hunk));
     app.diff = Some((id, shown));
     app.ordinary_diff_worker.request(Request {
@@ -345,6 +387,43 @@ mod tests {
             "half the run time is too soon"
         );
         assert!(!slot.ready(later(t0, 1000 + 999)));
+        assert!(slot.ready(later(t0, 1000 + 1000)));
+    }
+
+    #[test]
+    fn the_wait_counts_from_when_the_work_ended_not_from_when_it_was_read() {
+        // The loop was busy (or, in a test, frozen) for three seconds before it
+        // read a result whose work took 20 ms. That must not cost three seconds.
+        let t0 = Instant::now();
+        let mut slot = Slot::default();
+        slot.want();
+        let completion = slot.start(1, t0);
+        completion.mark_at(later(t0, 20));
+
+        slot.finish(1, later(t0, 3000));
+        slot.want();
+
+        assert!(slot.ready(later(t0, 3000)), "the work ended long ago");
+        assert!(
+            slot.not_before
+                .is_some_and(|earliest| earliest <= later(t0, 20 + 150)),
+            "{:?}",
+            slot.not_before
+        );
+    }
+
+    #[test]
+    fn a_reload_that_really_took_long_still_makes_the_view_wait() {
+        let t0 = Instant::now();
+        let mut slot = Slot::default();
+        slot.want();
+        let completion = slot.start(1, t0);
+        completion.mark_at(later(t0, 1000));
+
+        slot.finish(1, later(t0, 1010));
+        slot.want();
+
+        assert!(!slot.ready(later(t0, 1010 + 500)));
         assert!(slot.ready(later(t0, 1000 + 1000)));
     }
 

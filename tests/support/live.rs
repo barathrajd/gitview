@@ -57,6 +57,10 @@ impl Session {
     }
 
     /// Like `start_with`, with extra environment variables for Gitview.
+    // `libc::openpty` takes `*mut winsize` on macOS but `*const` on Linux, where
+    // Clippy would call the `&mut` unnecessary. The other live tests allow the
+    // same lint for the same reason.
+    #[allow(clippy::unnecessary_mut_passed)]
     pub fn start_full(
         args: &[&str],
         path: Option<&std::ffi::OsStr>,
