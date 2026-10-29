@@ -6,24 +6,56 @@ use std::{
 
 use crate::{
     app::{AppAction, AppState, BranchAction, View},
-    ui::{self, ASCII_BORDER, Screen},
+    ui::{self, ASCII_BORDER},
 };
 use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers};
 use ratatui::{Terminal, backend::Backend, widgets::ListState};
 
 pub use super::helpers::Navigation;
 use super::{
+    drain, draw,
     helpers::{
-        CommitReadResult, backend_error, combined_commit_message, commit_after_editor,
-        edit_profile_registry, hunk_line_positions, navigation_key, normalize_commit_paste,
-        reload_profile_context, selected_search_commit, split_commit_message,
-        update_search_results,
+        CommitReadResult, combined_commit_message, commit_after_editor, edit_profile_registry,
+        hunk_line_positions, navigation_key, reload_profile_context, selected_search_commit,
+        split_commit_message, update_search_results,
     },
     model::App,
+    paste,
 };
 
 /// What `run_app` needs from the terminal it runs in. The real terminal and the
 /// in-memory test backend each provide one.
+/// What a piece of the event loop decided about the current event.
+pub(super) enum Flow {
+    /// Not handled here; try the next handler.
+    Next,
+    /// Handled; wait for the next event.
+    Handled,
+    /// The user quit.
+    Quit,
+}
+
+/// The terminal and paths the loop uses besides `App`.
+pub(super) struct Env<'a, H: Host> {
+    pub(super) terminal: &'a mut Terminal<H::Backend>,
+    pub(super) host: &'a mut H,
+    pub(super) root: &'a std::path::Path,
+    pub(super) config_dir: &'a std::path::Path,
+    pub(super) profiles: &'a mut Vec<crate::config::FolderProfile>,
+}
+
+/// Runs a handler and acts on its `Flow`: fall through, skip to the next event,
+/// or return from the loop.
+macro_rules! step {
+    ($handler:expr) => {
+        match $handler? {
+            Flow::Next => {}
+            Flow::Handled => continue,
+            Flow::Quit => return Ok(()),
+        }
+    };
+}
+
 pub trait Host {
     type Backend: Backend;
 
@@ -48,7 +80,7 @@ pub fn run_app<H: Host>(
     host: &mut H,
     root: &std::path::Path,
     ascii: bool,
-    mut profile_label: String,
+    profile_label: String,
     config_dir: &std::path::Path,
     profiles: &mut Vec<crate::config::FolderProfile>,
 ) -> io::Result<()> {
@@ -292,786 +324,30 @@ pub fn run_app<H: Host>(
         status_request,
         status_selection,
         needs_redraw: true,
+        profile_label,
     };
+    // Borrows the terminal and paths for one handler call.
+    macro_rules! make_env {
+        () => {
+            Env {
+                terminal: &mut *terminal,
+                host: &mut *host,
+                root,
+                config_dir,
+                profiles: &mut *profiles,
+            }
+        };
+    }
     loop {
-        if let Some(page) = &mut app.object_page {
-            app.needs_redraw |= page.tick();
-        }
-        if let Some(page) = &mut app.comparison_page {
-            app.needs_redraw |= page.tick();
-        }
-        if let Some(page) = &mut app.tag_page {
-            app.needs_redraw |= page.tick();
-        }
-        while let Ok(entries) = app.status_watch_receiver.try_recv() {
-            app.needs_redraw = true;
-            if app.mutation_pending {
-                continue;
-            }
-            let unchanged = app
-                .status
-                .as_ref()
-                .and_then(|current| current.as_ref().ok())
-                .is_some_and(|current| current == &entries);
-            if unchanged {
-                continue;
-            }
-            let selected_entry = app
-                .status
-                .as_ref()
-                .and_then(|current| current.as_ref().ok())
-                .and_then(|current| app.status_selection.selected().and_then(|i| current.get(i)))
-                .cloned();
-            let selected = selected_entry
-                .and_then(|selected| entries.iter().position(|entry| entry == &selected))
-                .or_else(|| {
-                    (!entries.is_empty()).then(|| {
-                        app.status_selection
-                            .selected()
-                            .unwrap_or(0)
-                            .min(entries.len() - 1)
-                    })
-                });
-            app.status_selection.select(selected);
-            app.status = Some(Ok(entries));
-        }
-        while let Ok((id, result)) = app.receiver.try_recv() {
-            app.needs_redraw = true;
-            if id != app.history_request {
-                continue;
-            }
-            if result.as_ref().is_ok_and(|rows| !rows.is_empty()) {
-                app.selection.select(Some(0));
-            }
-            app.history = Some(result);
-            if app.searching {
-                app.search_debounce = Some(Instant::now());
-            }
-        }
-        if app.searching
-            && app
-                .search_debounce
-                .is_some_and(|deadline| Instant::now() >= deadline)
-        {
-            update_search_results(
-                app.history.as_ref(),
-                &app.query,
-                &mut app.search_results,
-                &mut app.search_selection,
-            );
-            app.search_debounce = None;
-            app.needs_redraw = true;
-        }
-        while let Ok((id, result)) = app.details_receiver.try_recv() {
-            app.needs_redraw = true;
-            if let Some((active, value)) = &mut app.details
-                && *active == id
-            {
-                if result.as_ref().is_ok_and(|commit| !commit.files.is_empty()) {
-                    app.file_selection.select(Some(0));
-                }
-                *value = Some(result);
-            }
-        }
-        while let Ok((id, result)) = app.diff_receiver.try_recv() {
-            app.needs_redraw = true;
-            if let Some((active, value)) = &mut app.diff
-                && *active == id
-            {
-                app.prepared_diff = None;
-                match result {
-                    Ok(text) => {
-                        *value = None;
-                        app.ordinary_diff_worker
-                            .request(crate::diff_loader::Request {
-                                id,
-                                source: crate::diff_loader::Source::Loaded {
-                                    text,
-                                    path: app
-                                        .diff_entry
-                                        .as_ref()
-                                        .map(|entry| entry.path.clone().into()),
-                                },
-                            });
-                    }
-                    Err(error) => *value = Some(Err(error)),
-                }
-            }
-        }
-        if let Some((id, result)) = app.ordinary_diff_worker.take_result()
-            && let Some((active, value)) = &mut app.diff
-            && *active == id
-        {
-            app.needs_redraw = true;
-            match result {
-                Ok(prepared) => {
-                    *value = Some(Ok(prepared.text().to_owned()));
-                    app.prepared_diff = Some(prepared);
-                }
-                Err(error) => {
-                    *value = Some(Err(error));
-                    app.prepared_diff = None;
-                }
-            }
-            app.selected_hunk = 0;
-            app.diff_scroll = 0;
-        }
-        while let Ok((id, result)) = app.status_receiver.try_recv() {
-            app.needs_redraw = true;
-            let is_mutation = app.status_mutation == Some(id);
-            if is_mutation {
-                app.mutation_pending = false;
-                app.status_mutation = None;
-                if let (Some(entry), Some((preferred, fallback)), Ok(entries)) =
-                    (&app.diff_entry, app.diff_entry_refresh, &result)
-                {
-                    app.diff_entry = entries
-                        .iter()
-                        .find(|current| {
-                            current.section == preferred
-                                && current.path == entry.path
-                                && current.original == entry.original
-                        })
-                        .or_else(|| {
-                            entries.iter().find(|current| {
-                                current.section == fallback
-                                    && current.path == entry.path
-                                    && current.original == entry.original
-                            })
-                        })
-                        .cloned();
-                }
-                app.diff_entry_refresh = None;
-            }
-            if id != app.status_request {
-                continue;
-            }
-            // Keep the last known-good list visible if a Git mutation fails.
-            if is_mutation && result.is_err() {
-                continue;
-            }
-            if let Ok(entries) = &result {
-                let previous_entry = app
-                    .status
-                    .as_ref()
-                    .and_then(|current| current.as_ref().ok())
-                    .and_then(|current| {
-                        app.status_selection
-                            .selected()
-                            .and_then(|index| current.get(index))
-                    });
-                let prefer_staged = previous_entry
-                    .is_some_and(|previous| previous.section == crate::worktree::Section::Staged);
-                let preferred_index = entries
-                    .iter()
-                    .position(|entry| {
-                        let in_preferred_section = if prefer_staged {
-                            entry.section == crate::worktree::Section::Staged
-                        } else {
-                            entry.section != crate::worktree::Section::Staged
-                        };
-                        in_preferred_section
-                            && previous_entry.is_some_and(|previous| {
-                                entry.path == previous.path && entry.original == previous.original
-                            })
-                    })
-                    .or_else(|| {
-                        entries.iter().position(|entry| {
-                            if prefer_staged {
-                                entry.section == crate::worktree::Section::Staged
-                            } else {
-                                entry.section != crate::worktree::Section::Staged
-                            }
-                        })
-                    });
-                let fallback_index = entries.iter().position(|entry| {
-                    if prefer_staged {
-                        entry.section != crate::worktree::Section::Staged
-                    } else {
-                        entry.section == crate::worktree::Section::Staged
-                    }
-                });
-                let same_entry = previous_entry.and_then(|previous| {
-                    entries.iter().position(|entry| {
-                        entry.section == previous.section
-                            && entry.path == previous.path
-                            && entry.original == previous.original
-                    })
-                });
-                app.status_selection.select(if entries.is_empty() {
-                    None
-                } else if is_mutation {
-                    preferred_index
-                        .or(fallback_index)
-                        .or(same_entry)
-                        .or(Some(0))
-                } else {
-                    same_entry.or(Some(0))
-                });
-            } else {
-                app.status_selection.select(None);
-            }
-            app.status = Some(result);
-        }
-        while let Ok((id, result)) = app.branch_receiver.try_recv() {
-            app.needs_redraw = true;
-            if id != app.branch_request {
-                continue;
-            }
-            if result.as_ref().is_ok_and(|data| !data.branches.is_empty()) {
-                app.branch_selection.select(Some(0));
-            } else {
-                app.branch_selection.select(None);
-            }
-            app.branches = Some(result);
-        }
-        while let Ok((success_message, result)) = app.operation_receiver.try_recv() {
-            app.needs_redraw = true;
-            app.mutation_pending = false;
-            app.branch_feedback = match result {
-                Ok(()) => success_message,
-                Err(error) => {
-                    format!("{error} (branch state refreshed; a hook may have changed HEAD)")
-                }
-            };
-            app.branch_confirm = None;
-            app.request_id += 1;
-            app.details = None;
-            app.diff = None;
-            app.prepared_diff = None;
-            app.ordinary_diff_worker.cancel();
-            app.history_request += 1;
-            app.history = None;
-            let id = app.history_request;
-            let sender = app.history_sender.clone();
-            let path = root.to_path_buf();
-            let requested_history_path = app.history_filter.clone();
-            std::thread::spawn(move || {
-                let _ = sender.send((
-                    id,
-                    crate::history::load_history_for_path(&path, requested_history_path.as_deref()),
-                ));
-            });
-            app.status_request += 1;
-            app.status = None;
-            let id = app.status_request;
-            let sender = app.status_sender.clone();
-            let path = root.to_path_buf();
-            std::thread::spawn(move || {
-                let _ = sender.send((id, crate::worktree::load_status(&path)));
-            });
-            app.branch_request += 1;
-            app.branches = None;
-            let id = app.branch_request;
-            let sender = app.branch_sender.clone();
-            let path = root.to_path_buf();
-            std::thread::spawn(move || {
-                let _ = sender.send((id, crate::branches::load_branches(&path)));
-            });
-        }
-        while let Ok((message, description, was_amend, result)) = app.commit_receiver.try_recv() {
-            app.needs_redraw = true;
-            app.mutation_pending = false;
-            app.amend_confirm = false;
-            match result {
-                Ok(()) => {
-                    app.commit_message = None;
-                    app.commit_description.clear();
-                    app.commit_description_focused = false;
-                    app.commit_expected = None;
-                    app.amend_expected = None;
-                    app.commit_amend = false;
-                    app.commit_feedback = if was_amend {
-                        "Commit amended; HEAD now has a new ID.".into()
-                    } else {
-                        "Commit created.".into()
-                    };
-                    app.history_request += 1;
-                    app.history = None;
-                    let id = app.history_request;
-                    let sender = app.history_sender.clone();
-                    let path = root.to_path_buf();
-                    let requested_history_path = app.history_filter.clone();
-                    std::thread::spawn(move || {
-                        let _ = sender.send((
-                            id,
-                            crate::history::load_history_for_path(
-                                &path,
-                                requested_history_path.as_deref(),
-                            ),
-                        ));
-                    });
-                    app.status_request += 1;
-                    app.status = None;
-                    app.status_mutation = Some(app.status_request);
-                    let id = app.status_request;
-                    let sender = app.status_sender.clone();
-                    let path = root.to_path_buf();
-                    std::thread::spawn(move || {
-                        let result = crate::worktree::load_status(&path);
-                        let _ = sender.send((id, result));
-                    });
-                }
-                Err(error) => {
-                    app.commit_feedback = error;
-                    app.commit_message = Some(message);
-                    app.commit_description = description;
-                    app.commit_amend = was_amend;
-                    app.amend_expected = None;
-                    app.commit_expected = None;
-                    app.commit_preview_retry = true;
-                    app.commit_preview_mode = Some(was_amend);
-                    app.commit_preview_worker.request(was_amend);
-                }
-            }
-        }
-        while let Ok(result) = app.discard_receiver.try_recv() {
-            app.needs_redraw = true;
-            app.mutation_pending = false;
-            app.discard_confirm = None;
-            app.commit_feedback = match result {
-                Ok(()) => "Selected file discarded.".into(),
-                Err(error) => error,
-            };
-            app.status_request += 1;
-            let id = app.status_request;
-            app.status_mutation = Some(id);
-            let sender = app.status_sender.clone();
-            let path = root.to_path_buf();
-            app.status = None;
-            std::thread::spawn(move || {
-                let _ = sender.send((id, crate::worktree::load_status(&path)));
-            });
-        }
-        while let Ok(result) = app.untrack_receiver.try_recv() {
-            app.needs_redraw = true;
-            app.mutation_pending = false;
-            app.untrack_confirm = None;
-            app.commit_feedback = match result {
-                Ok(()) => "Stopped tracking the selected file; kept its working copy.".into(),
-                Err(error) => error,
-            };
-            app.status_request += 1;
-            let id = app.status_request;
-            app.status_mutation = Some(id);
-            let sender = app.status_sender.clone();
-            let path = root.to_path_buf();
-            app.status = None;
-            std::thread::spawn(move || {
-                let _ = sender.send((id, crate::worktree::load_status(&path)));
-            });
-        }
-        while let Ok(result) = app.remove_receiver.try_recv() {
-            app.needs_redraw = true;
-            app.mutation_pending = false;
-            app.remove_confirm = None;
-            app.commit_feedback = match result {
-                Ok(()) => "Removed the tracked path and staged its deletion.".into(),
-                Err(error) => error,
-            };
-            app.status_request += 1;
-            let id = app.status_request;
-            app.status_mutation = Some(id);
-            let sender = app.status_sender.clone();
-            let path = root.to_path_buf();
-            app.status = None;
-            std::thread::spawn(move || {
-                let _ = sender.send((id, crate::worktree::load_status(&path)));
-            });
-        }
-        while let Ok(result) = app.move_receiver.try_recv() {
-            app.needs_redraw = true;
-            app.mutation_pending = false;
-            app.move_confirm = None;
-            app.move_path_input = false;
-            app.commit_feedback = match result {
-                Ok(()) => "Moved the tracked path and staged its rename.".into(),
-                Err(error) => error,
-            };
-            app.status_request += 1;
-            let id = app.status_request;
-            app.status_mutation = Some(id);
-            let sender = app.status_sender.clone();
-            let path = root.to_path_buf();
-            app.status = None;
-            std::thread::spawn(move || {
-                let _ = sender.send((id, crate::worktree::load_status(&path)));
-            });
-        }
-        if let Some(result) = app.preview_worker.take_result()
-            && let Some(context) = app.pending_preview.take()
-        {
-            app.needs_redraw = true;
-            use crate::preview::{Context, Value};
-            match result {
-                Ok(Value::Discard(preview)) => app.discard_confirm = Some(preview),
-                Ok(Value::Untrack(preview)) => app.untrack_confirm = Some(preview),
-                Ok(Value::Remove(preview)) => {
-                    app.remove_path_input = None;
-                    app.remove_confirm = Some(preview);
-                }
-                Ok(Value::Move(preview)) => {
-                    app.move_path_input = false;
-                    app.move_confirm = Some(preview);
-                }
-                Ok(Value::Previous(preview)) => {
-                    app.branch_confirm = Some(BranchAction::Previous(preview))
-                }
-                Ok(Value::Branch(preview)) => {
-                    if matches!(context, Context::BranchRename) {
-                        app.branch_rename = Some(preview);
-                        app.branch_input = Some(String::new());
-                    } else {
-                        app.branch_confirm = Some(BranchAction::Delete(preview));
-                    }
-                }
-                Ok(Value::Ignore(rule)) => {
-                    if matches!(context, Context::IgnorePath) {
-                        app.ignore_path_input = None;
-                    }
-                    app.commit_feedback = match rule {
-                        Some(rule) => format!(
-                            "Ignored by {}:{} ({:?}).",
-                            rule.source, rule.line, rule.pattern
-                        ),
-                        None => "No ignore rule matches the selected path.".into(),
-                    };
-                }
-                Err(error) => {
-                    if context.is_branch() {
-                        app.branch_feedback = error;
-                    } else {
-                        app.commit_feedback = error;
-                    }
-                }
-            }
-        }
-        if let Some(result) = app.commit_preview_worker.take_result()
-            && app.commit_preview_mode.take().is_some()
-        {
-            app.needs_redraw = true;
-            let retry = std::mem::take(&mut app.commit_preview_retry);
-            match result {
-                CommitReadResult::Create(result) => match result {
-                    Ok(preview) => {
-                        app.commit_expected = Some(preview);
-                        app.amend_expected = None;
-                        app.amend_confirm = false;
-                        app.commit_amend = false;
-                        if !retry {
-                            app.commit_feedback.clear();
-                            app.commit_description.clear();
-                            app.commit_description_focused = false;
-                            app.commit_message = Some(String::new());
-                        }
-                    }
-                    Err(error) => {
-                        app.commit_feedback = if retry {
-                            format!("{}\nPreview refresh failed: {error}", app.commit_feedback)
-                        } else {
-                            error
-                        };
-                    }
-                },
-                CommitReadResult::Amend(result) => match result {
-                    Ok(preview) => {
-                        let (subject, description) = split_commit_message(&preview.message);
-                        app.amend_expected = Some(preview);
-                        app.commit_expected = None;
-                        app.amend_confirm = false;
-                        app.commit_amend = true;
-                        if !retry {
-                            app.commit_feedback.clear();
-                            app.commit_description = description;
-                            app.commit_description_focused = false;
-                            app.commit_message = Some(subject);
-                        }
-                    }
-                    Err(error) => {
-                        app.commit_feedback = if retry {
-                            format!("{}\nPreview refresh failed: {error}", app.commit_feedback)
-                        } else {
-                            error
-                        }
-                    }
-                },
-            }
-        }
-        if app.needs_redraw {
-            terminal
-                .draw(|frame| {
-                    let workspace_feedback = if app.app_state.view() == View::History {
-                        app.history_filter
-                            .as_ref()
-                            .map(|path| {
-                                format!(
-                                    "History path: {} · f change/clear. {}",
-                                    path.display(),
-                                    app.commit_feedback
-                                )
-                            })
-                            .unwrap_or_else(|| app.commit_feedback.clone())
-                    } else {
-                        app.commit_feedback.clone()
-                    };
-                    let composed_message = combined_commit_message(
-                        app.commit_message.as_deref().unwrap_or_default(),
-                        &app.commit_description,
-                    );
-                    let help_page = if app.profiles_view {
-                        ui::HelpPage::Profiles
-                    } else if app.amend_confirm {
-                        ui::HelpPage::AmendConfirmation
-                    } else if app.commit_message.is_some() {
-                        ui::HelpPage::CommitMessage
-                    } else if app.move_path_input
-                        || app.move_confirm.is_some()
-                        || app.remove_path_input.is_some()
-                        || app.remove_confirm.is_some()
-                    {
-                        ui::HelpPage::WorkingTree
-                    } else if app.ignore_path_input.is_some() {
-                        ui::HelpPage::IgnorePathInput
-                    } else if app.branch_view && app.branch_input.is_some() {
-                        ui::HelpPage::BranchInput
-                    } else if app.branch_view && app.branch_confirm.is_some() {
-                        ui::HelpPage::BranchConfirmation
-                    } else if app.branch_view {
-                        ui::HelpPage::Branches
-                    } else if app.diff_entry.is_some() && app.diff.is_some() {
-                        ui::HelpPage::WorktreeDiff
-                    } else if app.diff.is_some() {
-                        ui::HelpPage::CommitDiff
-                    } else if app.details.is_some() {
-                        ui::HelpPage::Commit
-                    } else if app.searching {
-                        ui::HelpPage::Search
-                    } else if app.app_state.view() == View::WorkingTree {
-                        ui::HelpPage::WorkingTree
-                    } else {
-                        ui::HelpPage::History
-                    };
-                    let screen = if let Some(context) = app.pending_preview {
-                        Screen::PreviewLoading {
-                            message: context.label(),
-                        }
-                    } else if let Some(amend) = app.commit_preview_mode {
-                        Screen::CommitPreviewLoading { amend }
-                    } else if let Some(page) = &app.object_page {
-                        Screen::Object(page)
-                    } else if let Some(page) = &app.comparison_page {
-                        Screen::Comparison(page)
-                    } else if let Some(path) = &app.history_path_input {
-                        Screen::PathHistoryInput { path }
-                    } else if let Some(page) = &app.tag_page {
-                        Screen::Tags(page)
-                    } else if app.profiles_view {
-                        Screen::Profiles {
-                            profiles,
-                            selected: app.profile_selection.selected(),
-                            active_profile: &profile_label,
-                            registry_path: &app.profile_registry_path,
-                            feedback: &app.profile_feedback,
-                        }
-                    } else if app.move_path_input {
-                        Screen::MovePathInput {
-                            source: &app.move_source,
-                            destination: &app.move_destination,
-                            destination_focused: app.move_destination_focused,
-                            feedback: &app.commit_feedback,
-                        }
-                    } else if let Some(preview) = &app.move_confirm {
-                        Screen::MovePathConfirmation {
-                            source: preview.source(),
-                            destination: preview.destination(),
-                            pending: app.mutation_pending,
-                        }
-                    } else if let Some(path) = &app.remove_path_input {
-                        Screen::RemovePathInput {
-                            path,
-                            feedback: &app.commit_feedback,
-                        }
-                    } else if let Some(preview) = &app.remove_confirm {
-                        Screen::RemovePathConfirmation {
-                            path: preview.path(),
-                            pending: app.mutation_pending,
-                        }
-                    } else if let Some(path) = &app.ignore_path_input {
-                        Screen::IgnorePathInput {
-                            path,
-                            feedback: &app.commit_feedback,
-                        }
-                    } else if app.amend_confirm {
-                        let preview = app.amend_expected.as_ref();
-                        Screen::AmendConfirmation {
-                            repository: root,
-                            profile: &profile_label,
-                            branches: app.branches.as_ref(),
-                            entries: app.status.as_ref(),
-                            head: preview.map_or("unavailable", |preview| preview.head.as_str()),
-                            original_message: preview
-                                .map_or("Unavailable", |preview| preview.message.as_str()),
-                            new_message: &composed_message,
-                            pending: app.mutation_pending,
-                        }
-                    } else if let Some(preview) = &app.discard_confirm {
-                        Screen::DiscardConfirmation {
-                            entry: &preview.entry,
-                            pending: app.mutation_pending,
-                        }
-                    } else if let Some(preview) = &app.untrack_confirm {
-                        Screen::UntrackConfirmation {
-                            entry: &preview.entry,
-                            pending: app.mutation_pending,
-                        }
-                    } else if let Some(message) = &app.commit_message {
-                        Screen::CommitInput {
-                            repository: root,
-                            profile: &profile_label,
-                            branches: app.branches.as_ref(),
-                            message,
-                            description: &app.commit_description,
-                            description_focused: app.commit_description_focused,
-                            amend: app.commit_amend,
-                            feedback: &app.commit_feedback,
-                            entries: app.status.as_ref(),
-                            pending: app.mutation_pending,
-                        }
-                    } else if app.branch_view && app.branch_input.is_some() {
-                        if let Some(preview) = &app.branch_rename {
-                            Screen::RenameBranchInput {
-                                input: app.branch_input.as_deref().unwrap_or(""),
-                                name: preview.name(),
-                            }
-                        } else {
-                            Screen::BranchInput(app.branch_input.as_deref().unwrap_or(""))
-                        }
-                    } else if app.branch_view
-                        && (app.mutation_pending || app.branch_confirm.is_some())
-                    {
-                        Screen::BranchConfirmation {
-                            pending: app.mutation_pending,
-                            action: app.branch_confirm.as_ref(),
-                        }
-                    } else if app.branch_view {
-                        Screen::Branches {
-                            branches: app.branches.as_ref(),
-                            feedback: &app.branch_feedback,
-                            selection: &mut app.branch_selection,
-                        }
-                    } else if let (Some(diff), Some(prepared)) = (&app.diff, &app.prepared_diff) {
-                        Screen::PreparedDiff {
-                            diff,
-                            prepared,
-                            scroll: app.diff_scroll,
-                            selected_hunk: app.selected_hunk,
-                            raw: app.diff_raw_view,
-                            side_by_side: app.diff_side_by_side,
-                            worktree_entry: app.diff_entry.as_ref(),
-                        }
-                    } else if let Some(diff) = &app.diff {
-                        Screen::Diff {
-                            diff,
-                            scroll: app.diff_scroll,
-                            selected_hunk: app.selected_hunk,
-                            raw: app.diff_raw_view,
-                            side_by_side: app.diff_side_by_side,
-                            worktree_entry: app.diff_entry.as_ref(),
-                        }
-                    } else if let Some(details) = &app.details {
-                        Screen::CommitDetails {
-                            details,
-                            selection: &mut app.file_selection,
-                        }
-                    } else if app.searching {
-                        Screen::Search {
-                            history: app.history.as_ref(),
-                            matches: &app.search_results,
-                            query: &app.query,
-                            pending: app.search_debounce.is_some(),
-                            selection: &mut app.search_selection,
-                        }
-                    } else {
-                        Screen::Cockpit(ui::Cockpit {
-                            repository: root,
-                            profile: &profile_label,
-                            branches: app.branches.as_ref(),
-                            history: app.history.as_ref(),
-                            status: app.status.as_ref(),
-                            feedback: &workspace_feedback,
-                            focused: app.app_state.view(),
-                            history_selection: &mut app.selection,
-                            working_tree_selection: &mut app.status_selection,
-                        })
-                    };
-                    ui::render(frame, screen, app.border);
-                    if app.help {
-                        ui::render_help_overlay(frame, help_page, app.border);
-                    }
-                })
-                .map_err(backend_error)?;
-            app.needs_redraw = false;
-        }
+        step!(drain::drain_results(&mut app, &mut make_env!()));
+        step!(draw::draw_screen(&mut app, &mut make_env!()));
         let event = match host.next_event(terminal, Duration::from_millis(50)) {
             Ok(event) => event,
             Err(mpsc::RecvTimeoutError::Timeout) => continue,
             Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
         };
         app.needs_redraw = true;
-        if let Event::Paste(pasted) = &event {
-            if app.pending_preview.is_some() || app.commit_preview_mode.is_some() {
-                continue;
-            }
-            if let Some(page) = &mut app.object_page {
-                page.paste(pasted);
-                continue;
-            }
-            if let Some(page) = &mut app.comparison_page {
-                page.paste(pasted);
-                continue;
-            }
-            if let Some(path) = &mut app.history_path_input {
-                if !app.help {
-                    path.push_str(pasted);
-                }
-                continue;
-            }
-            if let Some(page) = &mut app.tag_page {
-                page.paste(pasted);
-                continue;
-            }
-            if app.move_path_input && !app.help {
-                if app.move_destination_focused {
-                    app.move_destination.push_str(pasted);
-                } else {
-                    app.move_source.push_str(pasted);
-                }
-            }
-            if let Some(path) = &mut app.remove_path_input
-                && !app.help
-            {
-                path.push_str(pasted);
-            }
-            if let Some(path) = &mut app.ignore_path_input
-                && !app.help
-            {
-                path.push_str(pasted);
-            }
-            if app.commit_message.is_some()
-                && !app.amend_confirm
-                && !app.mutation_pending
-                && !app.help
-            {
-                let pasted = normalize_commit_paste(pasted, app.commit_description_focused);
-                if app.commit_description_focused {
-                    app.commit_description.push_str(&pasted);
-                } else if let Some(message) = &mut app.commit_message {
-                    message.push_str(&pasted);
-                }
-                app.commit_feedback.clear();
-            }
-            continue;
-        }
+        step!(paste::handle_paste(&mut app, &mut make_env!(), &event));
         if let Event::Key(key) = event
             && key.kind == KeyEventKind::Press
         {
@@ -1173,12 +449,16 @@ pub fn run_app<H: Host>(
                         root,
                         config_dir,
                         profiles,
-                        &mut profile_label,
+                        &mut app.profile_label,
                         &mut app.profile_feedback,
                     )?,
                     KeyCode::Char('r') => {
-                        match reload_profile_context(root, config_dir, profiles, &mut profile_label)
-                        {
+                        match reload_profile_context(
+                            root,
+                            config_dir,
+                            profiles,
+                            &mut app.profile_label,
+                        ) {
                             Ok(()) => app.profile_feedback = "Git config profiles reloaded.".into(),
                             Err(error) => app.profile_feedback = error,
                         }
@@ -1758,7 +1038,7 @@ pub fn run_app<H: Host>(
                 app.profile_selection.select(
                     profiles
                         .iter()
-                        .position(|profile| profile.name == profile_label),
+                        .position(|profile| profile.name == app.profile_label),
                 );
                 app.profile_feedback.clear();
                 app.profiles_view = true;

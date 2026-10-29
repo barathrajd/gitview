@@ -110,5 +110,6 @@ pub(super) struct App {
     pub(super) status: Option<Result<Vec<crate::worktree::Entry>, String>>,
     pub(super) status_request: u64,
     pub(super) status_selection: ListState,
+    pub(super) profile_label: String,
     pub(super) needs_redraw: bool,
 }

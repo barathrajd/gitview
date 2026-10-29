@@ -1,5 +1,8 @@
+mod drain;
+mod draw;
 mod helpers;
 mod model;
+mod paste;
 pub mod run;
 pub mod terminal;
 
