@@ -12,6 +12,9 @@
 
 - Linux x86_64 release — deferred from 0.6.0: native checks, performance
   evidence, archive with checksum, and installer selection on a Linux runner.
+- [Agent workspace](plans/agent-workspace.md) — run Claude Code or Codex in a
+  pane inside Gitview, let the agent read and steer Gitview state through a
+  local control channel, then add per-session worktrees.
 - macOS desktop app — design the first desktop client after TUI completion.
 
 ## Later
