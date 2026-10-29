@@ -6,6 +6,7 @@ use std::{
 
 use crate::{
     app::{AppState, BranchAction},
+    pane::AgentPane,
     ui::{self, ASCII_BORDER},
 };
 use crossterm::event::{Event, KeyEventKind};
@@ -13,9 +14,9 @@ use ratatui::{Terminal, backend::Backend, widgets::ListState};
 
 pub use super::helpers::Navigation;
 use super::{
-    drain, draw,
-    helpers::CommitReadResult,
-    input::{self, Focus},
+    agent, drain, draw,
+    helpers::{CommitReadResult, backend_error},
+    input::{self, Route},
     keys,
     model::App,
     paste,
@@ -82,6 +83,41 @@ pub fn run_app<H: Host>(
     config_dir: &std::path::Path,
     profiles: &mut Vec<crate::config::FolderProfile>,
 ) -> io::Result<()> {
+    run_app_with_agent(
+        terminal,
+        host,
+        root,
+        ascii,
+        profile_label,
+        config_dir,
+        profiles,
+        None,
+    )
+}
+
+/// Like `run_app`, with `agent` (a command and its arguments) running in a pane
+/// beside Gitview. The program starts in `root` and ends when this returns.
+#[allow(clippy::too_many_arguments)]
+pub fn run_app_with_agent<H: Host>(
+    terminal: &mut Terminal<H::Backend>,
+    host: &mut H,
+    root: &std::path::Path,
+    ascii: bool,
+    profile_label: String,
+    config_dir: &std::path::Path,
+    profiles: &mut Vec<crate::config::FolderProfile>,
+    agent: Option<Vec<String>>,
+) -> io::Result<()> {
+    let pane = match agent {
+        Some(command) => {
+            let size = terminal.size().map_err(backend_error)?;
+            // The first draw corrects this to the pane's real size.
+            let rows = size.height.saturating_sub(2).max(1);
+            let columns = (size.width / 2).saturating_sub(2).max(1);
+            Some(AgentPane::spawn(&command, root, rows, columns).map_err(io::Error::other)?)
+        }
+        None => None,
+    };
     let border = if ascii {
         ASCII_BORDER
     } else {
@@ -323,8 +359,9 @@ pub fn run_app<H: Host>(
         status_selection,
         needs_redraw: true,
         profile_label,
-        focus: Focus::default(),
-        side_pane_width: None,
+        focus: input::Focus::default(),
+        pane,
+        pane_visible: false,
     };
     let mut env = Env {
         terminal,
@@ -335,6 +372,7 @@ pub fn run_app<H: Host>(
     };
     loop {
         step!(drain::drain_results(&mut app, &mut env));
+        agent::poll(&mut app);
         step!(draw::draw_screen(&mut app, &mut env));
         let event = match env.host.next_event(env.terminal, Duration::from_millis(50)) {
             Ok(event) => event,
@@ -342,8 +380,16 @@ pub fn run_app<H: Host>(
             Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
         };
         app.needs_redraw = true;
-        match input::route(app.focus, &event) {
-            Focus::Gitview => {}
+        match input::route(app.focus, app.pane_visible, &event) {
+            Route::ToggleFocus => {
+                agent::toggle_focus(&mut app);
+                continue;
+            }
+            Route::Agent => {
+                agent::forward(&mut app, &event);
+                continue;
+            }
+            Route::Gitview => {}
         }
         step!(paste::handle_paste(&mut app, &mut env, &event));
         if let Event::Key(key) = event

@@ -1,6 +1,6 @@
 use ratatui::{
     Frame,
-    layout::Rect,
+    layout::{Position, Rect},
     widgets::{StatefulWidget, Widget},
 };
 
@@ -26,6 +26,13 @@ impl<'a, 'f> Viewport<'a, 'f> {
 
     pub fn area(&self) -> Rect {
         self.area
+    }
+
+    /// Places the terminal cursor, unless `position` is outside the viewport.
+    pub fn set_cursor_position(&mut self, position: Position) {
+        if self.area.contains(position) {
+            self.frame.set_cursor_position(position);
+        }
     }
 
     pub fn render_widget<W: Widget>(&mut self, widget: W, area: Rect) {

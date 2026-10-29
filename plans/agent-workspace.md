@@ -86,13 +86,59 @@ since review.
 
 ## Milestones
 
-- [ ] **1. Spike the pane:** Run an arbitrary command in a PTY pane with focus
+- [x] **1. Spike the pane:** Run an arbitrary command in a PTY pane with focus
   switching, resize, scrollback cap, and terminal restoration. Test with a
   shell, `claude`, and `codex`; record which escape sequences or keys fail and
   decide whether `vt100` is enough. Verify in a real pseudo-terminal.
-  *Progress:* PTY core (`src/pane.rs`: spawn, input, resize, scrollback cap,
-  exit state, spawn errors) done. Remaining: ratatui pane widget, focus key,
-  terminal-restoration check, and the `claude`/`codex` fidelity findings.
+  *Done:* `gitview --run <command> [args...]` starts the command in a pane
+  beside the Git views (`src/pane/`, `ui::render_agent_pane`, `app::agent`).
+  `Ctrl+\` moves focus (both its kitty form and the legacy `Ctrl+4` that
+  plain terminals send); while the pane has focus every key and paste goes to
+  the program unchanged except that key, otherwise nothing does. The router,
+  the loop, and the real binary in a pseudo-terminal are tested: quit, a failing
+  or externally killed agent, closing the terminal (the agent goes too), and the
+  focus key and arrows crossing a real terminal byte for byte. Dropping a pane
+  kills its program, and pane setup is serialized because macOS `openpty`
+  fails intermittently under concurrent calls (5 of 8 stress runs). Narrow
+  terminals hide the pane and keep input in Gitview; the full-screen toggle is
+  milestone 2.
+
+  *Fidelity findings* (`tests/pane_fidelity.rs`; run the probes with
+  `--ignored --nocapture`; `claude` and `codex` as installed on 2026-10-30):
+
+  | Check | `claude` | `codex` |
+  | --- | --- | --- |
+  | First text on screen | 188 ms | 318 ms |
+  | Screen drawn correctly | trust dialog, box lines, `❯` | update dialog, alternate screen |
+  | Styled cells | 254 (187 truecolor) | 144 (bold and reverse) |
+  | Bracketed paste | on, forwarded | on, forwarded |
+  | Down key moves the highlight | yes | yes |
+  | Resize makes it redraw | yes | yes |
+  | Ctrl+C twice exits | yes (code 1) | yes (code 0) |
+
+  **Decision: `vt100` is enough for rendering; keep it.** Every sequence it
+  didn't understand is non-visual. No fallback to `alacritty_terminal` is
+  needed. The gaps are about input and replies, not drawing, and neither agent
+  stalled on them. Follow-ups, in the milestones that touch them:
+
+  - *Queries nothing answers.* `claude` asks for device attributes (`CSI c`),
+    kitty keyboard flags (`CSI ? u`), and the terminal version (`CSI > q`);
+    `codex` asks for the cursor position (`CSI 6 n`), device attributes,
+    kitty flags, and the foreground and background colors (OSC 10 and 11).
+    Both start fine without replies. Answering cursor position and device
+    attributes is cheap; colors need the host terminal's real answer.
+    Not answering kitty flags keeps agents on legacy keys, which `encode_key`
+    produces. Revisit in milestone 7.
+  - *Mouse.* `codex` turns on any-motion SGR mouse tracking, but Gitview
+    doesn't capture the mouse, so the wheel does nothing in the pane.
+  - *Focus reporting* (`CSI ? 1004 h`) is requested but not sent.
+  - *Synchronized output* (`CSI ? 2026 h/l`; `codex` used it 42 times in one
+    probe run) is ignored, so a half-drawn frame can show briefly.
+  - *Hyperlinks and notifications* (OSC 8 and OSC 9) are dropped.
+  - *Shift+Enter* has no code of its own without the kitty protocol, so it is
+    sent as Alt+Enter, which agents read as a newline. Not yet checked inside
+    a live prompt, since the probes send no prompt.
+  - A plain `sh` also asks for 8-bit meta mode (`CSI ? 1034 h`); harmless.
 - [ ] **2. Wire the CLI and layout:** Add `--run`, `--claude`, and `--codex`,
   missing-executable errors, a narrow-terminal layout (agent full screen with a
   toggle), and help text. Test exit, crash, and kill paths.
@@ -115,7 +161,8 @@ since review.
 
 - **Terminal fidelity:** Agent TUIs use the alternate screen, truecolor, mouse,
   bracketed paste, and possibly the kitty keyboard protocol. Fallback: switch
-  emulator crates, or document unsupported sequences. Milestone 1 decides this.
+  emulator crates, or document unsupported sequences. Milestone 1 decided: keep
+  `vt100` (see its findings for the remaining gaps).
 - **Key conflicts:** The focus key may clash with an agent or a terminal
   multiplexer. Make it configurable and show it in the status line.
 - **Memory:** Earlier performance work found native diff memory close to its

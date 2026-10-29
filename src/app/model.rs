@@ -10,6 +10,7 @@ use std::{
 use ratatui::widgets::ListState;
 
 use super::{helpers::CommitReadResult, input::Focus};
+use crate::pane::AgentPane;
 use crate::{
     app::{AppState, BranchAction},
     read_worker::LatestRead,
@@ -112,7 +113,9 @@ pub(super) struct App {
     pub(super) status_selection: ListState,
     pub(super) profile_label: String,
     pub(super) focus: Focus,
-    /// Width of the side pane, when one is open. No pane exists yet.
-    pub(super) side_pane_width: Option<u16>,
+    /// The agent pane, when Gitview was started with one.
+    pub(super) pane: Option<AgentPane>,
+    /// Whether the pane fits on screen at the current terminal size.
+    pub(super) pane_visible: bool,
     pub(super) needs_redraw: bool,
 }
