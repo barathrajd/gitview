@@ -4,28 +4,16 @@ use gitview::{
         run::{Navigation, run_app_with_agent},
         terminal::{BracketedPasteMode, TerminalHost},
     },
+    pane::{check_installed, split_agent_args},
     ui::HELP,
 };
 use std::{env, process::ExitCode};
 
 fn run() -> Result<(), String> {
     let args: Vec<_> = env::args_os().skip(1).collect();
-    // Everything after --run is the agent's command line, so flags such as
-    // --help belong to the agent, not to Gitview.
-    let (args, agent) = match args.iter().position(|arg| arg == "--run") {
-        Some(index) => {
-            let command = args[index + 1..]
-                .iter()
-                .map(|part| part.to_str().map(str::to_owned))
-                .collect::<Option<Vec<_>>>()
-                .ok_or("--run needs a command made of valid UTF-8")?;
-            if command.is_empty() {
-                return Err("--run needs a command, for example: gitview --run claude".into());
-            }
-            (args[..index].to_vec(), Some(command))
-        }
-        None => (args, None),
-    };
+    // Everything after --run, --claude, or --codex belongs to that program, so
+    // flags such as --help are its, not Gitview's.
+    let (args, agent) = split_agent_args(&args)?;
     if args.iter().any(|arg| arg == "--shell-integration") {
         print_shell_integration();
         return Ok(());
@@ -57,6 +45,9 @@ fn run() -> Result<(), String> {
     }
     if args.first().is_some_and(|arg| arg == "clone") {
         return run_clone(&args[1..]);
+    }
+    if let Some(request) = &agent {
+        check_installed(request, env::var_os("PATH").as_deref())?;
     }
     Navigation::init_and_load_file(None)
         .map_err(|e| format!("Could not initialize keybindings: {e}"))?;
@@ -103,7 +94,7 @@ fn run() -> Result<(), String> {
         profile_label,
         &config_dir,
         &mut profiles,
-        agent,
+        agent.map(|request| request.argv),
     );
     let paste_result = host.disable_paste();
     ratatui::restore();

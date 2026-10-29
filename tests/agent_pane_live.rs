@@ -36,7 +36,15 @@ struct Session {
 }
 
 impl Session {
+    /// Starts `gitview --ascii --run <agent...>`.
     fn start(agent: &[&str]) -> Self {
+        let mut args = vec!["--run"];
+        args.extend_from_slice(agent);
+        Self::start_with(&args, None)
+    }
+
+    /// Starts `gitview --ascii <args...>`; `path` replaces the search path.
+    fn start_with(args: &[&str], path: Option<&std::ffi::OsStr>) -> Self {
         let only_session = ONE_SESSION
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -89,11 +97,13 @@ impl Session {
         };
 
         let mut command = Command::new(env!("CARGO_BIN_EXE_gitview"));
+        if let Some(path) = path {
+            command.env("PATH", path);
+        }
         command
             .current_dir(&repository)
             .arg("--ascii")
-            .arg("--run")
-            .args(agent)
+            .args(args)
             .stdin(Stdio::from(slave.try_clone().unwrap()))
             .stdout(Stdio::from(slave.try_clone().unwrap()))
             .stderr(Stdio::from(slave.try_clone().unwrap()));
@@ -358,4 +368,74 @@ fn closing_the_terminal_ends_gitview_and_the_agent() {
     wait_until_dead(pid);
     session.finish();
     let _ = fs::remove_file(pid_file);
+}
+
+/// A folder holding an executable `name` that prints its arguments and waits,
+/// followed by the real search path so `git` is still found.
+fn path_with_fake(name: &str) -> (tempfile::TempDir, std::ffi::OsString) {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let program = dir.path().join(name);
+    fs::write(
+        &program,
+        format!("#!/bin/sh\necho \"fake {name} args: $*\"\nexec sleep 60\n"),
+    )
+    .unwrap();
+    fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).unwrap();
+    let mut folders = vec![dir.path().to_path_buf()];
+    folders.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap()));
+    (dir, std::env::join_paths(folders).unwrap())
+}
+
+#[test]
+fn claude_runs_the_claude_program_with_the_rest_of_the_line() {
+    let (_dir, path) = path_with_fake("claude");
+    let mut session =
+        Session::start_with(&["--claude", "--resume", "--model", "opus"], Some(&path));
+
+    session.wait_for("fake claude args: --resume --model opus");
+    session.wait_for("AGENT · claude · running");
+    session.send(b"q");
+
+    assert!(session.wait_for_exit());
+    session.assert_terminal_restored();
+    session.finish();
+}
+
+#[test]
+fn codex_runs_the_codex_program() {
+    let (_dir, path) = path_with_fake("codex");
+    let mut session = Session::start_with(&["--codex"], Some(&path));
+
+    session.wait_for("fake codex args:");
+    session.wait_for("AGENT · codex · running");
+    session.send(b"q");
+
+    assert!(session.wait_for_exit());
+    session.finish();
+}
+
+#[test]
+fn a_missing_program_stops_before_the_terminal_is_touched() {
+    let empty = tempfile::tempdir().unwrap();
+    let mut session = Session::start_with(&["--claude"], Some(empty.path().as_os_str()));
+
+    let succeeded = session.wait_for_exit();
+
+    assert!(!succeeded);
+    let text = session.text();
+    assert!(
+        text.contains("Claude Code (`claude`) was not found on your PATH"),
+        "{text:?}"
+    );
+    assert!(text.contains("gitview --run <command>"), "{text:?}");
+    assert!(
+        !text.contains("\x1b[?1049h"),
+        "entered the alternate screen: {text:?}"
+    );
+    assert!(
+        !text.contains("\x1b[?2004h"),
+        "enabled bracketed paste: {text:?}"
+    );
+    session.finish();
 }
