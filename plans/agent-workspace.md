@@ -90,6 +90,9 @@ since review.
   switching, resize, scrollback cap, and terminal restoration. Test with a
   shell, `claude`, and `codex`; record which escape sequences or keys fail and
   decide whether `vt100` is enough. Verify in a real pseudo-terminal.
+  *Progress:* PTY core (`src/pane.rs`: spawn, input, resize, scrollback cap,
+  exit state, spawn errors) done. Remaining: ratatui pane widget, focus key,
+  terminal-restoration check, and the `claude`/`codex` fidelity findings.
 - [ ] **2. Wire the CLI and layout:** Add `--run`, `--claude`, and `--codex`,
   missing-executable errors, a narrow-terminal layout (agent full screen with a
   toggle), and help text. Test exit, crash, and kill paths.
