@@ -26,16 +26,8 @@ pub(in crate::app) fn handle(app: &mut App, key: KeyEvent) -> io::Result<Flow> {
     };
     app.workspace.focus(current);
     match key.code {
-        KeyCode::Char('h') => {
-            app.workspace.show(Panel::Sidebar);
-            app.workspace.focus(Panel::Sidebar);
-        }
-        KeyCode::Char('l') => {
-            app.workspace.show(Panel::Center);
-            app.workspace.focus(Panel::Center);
-        }
-        KeyCode::Char('+') => app.workspace.resize(Panel::Sidebar, 4),
-        KeyCode::Char('-') => app.workspace.resize(Panel::Sidebar, -4),
+        KeyCode::Char('+') => app.workspace.resize(current, 4),
+        KeyCode::Char('-') => app.workspace.resize(current, -4),
         KeyCode::Char('x') => {
             app.workspace.hide(current);
         }

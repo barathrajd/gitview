@@ -18,7 +18,7 @@ pub const HELP: &str = concat!(
     "Tab                 Switch history/worktree pane       q                   Quit outside prompts\n",
     "H                   Open history outside prompts\n",
     "W                   Open working tree outside prompts\n",
-    "Ctrl-w h/l          Focus worktree/history; Ctrl-w +/- resizes worktree\n",
+    "Ctrl-w +/-          Grow/shrink focused panel (Tab changes focus)\n",
     "Ctrl-w x            Hide focused panel; Ctrl-w = restores both\n",
     "?                   Help outside prompts               b                   Browse local branches\n",
     "o                   Inspect a local Git object\n",
@@ -150,8 +150,7 @@ pub fn render_help_overlay_in(
     border: ratatui::symbols::border::Set<'static>,
 ) {
     const HISTORY: &[(&str, &str)] = &[
-        ("Ctrl-w h/l", "Focus worktree/history"),
-        ("Ctrl-w +/-", "Resize worktree panel"),
+        ("Ctrl-w +/-", "Grow/shrink focused panel"),
         ("Ctrl-w x/=", "Hide panel / restore both"),
         ("Up/Down, j/k", "Move through commits"),
         ("Enter, l", "Open selected commit"),
@@ -166,8 +165,7 @@ pub fn render_help_overlay_in(
         ("q", "Quit Gitview"),
     ];
     const WORKTREE: &[(&str, &str)] = &[
-        ("Ctrl-w h/l", "Focus worktree/history"),
-        ("Ctrl-w +/-", "Resize worktree panel"),
+        ("Ctrl-w +/-", "Grow/shrink focused panel"),
         ("Ctrl-w x/=", "Hide panel / restore both"),
         ("Up/Down, j/k", "Select a changed file"),
         ("Enter", "Open file diff"),

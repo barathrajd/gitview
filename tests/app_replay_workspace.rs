@@ -36,13 +36,7 @@ fn workspace_can_hide_and_restore_the_worktree_panel() {
         &repository.path(),
         119,
         30,
-        [
-            WaitFor("notes.txt"),
-            Ctrl('w'),
-            Char('h'),
-            Ctrl('w'),
-            Char('x'),
-        ],
+        [WaitFor("notes.txt"), Ctrl('w'), Char('x')],
     );
     assert!(hidden.contains("HISTORY"));
     assert!(!hidden.contains("WORKTREE"));
@@ -52,8 +46,6 @@ fn workspace_can_hide_and_restore_the_worktree_panel() {
         30,
         [
             WaitFor("notes.txt"),
-            Ctrl('w'),
-            Char('h'),
             Ctrl('w'),
             Char('x'),
             Ctrl('w'),
@@ -91,4 +83,33 @@ fn default_sidebar_keeps_ordinary_filenames_readable() {
     repository.write("made-by-agent.txt", "new\n");
     let screen = replay_sized(&repository.path(), 140, 30, [WaitFor("notes.txt")]);
     assert!(screen.contains("made-by-agent.txt"));
+}
+
+#[test]
+fn resizing_history_changes_the_focused_panel_in_both_directions() {
+    let repository = Repo::with_changes();
+    let render = |resize| {
+        let mut steps = vec![WaitFor("notes.txt"), Key(Tab)];
+        if let Some(key) = resize {
+            steps.extend([Ctrl('w'), Char(key)]);
+        }
+        replay_sized(&repository.path(), 140, 30, steps)
+    };
+    let width = |screen: &str| {
+        let line = screen
+            .lines()
+            .find(|line| line.contains("┌HISTORY"))
+            .unwrap();
+        line.split("┌HISTORY")
+            .nth(1)
+            .unwrap()
+            .split('┐')
+            .next()
+            .unwrap()
+            .chars()
+            .count()
+    };
+    let before = width(&render(None));
+    assert!(width(&render(Some('+'))) > before);
+    assert!(width(&render(Some('-'))) < before);
 }

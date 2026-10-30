@@ -95,12 +95,14 @@ impl Workspace {
 
     /// Adjust the requested width; layout clamps it to the current terminal.
     pub fn resize(&mut self, panel: Panel, columns: i16) {
-        let width = match panel {
-            Panel::Sidebar => &mut self.sidebar_width,
-            Panel::Agent => &mut self.agent_width,
+        let (width, delta) = match panel {
+            Panel::Sidebar => (&mut self.sidebar_width, i32::from(columns)),
+            Panel::Agent => (&mut self.agent_width, i32::from(columns)),
+            Panel::Center if self.sidebar => (&mut self.sidebar_width, -i32::from(columns)),
+            Panel::Center if self.agent => (&mut self.agent_width, -i32::from(columns)),
             Panel::Center => return,
         };
-        *width = (i32::from(*width) + i32::from(columns)).clamp(12, 200) as u16;
+        *width = (i32::from(*width) + delta).clamp(12, 200) as u16;
     }
 
     pub fn layout(&self, area: Rect) -> WorkspaceLayout {

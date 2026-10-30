@@ -32,8 +32,7 @@ This plan rebuilds the interface around that for 0.8.0.
   `git log` and search all history, not only loaded commits. `n` and `N` move
   between matches, and Esc restores the previous selection.
 - **Vim motions** in every list and diff: `gg`, `G`, `Ctrl-d`, `Ctrl-u`,
-  `Ctrl-f`, `Ctrl-b`, counts (`5j`), `zz`, and `Ctrl-w h/j/k/l` between
-  panels. Help lists them.
+  `Ctrl-f`, `Ctrl-b`, counts (`5j`), `zz`, and `Tab` between panels. Help lists them.
 - **Agent-driven panels.** The MCP select tools open their target in the right
   panel, a new `search_history` tool runs a search and shows the results, and
   the sidebar marks files the agent changed in this session.
@@ -68,7 +67,7 @@ their behavior. History becomes a list of parsed commits from
 view keeps today's `--graph` output. Search parses filters into `git log`
 options (`--author`, `--grep`, `--since`, `--until`, a ref, `-- <path>`) run off
 the render loop, and ranks the results with a fuzzy matcher. A motion layer
-turns key sequences (`gg`, counts, `Ctrl-w` chords) into the same actions
+turns key sequences (`gg`, counts, panel chords) into the same actions
 every panel already handles.
 
 **Decided (2026-10-30, with the user)**
@@ -95,7 +94,7 @@ every panel already handles.
 1. **Workspace shell (in progress).** The panel model, focus, hide, and resize. Move the
    working tree, history, and agent pane into it with their current
    rendering; all replay and live tests pass.
-2. **Vim motions.** `gg`, `G`, the page keys, counts, `zz`, and `Ctrl-w`
+2. **Vim motions.** `gg`, `G`, the page keys, counts, `zz`, with `Tab` for panel focus
    across all panels, with replay tests for each.
 3. **Search.** Fuzzy ranking over loaded commits, then the Git-side filters
    and `n`/`N`, with cancellation and tests for each filter.
@@ -154,8 +153,8 @@ Persistent state, panel controls, and combined agent geometry remain open.
 
 ### Persistent cockpit controls
 
-The app now owns its cockpit workspace model. `Ctrl-w h/l` focuses the
-worktree/history, `Ctrl-w +/-` resizes the worktree, `Ctrl-w x` hides the
+The app now owns its cockpit workspace model. `Tab` focuses the
+worktree/history, `Ctrl-w +/-` grows or shrinks the focused panel, `Ctrl-w x` hides the
 focused panel, and `Ctrl-w =` restores both. Help lists the controls. The
 default sidebar is 40 columns to keep ordinary filenames readable.
 
@@ -167,3 +166,6 @@ load. All affected targets and cockpit replays pass on a serial rerun
 
 Milestone 1 remains in progress: the agent still uses its original geometry,
 and combined agent focus, visibility, and resize need integration.
+
+User correction: keep Tab for panel focus; remove redundant Ctrl-w h/l.
+Resize targets the focused panel, matching the hide command.
