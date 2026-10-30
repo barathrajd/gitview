@@ -5,6 +5,7 @@ export interface Release {
   status: "planned" | "released";
   summary: string;
   highlights: string[];
+  featureIds?: (string | null)[];
   note?: string;
   links?: { label: string; url: string }[];
 }
@@ -17,6 +18,7 @@ const tag = (version: string) => ({
 export const releases: Release[] = [
   {
     version: "0.7.0",
+    featureIds: ["agent-pane", "agent-pane", "control-channel", "sessions", "sessions", "install"],
     date: "October 30, 2026",
     status: "released",
     summary:
@@ -38,6 +40,7 @@ export const releases: Release[] = [
   },
   {
     version: "0.6.0",
+    featureIds: ["repository", "worktree", "commit", "history", "refs", "inspect"],
     date: "October 29, 2026",
     status: "released",
     summary:
@@ -58,6 +61,7 @@ export const releases: Release[] = [
   },
   {
     version: "0.5.0",
+    featureIds: [null, null, null, "diff"],
     date: "October 28, 2026",
     status: "released",
     summary:
@@ -91,6 +95,7 @@ export const releases: Release[] = [
   },
   {
     version: "0.4.0",
+    featureIds: ["diff", "cockpit", "help", "cockpit"],
     date: "October 27, 2026",
     status: "released",
     summary: "Hunk-level staging, grouped worktree sections, and page-specific help.",
@@ -135,6 +140,7 @@ export const releases: Release[] = [
   },
   {
     version: "0.3.0",
+    featureIds: ["cockpit", "history", "diff", "help"],
     date: "October 27, 2026",
     status: "released",
     summary: "Improved history and diff review with a responsive cockpit and clearer search.",
