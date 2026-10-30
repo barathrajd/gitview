@@ -230,11 +230,18 @@ since review.
   reads already set `GIT_OPTIONAL_LOCKS=0`, so they never block the agent.
   *Tested:* overlapping writes never run together; a write waits out an
   `index.lock` released after 300 ms; a lock that stays is reported after the
-  wait; other errors aren't retried; and 20 rounds of stage and unstage succeed
-  while a second process loops `git add` and `git reset` (this fails 3 of 3
-  runs with the retry turned off). In the app, `S` succeeds while a lock is held
-  for 300 ms. Agent write tools, and a queue they would share, wait for their own
-  design.
+  wait; other errors aren't retried. While a second process loops `git add`, 20
+  rounds of stage and unstage all succeed and the index ends as Gitview left it.
+  While it loops `git add` and `git reset <path>`, no Gitview write fails on the
+  lock. With the retry turned off, 3 or 4 of these tests fail on every run. In
+  the app, `S` succeeds while a lock is held for 300 ms.
+  *Found:* Git itself can lose an index change when another process runs
+  `git reset <path>` at the same moment. Reproduced with plain Git, no Gitview
+  code: 2 of 113 adds were undone by a looping `git reset -q`. Gitview can't
+  prevent that from outside. Its writes recheck status first, so it reports
+  "File status changed; refresh and try again" rather than acting on stale
+  state, and the watcher then shows the real index. Agent write tools, and a
+  queue they would share, wait for their own design.
 - [ ] **6. Worktree sessions:** Add create, list, review, merge, and discard for
   per-session worktrees. Test dirty trees, changed refs, and cleanup after a
   crash.

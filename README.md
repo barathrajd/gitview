@@ -147,7 +147,9 @@ Gitview's own Git writes, such as staging, committing, and branch switches, run
 one at a time. If the agent's Git command is holding the repository's lock when
 you press a key, Gitview waits up to two seconds for it instead of failing. If
 the lock is still held after that, Gitview says another Git command is using
-the repository.
+the repository. Git itself can undo a change to the staging area when another
+command, such as `git reset <file>`, runs at the same moment. Gitview can't stop
+that, but it notices, asks you to try again, and shows the real state.
 
 ### Let the agent read and steer Gitview
 
