@@ -2,9 +2,10 @@
 set -euo pipefail
 
 readonly REPOSITORY="barathrajd/gitview"
-readonly RELEASE_API="https://api.github.com/repos/${REPOSITORY}/releases/latest"
-# GITVIEW_TEST_RELEASE_URL and GITVIEW_TEST_PLATFORM exist only for the
-# installer's tests, which serve a fake release from a local folder.
+readonly RELEASE_API="${GITVIEW_TEST_RELEASE_API:-https://api.github.com/repos/${REPOSITORY}/releases/latest}"
+# GITVIEW_TEST_RELEASE_URL, GITVIEW_TEST_RELEASE_API, and GITVIEW_TEST_PLATFORM
+# exist only for the installer's tests, which serve a fake release from a local
+# folder.
 readonly BASE_RELEASE_URL="${GITVIEW_TEST_RELEASE_URL:-https://github.com/${REPOSITORY}/releases/download}"
 
 fail() {
@@ -120,9 +121,13 @@ fi
 
 if [[ "$tag" == "latest" ]]; then
   printf 'Looking up the latest Gitview release...\n'
-  tag="$(curl --fail --silent --show-error --location --connect-timeout 15 \
-    --max-time 180 --retry 2 --retry-delay 2 "$RELEASE_API" \
-    | awk -F '"' '/"tag_name"[[:space:]]*:/ { print $4; exit }')"
+  # Read the whole response before parsing, and parse without a pipe: awk
+  # stopping at the first match would cut the writer off mid-write, which
+  # pipefail turns into a failed install.
+  release_json="$(curl --fail --silent --show-error --location --connect-timeout 15 \
+    --max-time 180 --retry 2 --retry-delay 2 "$RELEASE_API")" ||
+    fail "could not look up the latest release"
+  tag="$(awk -F '"' '/"tag_name"[[:space:]]*:/ { print $4; exit }' <<<"$release_json")"
 fi
 [[ -n "$tag" ]] || fail "could not determine the release tag"
 [[ "$tag" != *[!A-Za-z0-9._-]* ]] || fail "invalid release tag: $tag"
