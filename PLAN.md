@@ -8,3 +8,5 @@ Gitview is a keyboard-first terminal interface for everyday Git review.
 - [agent-workspace](plans/agent-workspace.md) — host coding agents in a pane and expose Gitview state to them.
 - [0.6.0 performance](plans/gitview-0-6-0-performance.md) — review responsiveness and fix measured bottlenecks before release.
 - [refactor-main-ui](plans/refactor-main-ui.md) — split main.rs and ui.rs behind a key-replay test harness.
+
+- [Workspace UI for 0.8.0](plans/workspace-ui-0-8-0.md) — panel shell, vim motions, search, structured history, and agent integration.
