@@ -174,8 +174,13 @@ jobs:
           printf '%064d  gitview-%s-macos-arm64.tar.gz\n' 0 "$tag" > dry-run/macos.sha256
           scripts/render-homebrew-formula.sh "$tag" dry-run/macos.sha256 "dry-run/$archive.sha256" > gitview.rb
           # Point the Linux URL at the local archive instead of the release.
-          sed -i.bak "s#https://github.com/barathrajd/gitview/releases/download/$tag/$archive#file://$PWD/dry-run/$archive#" gitview.rb
-          grep -q "file://" gitview.rb
+          # Homebrew can't read the version from a file:// path (it finds
+          # "86.64" in x86_64), so this test copy states it; the published
+          # formula's GitHub URLs parse correctly.
+          export RELEASE_URL="https://github.com/barathrajd/gitview/releases/download/$tag/$archive"
+          export LOCAL_URL="file://$PWD/dry-run/$archive" VERSION="$version"
+          perl -0pi -e 's/\Q$ENV{RELEASE_URL}\E/$ENV{LOCAL_URL}/; s/(    on_intel do\n      url "file:\/\/[^"]+"\n)/$1      version "$ENV{VERSION}"\n/' gitview.rb
+          grep -q "version \"$version\"" gitview.rb
           # Ubuntu runners install Homebrew without putting it on PATH.
           if ! command -v brew >/dev/null; then
             eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
