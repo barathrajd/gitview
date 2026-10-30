@@ -101,3 +101,19 @@ pub fn check_installed(request: &AgentRequest, search_path: Option<&OsStr>) -> R
         ),
     })
 }
+
+/// Gives Claude Code the `gitview mcp` server, so the agent can read and steer
+/// Gitview. The `=` form keeps the option from taking the user's own
+/// arguments, such as a prompt, as more config. Other agents are unchanged.
+pub fn register_gitview_mcp(mut request: AgentRequest, gitview: &std::path::Path) -> AgentRequest {
+    if request.product != Some("Claude Code") {
+        return request;
+    }
+    let config = serde_json::json!({"mcpServers": {"gitview": {
+        "type": "stdio",
+        "command": gitview.to_string_lossy(),
+        "args": ["mcp"],
+    }}});
+    request.argv.insert(1, format!("--mcp-config={config}"));
+    request
+}

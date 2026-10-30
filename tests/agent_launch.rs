@@ -9,7 +9,7 @@ use std::{
     process::Command,
 };
 
-use gitview::pane::{check_installed, find_executable, split_agent_args};
+use gitview::pane::{check_installed, find_executable, register_gitview_mcp, split_agent_args};
 
 fn os(args: &[&str]) -> Vec<OsString> {
     args.iter().map(OsString::from).collect()
@@ -213,4 +213,32 @@ fn a_program_in_the_current_folder_is_not_found_through_an_empty_path_entry() {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("was not found on your PATH"), "{stderr}");
+}
+
+#[test]
+fn claude_is_given_the_gitview_mcp_server_before_its_own_arguments() {
+    let (_, request) = split_agent_args(&os(&["--claude", "explain this repo"])).unwrap();
+    let request = register_gitview_mcp(request.unwrap(), Path::new("/opt/my bin/gitview"));
+
+    assert_eq!(request.argv[0], "claude");
+    let config = request.argv[1].strip_prefix("--mcp-config=").unwrap();
+    let config: serde_json::Value = serde_json::from_str(config).unwrap();
+    assert_eq!(
+        config,
+        serde_json::json!({"mcpServers": {"gitview": {
+            "type": "stdio", "command": "/opt/my bin/gitview", "args": ["mcp"]}}})
+    );
+    assert_eq!(request.argv[2..], ["explain this repo"]);
+}
+
+#[test]
+fn other_agents_are_left_as_given() {
+    for args in [&["--codex", "x"][..], &["--run", "claude", "x"]] {
+        let (_, request) = split_agent_args(&os(args)).unwrap();
+        let request = request.unwrap();
+        assert_eq!(
+            register_gitview_mcp(request.clone(), Path::new("/g")),
+            request
+        );
+    }
 }

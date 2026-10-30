@@ -306,19 +306,7 @@ pub(in crate::app) fn handle<H: Host>(
                 && let Some(entry) = entries.get(index)
             {
                 let entry = entry.clone();
-                app.diff_entry = Some(entry.clone());
-                app.request_id += 1;
-                let current = app.request_id;
-                app.diff = Some((current, None));
-                app.prepared_diff = None;
-                app.ordinary_diff_worker.cancel();
-                app.diff_scroll = 0;
-                app.selected_hunk = 0;
-                app.ordinary_diff_worker
-                    .request(crate::diff_loader::Request {
-                        id: current,
-                        source: crate::diff_loader::Source::Worktree(entry),
-                    });
+                crate::app::control::open_worktree_diff(app, entry);
             }
         }
         KeyCode::Enter
@@ -329,15 +317,8 @@ pub(in crate::app) fn handle<H: Host>(
                     .get(index)
                     .and_then(|row| crate::history::commit_id(row))
             {
-                app.request_id += 1;
                 let id = id.to_owned();
-                let path = root.to_path_buf();
-                let sender = app.details_sender.clone();
-                let current = app.request_id;
-                app.details = Some((current, None));
-                std::thread::spawn(move || {
-                    let _ = sender.send((current, crate::details::load_commit(&path, &id)));
-                });
+                crate::app::control::open_commit_details(app, root, id);
             }
         }
         KeyCode::Enter if !app.help && app.diff.is_none() => {

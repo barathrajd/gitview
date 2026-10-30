@@ -143,6 +143,50 @@ so an idle Gitview runs no Git commands. If your file system doesn't support
 them, for example a network drive, Gitview falls back to checking the working
 tree every second or so; set `GITVIEW_NO_WATCH=1` to choose that.
 
+### Let the agent read and steer Gitview
+
+An agent started from Gitview can read the repository through Gitview and ask
+it to show things, using the Model Context Protocol (MCP). Gitview passes the
+agent `GITVIEW_SOCKET`, the path of a socket in a folder only you can open
+(`$XDG_RUNTIME_DIR/gitview`, or `gitview-<uid>` in your temporary folder).
+Connections from other users are refused. `gitview mcp` is a stdio MCP server
+that talks to that socket. Its tools are:
+
+| Tool | What it does |
+| --- | --- |
+| `get_status` | Lists staged, unstaged, and untracked files. |
+| `get_log` | Lists recent commits, 50 by default and at most 200. |
+| `get_diff` | Shows one file's unstaged diff, or its staged diff. |
+| `get_show` | Shows a commit's message, file summary, and patch. |
+| `select_commit` | Opens a commit in Gitview, or one of its file diffs with `path`. |
+| `select_file` | Opens a changed file's diff in Gitview's working tree. |
+| `focus_pane` | Moves focus to Gitview or to the agent. |
+
+The `get_` tools only return text to the agent; the `select_` tools and
+`focus_pane` change what you see. So ask the agent to "open" or "select"
+something in Gitview when you want it on screen. A selection's reply says what
+Gitview will show, such as `Gitview will open commit e2d1429 (…)`, and a file
+that hasn't changed is refused rather than silently ignored.
+
+None of them stage, commit, or change files. Each reply stops at 64 KiB and
+says when it was cut. Paths must be inside the repository, and a revision
+can't be a Git option. If you're typing in a prompt or answering a dialog, a
+selection waits until you finish, and its reply says so.
+
+`--claude` registers the server for you. For Codex, add it to
+`~/.codex/config.toml`. Codex doesn't pass environment variables to MCP
+servers unless they're listed, so name the socket variable:
+
+```toml
+[mcp_servers.gitview]
+command = "gitview"
+args = ["mcp"]
+env_vars = ["GITVIEW_SOCKET"]
+```
+
+With `--run`, register `gitview mcp` the way your agent expects. Outside
+Gitview the tools reply that Gitview isn't reachable.
+
 ## Controls
 
 - **Up/Down** or **j/k** navigate lists and scroll diffs. **Enter** or **l**
@@ -329,7 +373,8 @@ The agent pane is a first version, checked on macOS with `claude` and `codex`.
 It doesn't forward mouse input, and it doesn't answer the questions programs ask
 their terminal, such as the cursor position or the theme colors; the programs
 start without the answers. Shift+Enter is sent as Alt+Enter, which agents read
-as a new line.
+as a new line. The control channel was checked with Claude Code and with Codex
+0.165.0 on macOS; on Linux only its automated tests have run.
 
 History is limited to 200 commits. Diffs are limited to 1 MB or 5,000 lines and
 indicate truncation; binary changes show Git's binary notice. IDE diffs show

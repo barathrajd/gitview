@@ -114,7 +114,11 @@ fn path_with_fake(name: &str) -> (tempfile::TempDir, std::ffi::OsString) {
     let program = dir.path().join(name);
     fs::write(
         &program,
-        format!("#!/bin/sh\necho \"fake {name} args: $*\"\nexec sleep 60\n"),
+        // Each argument also gets its own line, so a check doesn't depend on
+        // where a long line wraps.
+        format!(
+            "#!/bin/sh\necho \"fake {name} args: $*\"\nprintf 'arg: %s\\n' \"$@\"\nexec sleep 60\n"
+        ),
     )
     .unwrap();
     fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).unwrap();
@@ -124,12 +128,16 @@ fn path_with_fake(name: &str) -> (tempfile::TempDir, std::ffi::OsString) {
 }
 
 #[test]
-fn claude_runs_the_claude_program_with_the_rest_of_the_line() {
+fn claude_runs_the_claude_program_with_the_gitview_mcp_server_and_the_rest_of_the_line() {
     let (_dir, path) = path_with_fake("claude");
     let mut session =
         Session::start_with(&["--claude", "--resume", "--model", "opus"], Some(&path));
 
-    session.wait_for("fake claude args: --resume --model opus");
+    // Gitview's MCP config comes first, then the user's own arguments.
+    session.wait_for("fake claude args: --mcp-config={\"mcpServers\"");
+    session.wait_for("arg: --resume");
+    session.wait_for("arg: --model");
+    session.wait_for("arg: opus");
     session.wait_for("AGENT · claude · running");
     session.send(b"q");
 

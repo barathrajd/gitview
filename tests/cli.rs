@@ -318,3 +318,42 @@ fn flags_after_an_agent_flag_belong_to_the_program() {
     assert!(!String::from_utf8_lossy(&output.stdout).contains("Usage: gitview"));
     assert!(String::from_utf8_lossy(&output.stderr).contains("`gitview-no-such-agent`"));
 }
+
+#[test]
+fn mcp_subcommand_speaks_json_rpc_on_stdio() {
+    use std::io::Write;
+    let mut child = Command::new(env!("CARGO_BIN_EXE_gitview"))
+        .arg("mcp")
+        .env_remove("GITVIEW_SOCKET")
+        .current_dir(std::env::temp_dir())
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(
+            b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}\n\
+              {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"get_status\"}}\n",
+        )
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success());
+    let replies = String::from_utf8_lossy(&output.stdout);
+    let mut lines = replies.lines();
+    assert!(lines.next().unwrap().contains("\"get_diff\""));
+    assert!(lines.next().unwrap().contains("gitview --claude"));
+}
+
+#[test]
+fn help_documents_the_mcp_server() {
+    let output = Command::new(env!("CARGO_BIN_EXE_gitview"))
+        .arg("--help")
+        .output()
+        .unwrap();
+    let help = String::from_utf8_lossy(&output.stdout);
+    assert!(help.contains("gitview mcp"), "{help}");
+    assert!(help.contains("GITVIEW_SOCKET"), "{help}");
+}
