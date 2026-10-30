@@ -2,7 +2,8 @@
 //!
 //! Gitview and, when one is open, the agent pane can have focus. The focus key
 //! moves it. While the agent has focus every key and paste goes to the agent
-//! unchanged, except the focus key; otherwise nothing does.
+//! through the agent handler, which reserves workspace Ctrl-w chords and
+//! forwards other sequences. The focus key always stays with Gitview.
 
 use crossterm::event::Event;
 
@@ -38,7 +39,7 @@ pub(super) fn route(focus: Focus, has_pane: bool, event: &Event) -> Route {
         return Route::ToggleFocus;
     }
     match (focus, event) {
-        (Focus::Agent, Event::Key(_) | Event::Paste(_)) => Route::Agent,
+        (Focus::Agent, Event::Key(_) | Event::Paste(_) | Event::Mouse(_)) => Route::Agent,
         _ => Route::Gitview,
     }
 }
@@ -64,14 +65,6 @@ mod tests {
             key(KeyCode::Char(']'), KeyModifiers::CONTROL),
             key(KeyCode::Char('5'), KeyModifiers::CONTROL),
             Event::Paste("pasted text".to_owned()),
-        ]
-    }
-
-    fn passive_events() -> Vec<Event> {
-        vec![
-            Event::Resize(80, 24),
-            Event::FocusGained,
-            Event::FocusLost,
             Event::Mouse(MouseEvent {
                 kind: MouseEventKind::Down(MouseButton::Left),
                 column: 1,
@@ -79,6 +72,10 @@ mod tests {
                 modifiers: KeyModifiers::NONE,
             }),
         ]
+    }
+
+    fn passive_events() -> Vec<Event> {
+        vec![Event::Resize(80, 24), Event::FocusGained, Event::FocusLost]
     }
 
     fn focus_keys() -> Vec<Event> {

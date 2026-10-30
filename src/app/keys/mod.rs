@@ -7,3 +7,5 @@ pub(super) mod overlays;
 pub(super) mod prompts;
 pub(super) mod search;
 pub(super) mod views;
+
+pub(super) mod workspace;

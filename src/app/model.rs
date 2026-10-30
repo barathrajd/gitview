@@ -22,6 +22,9 @@ use crate::{
 };
 
 pub(super) struct App {
+    pub(super) agent_mouse_area: Option<ratatui::layout::Rect>,
+    pub(super) workspace: crate::workspace::Workspace,
+    pub(super) workspace_prefix: bool,
     pub(super) border: ratatui::symbols::border::Set<'static>,
     pub(super) help: bool,
     pub(super) searching: bool,

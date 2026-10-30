@@ -86,3 +86,39 @@ fn an_offset_area_keeps_its_origin() {
         }
     );
 }
+
+#[test]
+fn agent_geometry_uses_workspace_visibility_and_requested_width() {
+    use gitview::{
+        ui::plan_workspace_agent_layout,
+        workspace::{Panel, Workspace},
+    };
+    let mut workspace = Workspace::new(true);
+    workspace.resize(Panel::Agent, -22);
+    assert_eq!(
+        plan_workspace_agent_layout(total(140, 40), &workspace, false),
+        AgentLayout::SideBySide {
+            gitview: Rect::new(0, 0, 92, 40),
+            agent: Rect::new(92, 0, 48, 40)
+        }
+    );
+    workspace.hide(Panel::Agent);
+    assert_eq!(
+        plan_workspace_agent_layout(total(140, 40), &workspace, true),
+        AgentLayout::GitviewOnly(total(140, 40))
+    );
+    workspace.show(Panel::Agent);
+    assert!(matches!(
+        plan_workspace_agent_layout(total(118, 30), &workspace, true),
+        AgentLayout::AgentFull(_)
+    ));
+    assert!(matches!(
+        plan_workspace_agent_layout(total(119, 30), &workspace, false),
+        AgentLayout::SideBySide { .. }
+    ));
+    workspace.resize(Panel::Agent, i16::MAX);
+    assert!(matches!(
+        plan_workspace_agent_layout(total(119, 30), &workspace, false),
+        AgentLayout::SideBySide { .. }
+    ));
+}

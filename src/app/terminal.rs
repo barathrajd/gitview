@@ -8,22 +8,42 @@ use std::{
     time::Duration,
 };
 
-use crossterm::event::{self, DisableBracketedPaste, EnableBracketedPaste, Event};
+use crossterm::event::{
+    self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+    Event,
+};
 use ratatui::{DefaultTerminal, Terminal};
 
 use super::run::Host;
 
 pub struct BracketedPasteMode {
     enabled: bool,
+    mouse_enabled: bool,
 }
 
 impl BracketedPasteMode {
     pub fn enable() -> io::Result<Self> {
         crossterm::execute!(io::stdout(), EnableBracketedPaste)?;
-        Ok(Self { enabled: true })
+        Ok(Self {
+            enabled: true,
+            mouse_enabled: false,
+        })
+    }
+
+    pub fn set_mouse_capture(&mut self, enabled: bool) -> io::Result<()> {
+        if enabled != self.mouse_enabled {
+            if enabled {
+                crossterm::execute!(io::stdout(), EnableMouseCapture)?;
+            } else {
+                crossterm::execute!(io::stdout(), DisableMouseCapture)?;
+            }
+            self.mouse_enabled = enabled;
+        }
+        Ok(())
     }
 
     pub fn disable(&mut self) -> io::Result<()> {
+        self.set_mouse_capture(false)?;
         if self.enabled {
             crossterm::execute!(io::stdout(), DisableBracketedPaste)?;
             self.enabled = false;
@@ -110,6 +130,10 @@ impl Host for TerminalHost {
         timeout: Duration,
     ) -> Result<Event, RecvTimeoutError> {
         self.events.recv_timeout(timeout)
+    }
+
+    fn set_mouse_capture(&mut self, enabled: bool) -> io::Result<()> {
+        self.paste_mode.set_mouse_capture(enabled)
     }
 
     fn run_external<T>(

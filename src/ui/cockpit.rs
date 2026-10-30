@@ -24,6 +24,20 @@ pub(super) fn render_cockpit(
     cockpit: Cockpit<'_>,
     border: ratatui::symbols::border::Set<'static>,
 ) {
+    let mut workspace = crate::workspace::Workspace::new(false);
+    workspace.focus(match cockpit.focused {
+        View::WorkingTree => crate::workspace::Panel::Sidebar,
+        View::History => crate::workspace::Panel::Center,
+    });
+    render_workspace_cockpit(frame, cockpit, &workspace, border);
+}
+
+pub fn render_workspace_cockpit(
+    frame: &mut Viewport<'_, '_>,
+    cockpit: Cockpit<'_>,
+    workspace: &crate::workspace::Workspace,
+    border: ratatui::symbols::border::Set<'static>,
+) {
     let Cockpit {
         repository,
         profile,
@@ -71,24 +85,29 @@ pub(super) fn render_cockpit(
 
     render_repository_header(frame, sections[0], repository, profile, branches, border);
 
-    if frame.area().width < 88 {
-        match focused {
-            View::History => {
-                render_history_panel(frame, sections[1], history, history_selection, true, border)
-            }
-            View::WorkingTree => render_worktree_panel(
+    // The model reserves one bottom row, already owned by the status line.
+    let workspace_layout = workspace.gitview_layout(ratatui::layout::Rect {
+        height: sections[1].height.saturating_add(1),
+        ..sections[1]
+    });
+    let side_by_side = workspace_layout.sidebar.zip(workspace_layout.center);
+    if side_by_side.is_none() {
+        if let Some(area) = workspace_layout.center {
+            render_history_panel(frame, area, history, history_selection, true, border);
+        }
+        if let Some(area) = workspace_layout.sidebar {
+            render_worktree_panel(
                 frame,
-                sections[1],
+                area,
                 "WORKTREE",
                 status,
                 working_tree_selection,
                 true,
                 border,
-            ),
+            );
         }
-    } else if frame.area().width < 128 {
-        let panes = Layout::horizontal([Constraint::Percentage(36), Constraint::Percentage(64)])
-            .split(sections[1]);
+    } else if let Some((sidebar, center)) = side_by_side.filter(|_| frame.area().width < 128) {
+        let panes = [sidebar, center];
         render_worktree_panel(
             frame,
             panes[0],
@@ -106,13 +125,11 @@ pub(super) fn render_cockpit(
             focused == View::History,
             border,
         );
-    } else {
-        let panes = Layout::horizontal([
-            Constraint::Percentage(29),
-            Constraint::Percentage(43),
-            Constraint::Percentage(28),
-        ])
-        .split(sections[1]);
+    } else if let Some((sidebar, center)) = side_by_side {
+        let center_panes =
+            Layout::horizontal([Constraint::Percentage(60), Constraint::Percentage(40)])
+                .split(center);
+        let panes = [sidebar, center_panes[0], center_panes[1]];
         render_worktree_panel(
             frame,
             panes[0],

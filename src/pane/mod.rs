@@ -1,4 +1,6 @@
 mod keys;
+mod mouse;
+pub use mouse::encode_mouse;
 mod launch;
 mod queries;
 
@@ -24,6 +26,9 @@ use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system}
 
 /// Lines of history kept above the visible screen.
 pub const SCROLLBACK_LIMIT: usize = 2000;
+
+/// The embedded terminal's default background, also reported through OSC 11.
+pub const DEFAULT_BACKGROUND: (u8, u8, u8) = (24, 24, 32);
 
 /// Pane setup runs one at a time: macOS's `openpty` fails intermittently
 /// ("Unknown error: -6") when several threads call it at once.
@@ -244,6 +249,15 @@ impl AgentPane {
                         self.parser.process(&bytes[done..end]);
                         done = end;
                         let reply = match query {
+                            queries::Answerable::BackgroundColor => {
+                                let (r, g, b) = DEFAULT_BACKGROUND;
+                                format!(
+                                    "\x1b]11;rgb:{:04x}/{:04x}/{:04x}\x07",
+                                    u16::from(r) * 257,
+                                    u16::from(g) * 257,
+                                    u16::from(b) * 257
+                                )
+                            }
                             queries::Answerable::CursorPosition => {
                                 let (row, column) = self.parser.screen().cursor_position();
                                 format!("\x1b[{};{}R", row + 1, column + 1)
@@ -341,6 +355,28 @@ impl AgentPane {
     pub fn send(&mut self, bytes: &[u8]) -> io::Result<()> {
         self.writer.write_all(bytes)?;
         self.writer.flush()
+    }
+
+    /// Browse ordinary terminal output without sending keys to the child.
+    pub fn scroll_by(&mut self, lines: i16) {
+        let screen = self.parser.screen_mut();
+        let old = screen.scrollback();
+        let next = if lines >= 0 {
+            old.saturating_add(lines as usize)
+        } else {
+            old.saturating_sub(usize::from(lines.unsigned_abs()))
+        };
+        screen.set_scrollback(next);
+        if screen.scrollback() != old {
+            self.generation += 1;
+        }
+    }
+
+    pub fn scroll_to_live(&mut self) {
+        if self.parser.screen().scrollback() != 0 {
+            self.parser.screen_mut().set_scrollback(0);
+            self.generation += 1;
+        }
     }
 
     pub fn resize(&mut self, rows: u16, cols: u16) {

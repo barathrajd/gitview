@@ -23,9 +23,9 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
     if app.needs_redraw {
         // Where Gitview and the agent go, and the size the agent should believe.
         let size = terminal.size().map_err(backend_error)?;
-        let layout = ui::plan_agent_layout(
+        let layout = ui::plan_workspace_agent_layout(
             Rect::new(0, 0, size.width, size.height),
-            app.pane.is_some(),
+            &app.workspace,
             app.focus == Focus::Agent,
         );
         let pane_area = match layout {
@@ -33,6 +33,9 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
             ui::AgentLayout::AgentFull(area) => Some(area),
             _ => None,
         };
+        app.agent_mouse_area = pane_area.map(ui::agent_pane_inner);
+        let mouse_enabled = app.focus == Focus::Agent && app.agent_mouse_area.is_some();
+        env.host.set_mouse_capture(mouse_enabled)?;
         if let (Some(area), Some(pane)) = (pane_area, app.pane.as_mut()) {
             let inner = ui::agent_pane_inner(area);
             let (rows, columns) = (inner.height.max(1), inner.width.max(1));
@@ -255,7 +258,23 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                 };
                 if let Some(area) = gitview_area {
                     let mut viewport = ui::Viewport::new(frame, area);
-                    ui::render_in(&mut viewport, screen, app.border);
+                    if let Screen::Cockpit(cockpit) = screen {
+                        let panel = match cockpit.focused {
+                            View::History => crate::workspace::Panel::Center,
+                            View::WorkingTree => crate::workspace::Panel::Sidebar,
+                        };
+                        app.workspace.show(panel);
+                        app.workspace.focus(panel);
+                        viewport.render_widget(ratatui::widgets::Clear, area);
+                        ui::render_workspace_cockpit(
+                            &mut viewport,
+                            cockpit,
+                            &app.workspace,
+                            app.border,
+                        );
+                    } else {
+                        ui::render_in(&mut viewport, screen, app.border);
+                    }
                     if app.help {
                         ui::render_help_overlay_in(&mut viewport, help_page, app.border);
                     }

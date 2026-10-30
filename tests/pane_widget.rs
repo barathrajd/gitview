@@ -83,7 +83,7 @@ fn maps_colors_and_attributes() {
     let at = |column: u16| &buffer[(ORIGIN.0 + column, ORIGIN.1)];
 
     assert_eq!(at(0).fg, Color::Indexed(1));
-    assert_eq!(at(0).bg, Color::Reset);
+    assert_eq!(at(0).bg, Color::Rgb(24, 24, 32));
     assert!(at(4).modifier.contains(Modifier::BOLD));
     assert_eq!(at(4).bg, Color::Indexed(4));
     assert_eq!(at(9).fg, Color::Rgb(1, 2, 3));
@@ -237,4 +237,32 @@ fn ascii_mode_draws_the_border_with_plain_characters() {
         assert!(symbol.is_ascii(), "({x}, {y}) is {symbol:?}");
     }
     assert_eq!(buffer[(0, 0)].symbol(), "+");
+}
+
+#[test]
+fn agent_cells_replace_existing_symbols_and_modifiers() {
+    use ratatui::{style::Style, widgets::Paragraph};
+    let pane = pane_showing("printf '├─ tests/'; sleep 5", "tests/");
+    let mut terminal = Terminal::new(TestBackend::new(60, 14)).unwrap();
+    terminal
+        .draw(|frame| {
+            let area = Rect::new(2, 1, 42, 12);
+            frame.render_widget(
+                Paragraph::new("stale text").style(
+                    Style::default()
+                        .bg(Color::White)
+                        .add_modifier(Modifier::REVERSED),
+                ),
+                area,
+            );
+            render_agent_pane(&mut Viewport::new(frame, area), area, &pane, false, PLAIN);
+        })
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    for x in ORIGIN.0..ORIGIN.0 + 40 {
+        let cell = &buffer[(x, ORIGIN.1)];
+        assert_eq!(cell.modifier, Modifier::empty());
+        assert_eq!(cell.bg, Color::Rgb(24, 24, 32));
+    }
+    assert_eq!(buffer[(ORIGIN.0 + 15, ORIGIN.1)].symbol(), " ");
 }

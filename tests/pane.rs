@@ -274,7 +274,7 @@ fn counts_the_terminal_queries_a_program_sends() {
     );
     assert_eq!(count("kitty keyboard flags (CSI ? u)"), 1, "{queries:?}");
     assert_eq!(count("mode status (CSI ? Pm $ p)"), 1, "{queries:?}");
-    assert_eq!(count("background color (OSC 11)"), 1, "{queries:?}");
+    assert_eq!(count("background color (OSC 11)"), 0, "{queries:?}");
     assert_eq!(count("foreground color (OSC 10)"), 1, "{queries:?}");
     assert_eq!(count("terminal version (CSI > q)"), 1, "{queries:?}");
     assert_eq!(count("text area size (CSI 18 t)"), 1, "{queries:?}");
@@ -370,4 +370,25 @@ fn answers_a_query_split_across_writes() {
         r#"printf '\033[6'; sleep 0.2; printf 'n'; IFS= read -r -d R reply; printf '\r\ngot:%s' "${reply:1}""#,
         "got:[1;1",
     );
+}
+
+#[test]
+fn answers_background_color_queries_for_dark_theme_detection() {
+    reply_to(
+        r#"printf '\033]11;?\007'; IFS= read -r -d $'\a' reply; printf '\r\ngot:%s' "${reply:1}""#,
+        "got:]11;rgb:1818/1818/2020",
+    );
+}
+
+#[test]
+fn ordinary_output_can_scroll_and_return_to_the_live_screen() {
+    let script = "i=0; while [ $i -lt 60 ]; do printf 'line-%03d\\r\\n' $i; i=$((i+1)); done; printf ready; sleep 5";
+    let mut pane = AgentPane::spawn(&argv(&["sh", "-c", script]), Path::new("."), 10, 40).unwrap();
+    wait_until(&mut pane, |pane| pane.screen_text().contains("ready"));
+    let live = pane.screen_text();
+    pane.scroll_by(3);
+    assert_ne!(pane.screen_text(), live);
+    assert_eq!(pane.screen().scrollback(), 3);
+    pane.scroll_to_live();
+    assert_eq!(pane.screen_text(), live);
 }

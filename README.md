@@ -136,9 +136,14 @@ program ends when you quit Gitview. If it isn't on your `PATH`, Gitview says so
 before it changes the terminal.
 
 Press `Ctrl+\` to move focus between Gitview and the agent; the pane's border
-shows the key. While the agent has focus, every key and paste goes to it
-unchanged except `Ctrl+\`, so Gitview's own keys, including **q**, reach the
-agent. While Gitview has focus, nothing reaches the agent. Focus returns to
+shows the key. Press **Ctrl+w**, then **o**, to toggle the focused pane
+between full width and the workspace split. This works directly in the agent
+pane too. **Ctrl+w +** grows the focused pane, **Ctrl+w -** shrinks it, and
+**Ctrl+w x** hides it. Hiding the agent keeps its program running; press
+`Ctrl+\` to reopen it, or **Ctrl+w =** to restore all panes. These workspace
+chords stay with Gitview; other keys and paste reach the focused agent, so
+**q** still reaches it. Other Ctrl+w sequences are forwarded after the next
+key. While Gitview has focus, nothing reaches the agent. Focus returns to
 Gitview when the program ends.
 
 On a terminal 119 columns or wider, the agent sits to the right of Gitview. On a
@@ -419,13 +424,24 @@ stash, rebase, and submodule workflows are not implemented. See the
 [Git CLI capability matrix](docs/git-cli-capability-matrix.md) for current
 coverage and planned work.
 
+See [Agent terminal compatibility](docs/agent-terminal-compatibility.md) for
+normal-terminal differences, the 0.8.0 development fixes, and remaining limits.
+
 The agent pane is a first version, checked on macOS with `claude` and `codex`.
 It keeps the last 2,000 lines of the agent's scrollback. It answers a program's
-questions about the cursor position and the terminal type, but not others, such
-as the theme colors or keyboard modes; programs start without those answers. It
-doesn't forward mouse input, focus changes, hyperlinks, or notifications, and it
-draws without waiting for a program's synchronized updates, so a half-drawn
-frame can show briefly. Shift+Enter is sent as Alt+Enter, which agents read as
+questions about the cursor position, terminal type, and the embedded pane's
+dark background color. Other queries, such as foreground colors and keyboard
+modes, remain unanswered.
+
+With the agent focused, wheel events browse ordinary terminal scrollback.
+Typing returns to the live screen. For alternate-screen programs without
+mouse reporting, the wheel sends Page Up/Down instead of moving the input
+cursor with arrow keys. Programs that enable mouse reporting receive clicks,
+wheel events, and requested motion reports with pane-relative coordinates.
+Mouse capture turns off when focus returns to Gitview. Terminal focus changes,
+hyperlinks, and notifications aren't forwarded. Drawing doesn't wait for a
+program's synchronized updates, so a half-drawn frame can show briefly.
+Shift+Enter is sent as Alt+Enter, which agents read as
 a new line. The control channel was checked with Claude Code and with Codex
 0.165.0 on macOS; on Linux only its automated tests have run. See the
 [security review](docs/agent-workspace-security.md) for what the control

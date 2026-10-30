@@ -67,6 +67,11 @@ pub trait Host {
         timeout: Duration,
     ) -> Result<Event, RecvTimeoutError>;
 
+    /// Enable capture for the focused child and wheel-scrolling fallback.
+    fn set_mouse_capture(&mut self, _enabled: bool) -> io::Result<()> {
+        Ok(())
+    }
+
     /// Runs an interactive external program with the terminal handed back to it.
     fn run_external<T>(
         &mut self,
@@ -366,6 +371,9 @@ pub fn run_app_with_agent<H: Host>(
         watching,
         refresh: Refresh::default(),
         diff_refresh: None,
+        workspace: crate::workspace::Workspace::new(pane.is_some()),
+        workspace_prefix: false,
+        agent_mouse_area: None,
         focus: input::Focus::default(),
         pane,
         control,
@@ -397,6 +405,9 @@ pub fn run_app_with_agent<H: Host>(
                 continue;
             }
             Route::Agent => {
+                if agent::workspace_key(&mut app, &event) {
+                    continue;
+                }
                 agent::forward(&mut app, &event);
                 continue;
             }
@@ -412,6 +423,7 @@ pub fn run_app_with_agent<H: Host>(
             step!(keys::confirm::handle(&mut app, &mut env, key));
             step!(keys::search::handle(&mut app, &mut env, key));
             step!(keys::branches::handle(&mut app, &mut env, key));
+            step!(keys::workspace::handle(&mut app, key));
             step!(keys::views::handle(&mut app, &mut env, key));
         }
     }

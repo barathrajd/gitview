@@ -1,9 +1,13 @@
 //! The agent pane's part of the event loop.
 
-use crossterm::event::Event;
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use super::{input::Focus, model::App};
-use crate::pane::{PaneState, encode_key, encode_paste};
+use crate::{
+    app::View,
+    pane::{PaneState, encode_key, encode_paste},
+    workspace::Panel,
+};
 
 /// Applies output the program produced, asks for a redraw when anything
 /// changed, and hands focus back to Gitview once the program has ended.
@@ -18,16 +22,81 @@ pub(super) fn poll(app: &mut App) {
     }
     if state != PaneState::Running && app.focus == Focus::Agent {
         app.focus = Focus::Gitview;
+        app.workspace_prefix = false;
     }
 }
 
 /// Moves focus to the other side. If the program has already ended, `poll`
 /// hands focus straight back, so keys can't be typed into a dead program.
 pub(super) fn toggle_focus(app: &mut App) {
+    app.workspace_prefix = false;
     app.focus = match app.focus {
-        Focus::Agent => Focus::Gitview,
-        Focus::Gitview => Focus::Agent,
+        Focus::Agent => {
+            let panel = match app.app_state.view() {
+                View::WorkingTree => Panel::Sidebar,
+                View::History => Panel::Center,
+            };
+            app.workspace.show(panel);
+            app.workspace.focus(panel);
+            Focus::Gitview
+        }
+        Focus::Gitview => {
+            app.workspace.show(Panel::Agent);
+            app.workspace.focus(Panel::Agent);
+            Focus::Agent
+        }
     };
+}
+
+/// Apply workspace chords to the agent; replay unrelated sequences unchanged.
+pub(super) fn workspace_key(app: &mut App, event: &Event) -> bool {
+    if let Event::Key(key) = event {
+        if key.kind == KeyEventKind::Release {
+            return false;
+        }
+        if !app.workspace_prefix
+            && key.code == KeyCode::Char('w')
+            && key.modifiers.contains(KeyModifiers::CONTROL)
+        {
+            app.workspace_prefix = true;
+            return true;
+        }
+        if app.workspace_prefix
+            && matches!(key.code, KeyCode::Char('o' | '+' | '-' | 'x' | '='))
+            && !key
+                .modifiers
+                .intersects(KeyModifiers::ALT | KeyModifiers::SUPER)
+        {
+            app.workspace_prefix = false;
+            app.workspace.focus(Panel::Agent);
+            match key.code {
+                KeyCode::Char('+') => app.workspace.resize(Panel::Agent, 4),
+                KeyCode::Char('-') => app.workspace.resize(Panel::Agent, -4),
+                KeyCode::Char('o') => app.workspace.toggle_fullscreen(),
+                KeyCode::Char('=') => app.workspace.restore_panels(),
+                KeyCode::Char('x') => {
+                    if app.workspace.hide(Panel::Agent) {
+                        app.focus = Focus::Gitview;
+                        app.app_state.show(match app.workspace.focused() {
+                            Panel::Sidebar => View::WorkingTree,
+                            _ => View::History,
+                        });
+                    }
+                }
+                _ => unreachable!(),
+            }
+            return true;
+        }
+    }
+    // Mouse and resize events don't finish a keyboard chord.
+    if matches!(event, Event::Key(_) | Event::Paste(_)) && std::mem::take(&mut app.workspace_prefix)
+    {
+        forward(
+            app,
+            &Event::Key(KeyEvent::new(KeyCode::Char('w'), KeyModifiers::CONTROL)),
+        );
+    }
+    false
 }
 
 /// Sends a key or paste to the program, encoded for the modes it asked for.
@@ -38,9 +107,51 @@ pub(super) fn forward(app: &mut App, event: &Event) {
     if pane.state() != PaneState::Running {
         return;
     }
+    if matches!(event, Event::Key(_) | Event::Paste(_)) {
+        pane.scroll_to_live();
+    }
     let bytes = match event {
         Event::Key(key) => encode_key(*key, pane.screen().application_cursor()),
         Event::Paste(text) => Some(encode_paste(text, pane.screen().bracketed_paste())),
+        Event::Mouse(mouse) => {
+            let Some(area) = app.agent_mouse_area else {
+                return;
+            };
+            if !area.contains(ratatui::layout::Position::new(mouse.column, mouse.row)) {
+                return;
+            }
+            if pane.screen().mouse_protocol_mode() == vt100::MouseProtocolMode::None {
+                use crossterm::event::MouseEventKind;
+                let up = match mouse.kind {
+                    MouseEventKind::ScrollUp => true,
+                    MouseEventKind::ScrollDown => false,
+                    _ => return,
+                };
+                if pane.screen().alternate_screen() {
+                    encode_key(
+                        KeyEvent::new(
+                            if up {
+                                KeyCode::PageUp
+                            } else {
+                                KeyCode::PageDown
+                            },
+                            KeyModifiers::NONE,
+                        ),
+                        pane.screen().application_cursor(),
+                    )
+                } else {
+                    pane.scroll_by(if up { 3 } else { -3 });
+                    None
+                }
+            } else {
+                crate::pane::encode_mouse(
+                    *mouse,
+                    area,
+                    pane.screen().mouse_protocol_mode(),
+                    pane.screen().mouse_protocol_encoding(),
+                )
+            }
+        }
         _ => None,
     };
     if let Some(bytes) = bytes {
