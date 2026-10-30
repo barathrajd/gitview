@@ -139,6 +139,130 @@ fn status(root: &Path, session: Session) -> SessionStatus {
     }
 }
 
+/// What a session would bring back to its base branch, as of when it was
+/// reviewed. Merging checks that nothing has moved since.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Review {
+    pub session: Session,
+    /// The session's commits, newest first, as `<short id> <subject>`.
+    pub commits: Vec<String>,
+    /// The session's changes against where it started.
+    pub diff: String,
+    base_tip: String,
+    session_tip: String,
+}
+
+pub fn review(root: &Path, session: &Session) -> Result<Review, String> {
+    let base_tip = branch_tip(root, &session.base_branch)?;
+    let session_tip = branch_tip(root, &session.branch)?;
+    let range = format!("{}..{session_tip}", session.base_commit);
+    let commits = git(root, &["log", "--format=%h %s", &range])?
+        .lines()
+        .map(str::to_owned)
+        .collect();
+    let mut command = process::git_command();
+    command
+        .current_dir(root)
+        .args(["diff", "--no-color", "--no-ext-diff", "--find-renames"])
+        .arg(format!("{}...{session_tip}", session.base_commit))
+        .arg("--");
+    let output = process::limited_output(&mut command, 1_000_000)?;
+    let mut diff = String::from_utf8_lossy(&output.stdout).into_owned();
+    if output.truncated {
+        diff.insert_str(0, "[diff truncated at 1 MB or 5000 lines]\n");
+    }
+    Ok(Review {
+        session: session.clone(),
+        commits,
+        diff,
+        base_tip,
+        session_tip,
+    })
+}
+
+/// Merge a reviewed session into its base branch with a merge commit, in the
+/// worktree at `root`. Refuses unless that worktree is on the base branch and
+/// clean, the session has no uncommitted work, and neither branch moved since
+/// the review. A conflict aborts the merge and leaves everything as it was.
+pub fn merge(root: &Path, review: &Review) -> Result<(), String> {
+    let session = &review.session;
+    let current = git(root, &["symbolic-ref", "--short", "-q", "HEAD"]).unwrap_or_default();
+    if current != session.base_branch {
+        return Err(format!(
+            "Switch to {} before merging {}: the session merges into the branch it started from",
+            session.base_branch, session.name
+        ));
+    }
+    if !git(root, &["status", "--porcelain", "--untracked-files=no"])?.is_empty() {
+        return Err(
+            "The working tree has uncommitted changes; commit or stash them before merging".into(),
+        );
+    }
+    if session.path.is_dir()
+        && !git(
+            &session.path,
+            &["status", "--porcelain", "--untracked-files=all"],
+        )?
+        .is_empty()
+    {
+        return Err(format!(
+            "{} has uncommitted work that a merge would leave out; ask the agent to commit it or discard it",
+            session.name
+        ));
+    }
+    if branch_tip(root, &session.base_branch)? != review.base_tip
+        || branch_tip(root, &session.branch)? != review.session_tip
+    {
+        return Err(format!(
+            "{} or {} changed since you reviewed; review again",
+            session.base_branch, session.branch
+        ));
+    }
+    let message = format!("Merge {} ({})", session.name, session.branch);
+    let merged = process::git_command()
+        .current_dir(root)
+        .args([
+            "merge",
+            "--no-ff",
+            "--no-edit",
+            "-m",
+            &message,
+            &review.session_tip,
+        ])
+        .output()
+        .map_err(|error| format!("Could not run Git: {error}"))?;
+    if merged.status.success() {
+        return Ok(());
+    }
+    let _ = git(root, &["merge", "--abort"]);
+    let detail = String::from_utf8_lossy(&merged.stdout);
+    if detail.contains("CONFLICT") {
+        Err(format!(
+            "Merging {} stopped on a conflict, so nothing changed; resolve it in the session first",
+            session.name
+        ))
+    } else {
+        Err(format!(
+            "Could not merge {}: {}",
+            session.name,
+            String::from_utf8_lossy(&merged.stderr).trim()
+        ))
+    }
+}
+
+fn branch_tip(root: &Path, branch: &str) -> Result<String, String> {
+    git(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("refs/heads/{branch}"),
+        ],
+    )
+    .map_err(|_| format!("The branch {branch} no longer exists"))
+}
+
 fn sessions_dir(root: &Path) -> Result<PathBuf, String> {
     let common = git(
         root,
