@@ -256,6 +256,7 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                     | ui::AgentLayout::GitviewWithBar { gitview, .. } => Some(gitview),
                     ui::AgentLayout::AgentFull(_) => None,
                 };
+                app.gitview_area = gitview_area;
                 if let Some(area) = gitview_area {
                     let mut viewport = ui::Viewport::new(frame, area);
                     if let Screen::Cockpit(cockpit) = screen {

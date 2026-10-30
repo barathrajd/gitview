@@ -6,7 +6,7 @@ use crate::app::{
     model::App,
     run::{Env, Flow, Host},
 };
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 pub(in crate::app) fn handle<H: Host>(
     app: &mut App,
@@ -19,6 +19,20 @@ pub(in crate::app) fn handle<H: Host>(
         profiles,
         ..
     } = env;
+    // Letter shortcuts are plain keys; Ctrl or Alt never runs them.
+    if let KeyCode::Char(letter) = key.code
+        && key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+    {
+        let blocked =
+            app.help || app.mutation_pending || app.details.is_some() || app.diff.is_some();
+        let control = key.modifiers == KeyModifiers::CONTROL;
+        if let Some(action) = app.app_state.handle_control(letter, blocked || !control) {
+            move_by_page(app, action);
+        }
+        return Ok(Flow::Handled);
+    }
     if key.code == KeyCode::Char('H') && !app.help && !app.mutation_pending {
         let _ = app.app_state.handle_key(KeyCode::Char('H'), false);
         app.searching = false;
@@ -241,7 +255,8 @@ pub(in crate::app) fn handle<H: Host>(
                 }
             }
             AppAction::RefreshWorkingTree => {
-                app.status = None;
+                // Keep the current list until the reload arrives, so the
+                // selected file and its scroll position survive it.
                 app.status_request += 1;
                 let id = app.status_request;
                 let sender = app.status_sender.clone();
@@ -250,30 +265,37 @@ pub(in crate::app) fn handle<H: Host>(
                     let _ = sender.send((id, crate::worktree::load_status(&path)));
                 });
             }
-            AppAction::MoveUp => match app.app_state.view() {
-                View::History => app
-                    .selection
-                    .select(crate::app::move_up(app.selection.selected())),
-                View::WorkingTree => app
-                    .status_selection
-                    .select(crate::app::move_up(app.status_selection.selected())),
-            },
-            AppAction::MoveDown => match app.app_state.view() {
-                View::History => {
-                    if let Some(Ok(rows)) = &app.history {
-                        app.selection
-                            .select(crate::app::move_down(app.selection.selected(), rows.len()));
+            AppAction::MoveUp => move_selection(app, |selected, _| crate::app::move_up(selected)),
+            AppAction::MoveDown => move_selection(app, crate::app::move_down),
+            AppAction::MoveUpBy(count) => {
+                move_selection(app, |selected, _| crate::app::move_up_by(selected, count))
+            }
+            AppAction::MoveDownBy(count) => move_selection(app, |selected, len| {
+                crate::app::move_down_by(selected, len, count)
+            }),
+            AppAction::MoveTop => move_selection(app, |_, len| (len > 0).then_some(0)),
+            AppAction::MoveBottom => move_selection(app, |_, len| len.checked_sub(1)),
+            AppAction::HalfPageDown
+            | AppAction::HalfPageUp
+            | AppAction::PageDown
+            | AppAction::PageUp => move_by_page(app, action),
+            AppAction::CenterSelection => {
+                let rows = page_rows(app);
+                match app.app_state.view() {
+                    View::History => {
+                        if let Some(selected) = app.selection.selected() {
+                            *app.selection.offset_mut() = selected.saturating_sub(rows / 2);
+                        }
+                    }
+                    View::WorkingTree => {
+                        if let Some(row) = app.status_selection.selected().and_then(|index| {
+                            crate::ui::worktree_display_row(app.status.as_ref(), index)
+                        }) {
+                            *app.status_selection.offset_mut() = row.saturating_sub(rows / 2);
+                        }
                     }
                 }
-                View::WorkingTree => {
-                    if let Some(Ok(entries)) = &app.status {
-                        app.status_selection.select(crate::app::move_down(
-                            app.status_selection.selected(),
-                            entries.len(),
-                        ));
-                    }
-                }
-            },
+            }
         }
         return Ok(Flow::Handled);
     }
@@ -503,4 +525,66 @@ pub(in crate::app) fn handle<H: Host>(
         _ => {}
     }
     Ok(Flow::Next)
+}
+
+/// Move the focused list's selection; `motion` maps the current selection and
+/// row count to the new one. Lists that have not loaded keep their selection.
+fn move_selection(app: &mut App, motion: impl FnOnce(Option<usize>, usize) -> Option<usize>) {
+    match app.app_state.view() {
+        View::History => {
+            if let Some(Ok(rows)) = &app.history {
+                let selected = motion(app.selection.selected(), rows.len());
+                app.selection.select(selected);
+            }
+        }
+        View::WorkingTree => {
+            if let Some(Ok(entries)) = &app.status {
+                let selected = motion(app.status_selection.selected(), entries.len());
+                app.status_selection.select(selected);
+            }
+        }
+    }
+}
+
+/// Apply a page motion: half or all of the focused list's visible rows.
+fn move_by_page(app: &mut App, action: AppAction) {
+    let rows = page_rows(app);
+    let half = (rows / 2).max(1);
+    match action {
+        AppAction::HalfPageDown => move_selection(app, |selected, len| {
+            crate::app::move_down_by(selected, len, half)
+        }),
+        AppAction::HalfPageUp => {
+            move_selection(app, |selected, _| crate::app::move_up_by(selected, half))
+        }
+        AppAction::PageDown => move_selection(app, |selected, len| {
+            crate::app::move_down_by(selected, len, rows)
+        }),
+        AppAction::PageUp => {
+            move_selection(app, |selected, _| crate::app::move_up_by(selected, rows))
+        }
+        _ => {}
+    }
+}
+
+/// The rows the focused list showed in the last frame, from the same layout
+/// the cockpit renderer uses: a three-row header and two status rows around
+/// the panels, each with a border above and below its rows.
+fn page_rows(app: &App) -> usize {
+    let Some(area) = app.gitview_area else {
+        return 1;
+    };
+    let panels = ratatui::layout::Rect {
+        y: area.y.saturating_add(3),
+        height: area.height.saturating_sub(4),
+        ..area
+    };
+    let layout = app.workspace.gitview_layout(panels);
+    let panel = match app.app_state.view() {
+        View::History => layout.center,
+        View::WorkingTree => layout.sidebar,
+    };
+    panel.map_or(1, |panel| {
+        usize::from(panel.height.saturating_sub(2)).max(1)
+    })
 }

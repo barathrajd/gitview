@@ -373,6 +373,7 @@ pub fn run_app_with_agent<H: Host>(
         diff_refresh: None,
         workspace: crate::workspace::Workspace::new(pane.is_some()),
         workspace_prefix: false,
+        gitview_area: None,
         agent_mouse_area: None,
         focus: input::Focus::default(),
         pane,

@@ -5,7 +5,7 @@
 #[path = "support/replay.rs"]
 mod replay;
 
-use crossterm::event::KeyCode::{Backspace, Enter, Esc, Tab};
+use crossterm::event::KeyCode::{Backspace, Enter, Esc, PageDown, PageUp, Tab};
 use replay::{Repo, Step::*, replay, replay_sized};
 
 /// True when the history list marks the row for `subject` as selected.
@@ -300,4 +300,68 @@ fn hunk_keys_scroll_a_working_tree_diff_to_each_change() {
     );
 
     assert!(!screen.contains("last edited"), "{screen}");
+}
+
+#[test]
+fn history_motions_jump_and_count_through_real_keys() {
+    let repository = Repo::with_history();
+    let cases: [(&[char], &str); 4] = [
+        (&['G'], "Add readme"),
+        (&['G', 'g', 'g'], "Change library"),
+        (&['2', 'j'], "Add readme"),
+        (&['G', '1', 'k'], "Add library"),
+    ];
+    for (keys, subject) in cases {
+        let mut steps = history_steps();
+        steps.extend(keys.iter().map(|key| Char(*key)));
+        let screen = replay(&repository.path(), steps);
+        assert!(history_selects(&screen, subject), "{keys:?}\n{screen}");
+    }
+}
+
+/// Forty commits, `Commit 01` (oldest) through `Commit 40` (newest).
+fn long_history() -> Repo {
+    let repository = Repo::new();
+    for number in 1..=40 {
+        repository.write("count.txt", &format!("{number}\n"));
+        repository.commit_all(&format!("Commit {number:02}"));
+    }
+    repository
+}
+
+/// The first history row drawn on screen.
+fn first_visible_commit(screen: &str) -> Option<&str> {
+    screen
+        .match_indices("Commit ")
+        .map(|(index, _)| &screen[index..index + 9])
+        .next()
+}
+
+#[test]
+fn history_page_keys_move_by_the_visible_rows() {
+    let repository = long_history();
+    let cases = [
+        (vec![Ctrl('d')], "Commit 34"),
+        (vec![Ctrl('d'), Ctrl('u')], "Commit 40"),
+        (vec![Ctrl('f')], "Commit 27"),
+        (vec![Key(PageDown), Key(PageDown), Key(PageUp)], "Commit 27"),
+        (vec![Char('G'), Ctrl('b')], "Commit 14"),
+    ];
+    for (keys, subject) in cases {
+        let mut steps = vec![WaitFor("Commit 40"), Key(Tab)];
+        steps.extend(keys);
+        let screen = replay_sized(&repository.path(), 140, 20, steps);
+        assert!(history_selects(&screen, subject), "{subject}\n{screen}");
+    }
+}
+
+#[test]
+fn zz_scrolls_the_selected_commit_to_the_middle() {
+    let repository = long_history();
+    let mut steps = vec![WaitFor("Commit 40"), Key(Tab)];
+    steps.extend([Char('2'), Char('0'), Char('j'), Char('z'), Char('z')]);
+    let screen = replay_sized(&repository.path(), 140, 20, steps);
+
+    assert!(history_selects(&screen, "Commit 20"), "{screen}");
+    assert_eq!(first_visible_commit(&screen), Some("Commit 26"), "{screen}");
 }

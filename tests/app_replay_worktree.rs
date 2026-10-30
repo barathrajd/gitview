@@ -158,3 +158,63 @@ fn narrow_terminals_show_one_pane_and_tab_switches_it() {
     );
     assert!(!history.contains("STAGED CHANGES"), "{history}");
 }
+
+#[test]
+fn control_u_and_control_d_do_not_run_the_plain_git_keys() {
+    let repository = Repo::with_changes();
+
+    let screen = replay(
+        &repository.path(),
+        [
+            WaitFor(START),
+            Ctrl('u'),
+            Ctrl('d'),
+            Char('?'),
+            WaitFor("HELP"),
+        ],
+    );
+
+    assert!(!screen.contains("DISCARD"), "{screen}");
+    // A misread Ctrl-u unstages on a worker thread; give it time to land.
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    let status = repository.output(&["status", "--porcelain"]);
+    assert!(status.contains("A  staged.txt"), "{status}");
+}
+
+#[test]
+fn zz_scrolls_the_selected_file_to_the_middle() {
+    let repository = Repo::with_history();
+    for number in 1..=40 {
+        repository.write(&format!("file-{number:02}.txt"), "new\n");
+    }
+    let extra = repository.path().join("file-41.txt");
+
+    let screen = replay_sized(
+        &repository.path(),
+        140,
+        20,
+        [
+            WaitFor("UNTRACKED 40"),
+            Char('2'),
+            Char('0'),
+            Char('j'),
+            Char('z'),
+            Char('z'),
+            // Help and a refresh keep the centered scroll position.
+            Char('?'),
+            WaitFor("HELP"),
+            Char('?'),
+            WaitForGone("HELP"),
+            Do(Box::new(move || std::fs::write(extra, "new\n").unwrap())),
+            Char('r'),
+            WaitFor("UNTRACKED 41"),
+        ],
+    );
+
+    let first = screen.find("file-").map(|index| &screen[index..index + 7]);
+    assert_eq!(first, Some("file-15"), "{screen}");
+    assert!(
+        screen.contains("› ") && screen.contains("file-21"),
+        "{screen}"
+    );
+}

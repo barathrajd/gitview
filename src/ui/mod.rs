@@ -31,4 +31,4 @@ pub use theme::ASCII_BORDER;
 pub(crate) use theme::{ACCENT, MUTED, page_block, selection_style};
 pub use viewport::{Viewport, split_side_pane};
 
-pub use cockpit::render_workspace_cockpit;
+pub use cockpit::{render_workspace_cockpit, worktree_display_row};

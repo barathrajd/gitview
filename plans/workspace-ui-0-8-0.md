@@ -97,7 +97,7 @@ every panel already handles.
 1. **Workspace shell (complete).** The panel model, focus, hide, and resize. Move the
    working tree, history, and agent pane into it with their current
    rendering; all replay and live tests pass.
-2. **Vim motions (not started).** `gg`, `G`, the page keys, counts, `zz`, with `Tab` for panel focus
+2. **Vim motions (in progress).** `gg`, `G`, the page keys, counts, `zz`, with `Tab` for panel focus
    across all panels, with replay tests for each.
 3. **Search.** Fuzzy ranking over loaded commits, then the Git-side filters
    and `n`/`N`, with cancellation and tests for each filter.
@@ -277,3 +277,39 @@ The user stopped implementation for a credit limit and requested a merge to
 main. Milestone 1 and the agent terminal compatibility fixes are complete.
 Milestone 2 has not started: no vim-motion implementation or failing test was
 written. Start that milestone next, on a fresh feature branch from main.
+
+### Milestone 2: cockpit gg/G and counts (awaiting user testing)
+
+History and Worktree lists accept `gg` (first row), `G` (last row), and a
+count before `j`/`k` or the arrows (`5j`). A pending count or `g` is dropped
+by any other key, which keeps its usual action, and by blocked screens.
+Agent input, prompts, and Ctrl-w chords are handled before the parser.
+
+Verification: full serial suite passed (505 passed, 0 failed, 16 ignored),
+Clippy passed, optimized binary rebuilt. Page and half-page keys, `zz`, and
+motions in other lists and diffs remain open.
+
+Fix (committed): Ctrl- and Alt-modified letters no longer run plain view
+shortcuts; Ctrl-u had unstaged and Ctrl-d opened the discard preview.
+
+### Milestone 2: page keys and zz (committed)
+
+Ctrl-d/Ctrl-u move half the focused list's visible rows; Ctrl-f/Ctrl-b and
+Page Down/Up move a full page. Rows come from the workspace layout of the last
+drawn frame. `zz` scrolls History so the selection is centered; the Worktree
+list keeps no scroll offset between frames, so `zz` there is still open.
+
+Verification: full serial suite passed (511 passed, 0 failed, 16 ignored),
+Clippy passed, optimized binary rebuilt.
+
+### Milestone 2: Worktree scroll and zz (committed)
+
+The Worktree list now keeps its scroll offset (in display rows, counting
+section headings) between frames, so `zz` centers the selected file there
+too. User testing found `r` reset it to the top: refresh cleared the cached
+status, so the reload lost the selected file (an older reset that scroll
+memory exposed). `r` now keeps the list until the reload arrives, and a
+loading list no longer overwrites the saved offset.
+Verification: full serial suite passed (512 passed, 0 failed,
+16 ignored), Clippy passed, optimized binary rebuilt. Motions in the other
+lists and in diffs remain open.

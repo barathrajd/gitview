@@ -173,3 +173,135 @@ fn list_movement_preserves_selection_and_clamps_to_available_rows() {
     assert_eq!(move_up(Some(0)), Some(0));
     assert_eq!(move_up(None), None);
 }
+
+#[test]
+fn gg_and_capital_g_jump_to_the_first_and_last_rows() {
+    let mut app = AppState::default();
+
+    assert_eq!(
+        app.handle_key(KeyCode::Char('G'), false),
+        Some(AppAction::MoveBottom)
+    );
+    assert_eq!(app.handle_key(KeyCode::Char('g'), false), None);
+    assert_eq!(
+        app.handle_key(KeyCode::Char('g'), false),
+        Some(AppAction::MoveTop)
+    );
+}
+
+#[test]
+fn a_count_repeats_the_next_vertical_motion() {
+    let mut app = AppState::default();
+
+    assert_eq!(app.handle_key(KeyCode::Char('1'), false), None);
+    assert_eq!(app.handle_key(KeyCode::Char('2'), false), None);
+    assert_eq!(
+        app.handle_key(KeyCode::Down, false),
+        Some(AppAction::MoveDownBy(12))
+    );
+    assert_eq!(app.handle_key(KeyCode::Char('3'), false), None);
+    assert_eq!(
+        app.handle_key(KeyCode::Up, false),
+        Some(AppAction::MoveUpBy(3))
+    );
+    // The count is spent: a plain motion moves one row again.
+    assert_eq!(
+        app.handle_key(KeyCode::Down, false),
+        Some(AppAction::MoveDown)
+    );
+}
+
+#[test]
+fn a_pending_count_or_g_is_dropped_by_other_keys() {
+    let mut app = AppState::default();
+
+    assert_eq!(app.handle_key(KeyCode::Char('4'), false), None);
+    // Other keys keep their action and discard the count.
+    assert_eq!(
+        app.handle_key(KeyCode::Char('s'), false),
+        Some(AppAction::StageSelected)
+    );
+    assert_eq!(
+        app.handle_key(KeyCode::Down, false),
+        Some(AppAction::MoveDown)
+    );
+
+    assert_eq!(app.handle_key(KeyCode::Char('g'), false), None);
+    assert_eq!(
+        app.handle_key(KeyCode::Char('s'), false),
+        Some(AppAction::StageSelected)
+    );
+    assert_eq!(app.handle_key(KeyCode::Char('g'), false), None);
+    assert_eq!(app.handle_key(KeyCode::Esc, false), None);
+    assert_eq!(app.handle_key(KeyCode::Char('g'), false), None);
+
+    // A blocked screen also clears pending motion input.
+    assert_eq!(app.handle_key(KeyCode::Char('5'), false), None);
+    assert_eq!(app.handle_key(KeyCode::Down, true), None);
+    assert_eq!(
+        app.handle_key(KeyCode::Down, false),
+        Some(AppAction::MoveDown)
+    );
+}
+
+#[test]
+fn counted_moves_clamp_to_the_list() {
+    assert_eq!(gitview::app::move_down_by(Some(1), 3, 10), Some(2));
+    assert_eq!(gitview::app::move_down_by(None, 0, 10), None);
+    assert_eq!(gitview::app::move_up_by(Some(2), 10), Some(0));
+    assert_eq!(gitview::app::move_up_by(None, 10), None);
+}
+
+#[test]
+fn control_page_keys_map_to_half_and_full_page_motions() {
+    let mut app = AppState::default();
+
+    assert_eq!(
+        app.handle_control('d', false),
+        Some(AppAction::HalfPageDown)
+    );
+    assert_eq!(app.handle_control('u', false), Some(AppAction::HalfPageUp));
+    assert_eq!(app.handle_control('f', false), Some(AppAction::PageDown));
+    assert_eq!(app.handle_control('b', false), Some(AppAction::PageUp));
+    assert_eq!(app.handle_control('s', false), None);
+    assert_eq!(app.handle_control('d', true), None);
+    assert_eq!(
+        app.handle_key(KeyCode::PageDown, false),
+        Some(AppAction::PageDown)
+    );
+    assert_eq!(
+        app.handle_key(KeyCode::PageUp, false),
+        Some(AppAction::PageUp)
+    );
+}
+
+#[test]
+fn a_page_key_drops_a_pending_count() {
+    let mut app = AppState::default();
+
+    assert_eq!(app.handle_key(KeyCode::Char('3'), false), None);
+    assert_eq!(
+        app.handle_control('d', false),
+        Some(AppAction::HalfPageDown)
+    );
+    assert_eq!(
+        app.handle_key(KeyCode::Down, false),
+        Some(AppAction::MoveDown)
+    );
+}
+
+#[test]
+fn zz_centers_the_selection_and_a_lone_z_keeps_other_keys() {
+    let mut app = AppState::default();
+
+    assert_eq!(app.handle_key(KeyCode::Char('z'), false), None);
+    assert_eq!(
+        app.handle_key(KeyCode::Char('z'), false),
+        Some(AppAction::CenterSelection)
+    );
+    assert_eq!(app.handle_key(KeyCode::Char('z'), false), None);
+    assert_eq!(
+        app.handle_key(KeyCode::Char('s'), false),
+        Some(AppAction::StageSelected)
+    );
+}
