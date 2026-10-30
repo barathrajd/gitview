@@ -5,6 +5,11 @@
 
 # Gitview
 
+[Website](https://gitview.barathrajdevarajan.dev/) ·
+[Features](https://gitview.barathrajdevarajan.dev/features/) ·
+[Changelog](https://gitview.barathrajdevarajan.dev/changelog/) ·
+[Install](https://gitview.barathrajdevarajan.dev/#install)
+
 Gitview is a keyboard-first terminal interface for reviewing Git history and
 working-tree changes. See [RELEASE.md](RELEASE.md) for release notes and
 history.
