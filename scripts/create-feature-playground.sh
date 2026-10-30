@@ -48,6 +48,9 @@ for number in $(seq -w 1 30); do
 done
 git -C "$repo" add -- notes
 git -C "$repo" commit -qm 'docs: add thirty notes in one commit'
+for number in $(seq -w 1 30); do
+  git -C "$repo" branch "topic-$number"
+done
 for number in $(seq -w 1 40); do
   printf 'Entry %s\n' "$number" >> "$repo/log.txt"
   git -C "$repo" add -- log.txt

@@ -385,8 +385,9 @@ and uses `cargo run`. The sample repository includes:
 
 - A main branch, a topic branch, a merge commit, and a tag for history and graph
   browsing, search, commit details, and branch switching.
-- Forty small commits and one commit that changes thirty files, for list
-  motions such as counts, page keys, `gg`/`G`, and `zz`.
+- Forty small commits, one commit that changes thirty files, and thirty
+  `topic-NN` branches, for list motions such as counts, page keys, `gg`/`G`,
+  and `zz`.
 - A clean working-tree file, a staged file, an unstaged file, and an untracked
   file for status navigation, staging, unstaging, and discard confirmation.
 - A file with one staged hunk and a separate unstaged hunk for reviewing diffs
