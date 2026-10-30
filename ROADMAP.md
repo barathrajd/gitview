@@ -4,7 +4,7 @@
 
 - [Linux release and Homebrew tap](plans/linux-release-homebrew.md) — a
   static Linux x86_64 archive, Linux in `install.sh`, and
-  `brew install barathrajd/gitview/gitview`, before 0.7.0 is cut.
+  `brew install barathrajd/tap/gitview`, before 0.7.0 is cut.
 - [0.6.0 follow-ups](RELEASE.md#upcoming) — the known issues 0.6.0 shipped
   with: large-comparison memory variance, the renderer-only memory diagnostic,
   the security review, and a clean-revision rerun.

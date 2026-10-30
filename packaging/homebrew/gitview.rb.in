@@ -1,5 +1,5 @@
 # Rendered by scripts/render-homebrew-formula.sh for each release and pushed
-# to github.com/barathrajd/homebrew-gitview. Edit this template, not the tap.
+# to github.com/barathrajd/homebrew-tap. Edit this template, not the tap.
 class Gitview < Formula
   desc "Keyboard-first terminal interface for reviewing Git history and changes"
   homepage "https://github.com/barathrajd/gitview"

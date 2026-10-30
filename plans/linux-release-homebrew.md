@@ -6,7 +6,7 @@ Gitview releases ship one prebuilt binary, for macOS on Apple Silicon. Linux
 users can only build it with `cargo install`, and Mac users who expect
 Homebrew have no formula. Starting with 0.7.0, every release also ships a
 static Linux x86_64 binary, and Gitview installs with
-`brew install barathrajd/gitview/gitview` on macOS Apple Silicon and Linux
+`brew install barathrajd/tap/gitview` on macOS Apple Silicon and Linux
 x86_64. It's for Linux developers and for anyone who installs tools with
 Homebrew.
 
@@ -26,11 +26,11 @@ Homebrew.
   archive on macOS Apple Silicon. It verifies the checksum with `sha256sum`,
   or with `shasum -a 256` where that is missing. It names the supported
   platforms when run anywhere else.
-- After each release, the public `barathrajd/homebrew-gitview` tap has a
+- After each release, the public `barathrajd/homebrew-tap` tap has a
   `Formula/gitview.rb` with that release's version, URLs and SHA-256 values,
   pushed by the release workflow without a manual step.
 - On macOS Apple Silicon and on Linux x86_64,
-  `brew install barathrajd/gitview/gitview` installs that release and
+  `brew install barathrajd/tap/gitview` installs that release and
   `brew test gitview` passes. On an unsupported platform, Homebrew refuses
   with a clear message.
 - The README, the website's install guide, `RELEASE.md` and `ROADMAP.md`
@@ -47,7 +47,7 @@ Homebrew.
   `ubuntu-latest`. It builds with the `x86_64-unknown-linux-musl` target,
   smoke-tests the binary, and uploads the archive and checksum.
 - Linux x86_64 support and the checksum fallback in `install.sh`.
-- The tap repository `barathrajd/homebrew-gitview`, a formula template in this
+- The tap repository `barathrajd/homebrew-tap`, a formula template in this
   repository, a script that renders it, and an `update-homebrew-tap` job that
   pushes the rendered formula after both archives are uploaded.
 - A `workflow_dispatch` dry run that builds, tests and renders everything
@@ -92,8 +92,10 @@ The formula uses `on_macos` and `on_linux` blocks with `on_arm` and
 
 - **Linux build:** x86_64 only, statically linked with musl, so one binary
   runs on any distribution, Alpine included.
-- **Tap:** a separate repository, `barathrajd/homebrew-gitview`, so the
-  install command is `brew install barathrajd/gitview/gitview`.
+- **Tap:** a separate repository, `barathrajd/homebrew-tap`, shared by
+  future tools, so the install command is
+  `brew install barathrajd/tap/gitview` (changed from a gitview-only tap on
+  2026-10-30, so other tools can use the same tap).
 - **Formula updates:** the release workflow pushes the new formula itself.
 - **Linux gate:** CI on Linux plus the smoke test of the release binary, and
   one recorded performance run. No full performance parity.
@@ -148,7 +150,7 @@ The formula uses `on_macos` and `on_linux` blocks with `on_arm` and
    on it, and install it from a local tap on macOS. On a Linux runner with
    Homebrew, run `brew install` and `brew test` against the dry-run archive.
 4. **Tap repository and push job.** With the user's confirmation, create
-   `barathrajd/homebrew-gitview` (public, with a README) and have the user add
+   `barathrajd/homebrew-tap` (public, with a README) and have the user add
    `HOMEBREW_TAP_TOKEN`. Add the `update-homebrew-tap` job. A dry run renders
    and checks the formula but doesn't push.
 5. **Docs, then the 0.7.0 release.** Write the README and website install
