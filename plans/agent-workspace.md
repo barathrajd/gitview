@@ -182,9 +182,37 @@ since review.
   to 3 `git status` runs. With the polling fallback the idle cost is 2.73%.
   Not measured: very large repositories, and Linux (inotify watch limits are the
   likely failure there, which is what the fallback is for).
-- [ ] **4. Control channel and MCP:** Add the socket, permissions, and the
+- [x] **4. Control channel and MCP:** Add the socket, permissions, and the
   read-only tools with size limits. Test with a real Claude session and with a
   scripted client, including unauthorized and malformed requests.
+  *Decided (2026-10-30):* a private folder plus a peer user ID check, with no
+  token; 64 KiB per reply and at most 200 commits; `--claude` registers the
+  server itself; a hand-written JSON-RPC server instead of the `rmcp` crate.
+  *Done:* `control::server::ControlServer` listens in `$XDG_RUNTIME_DIR/gitview`
+  or `<temp>/gitview-<uid>`. The folder must be ours and mode 0700 (a shared
+  one is refused), the socket is 0600, a peer with another user ID is dropped
+  (`getpeereid`, `SO_PEERCRED` on Linux), and each server's socket name is
+  unique. Requests are JSON lines of at most 64 KiB; a longer one closes the
+  connection, and a malformed one gets an error reply on a connection that
+  stays open. `control::tools` implements `get_status`, `get_log`, `get_diff`,
+  and `get_show`: paths must be repository-relative, a revision can't start
+  with `-` and is resolved with `rev-parse --end-of-options`, and an empty
+  repository has an empty log. `gitview mcp` (`control::mcp`) answers
+  `initialize`, `ping`, `tools/list`, and `tools/call`, and marks tool errors
+  with `isError`. In the app, `select_commit` opens the commit's details,
+  `select_file` opens the diff, and `focus_pane` moves focus; a request waits
+  while the user is in a prompt or dialog, and is dropped if its target hasn't
+  loaded within 3 s. `--claude` adds `--mcp-config=<json>` (the `=` form, so the
+  variadic option can't swallow a prompt).
+  *Checked live (macOS):* `claude -p` in a Gitview pane called `get_log` and
+  got the branch's commits, and `get_diff` with `../../etc/passwd` was refused.
+  Codex 0.165.0 strips the environment of MCP servers: without
+  `env_vars = ["GITVIEW_SOCKET"]` the tool says Gitview isn't reachable, and
+  with it `get_log` works. The README documents that.
+  *Not tested:* a connection from another user ID (needs a second account or
+  root; the check is in `accept_loop`), Linux, and a long interactive session.
+  If the socket can't be created, the agent runs without `GITVIEW_SOCKET` and
+  Gitview says nothing about it; revisit in milestone 7.
 - [ ] **5. Serialize writes:** Route user and control-channel Git mutations
   through one queue. Test concurrent stage and unstage from both sides.
 - [ ] **6. Worktree sessions:** Add create, list, review, merge, and discard for
