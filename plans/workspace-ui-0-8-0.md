@@ -97,7 +97,7 @@ every panel already handles.
 1. **Workspace shell (complete).** The panel model, focus, hide, and resize. Move the
    working tree, history, and agent pane into it with their current
    rendering; all replay and live tests pass.
-2. **Vim motions (in progress).** `gg`, `G`, the page keys, counts, `zz`, with `Tab` for panel focus
+2. **Vim motions (not started).** `gg`, `G`, the page keys, counts, `zz`, with `Tab` for panel focus
    across all panels, with replay tests for each.
 3. **Search.** Fuzzy ranking over loaded commits, then the Git-side filters
    and `n`/`N`, with cancellation and tests for each filter.
@@ -270,3 +270,10 @@ the terminal fixes. Compatibility differences are recorded in
 `docs/agent-terminal-compatibility.md`. Milestone 1 is complete with the user's
 single-Gitview-pane layout correction. Milestone 2 starts with cockpit list
 motions; agent input and workspace chords keep their current behavior.
+
+## Handoff on October 31, 2026
+
+The user stopped implementation for a credit limit and requested a merge to
+main. Milestone 1 and the agent terminal compatibility fixes are complete.
+Milestone 2 has not started: no vim-motion implementation or failing test was
+written. Start that milestone next, on a fresh feature branch from main.
