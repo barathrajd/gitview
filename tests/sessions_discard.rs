@@ -183,3 +183,15 @@ fn a_worktree_a_crash_left_out_of_the_manifest_is_listed_and_discardable() {
     assert_gone(&root, &orphan.session);
     assert_eq!(sessions::list(&root).unwrap().len(), 1);
 }
+
+#[test]
+fn the_session_gitview_is_running_in_cant_be_discarded() {
+    let root = repository();
+    let session = sessions::create(&root).unwrap();
+
+    let preview = sessions::preview_discard(&session.path, &session).unwrap();
+    let error = sessions::discard(&session.path, &preview).unwrap_err();
+
+    assert!(error.contains("running in"), "{error}");
+    assert!(session.path.exists());
+}

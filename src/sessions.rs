@@ -239,11 +239,14 @@ pub fn review(root: &Path, session: &Session) -> Result<Review, String> {
 }
 
 /// Merge a reviewed session into its base branch with a merge commit, in the
-/// worktree at `root`. Refuses unless that worktree is on the base branch and
+/// repository's main worktree. Refuses unless that worktree is on the base branch and
 /// clean, the session has no uncommitted work, and neither branch moved since
 /// the review. A conflict aborts the merge and leaves everything as it was.
 pub fn merge(root: &Path, review: &Review) -> Result<(), String> {
     let session = &review.session;
+    // Merge where the base branch lives, even when Gitview runs in a session.
+    let main = main_worktree(root)?;
+    let root = main.as_path();
     let current = git(root, &["symbolic-ref", "--short", "-q", "HEAD"]).unwrap_or_default();
     if current != session.base_branch {
         return Err(format!(
@@ -362,6 +365,12 @@ pub fn preview_discard(root: &Path, session: &Session) -> Result<DiscardPreview,
 /// changed since the preview. Parts a crash already removed are skipped.
 pub fn discard(root: &Path, preview: &DiscardPreview) -> Result<(), String> {
     let session = &preview.session;
+    if fs::canonicalize(root).is_ok_and(|current| current.starts_with(&session.path)) {
+        return Err(format!(
+            "Gitview is running in {}; quit it and discard the session from the main worktree",
+            session.name
+        ));
+    }
     let now = preview_discard(root, session)?;
     if now.tip != preview.tip || now.uncommitted != preview.uncommitted {
         return Err(format!(
@@ -404,6 +413,14 @@ pub fn discard(root: &Path, preview: &DiscardPreview) -> Result<(), String> {
         write_manifest(&folder, &manifest)?;
     }
     Ok(())
+}
+
+/// The repository's main worktree, which Git always lists first.
+fn main_worktree(root: &Path) -> Result<PathBuf, String> {
+    git(root, &["worktree", "list", "--porcelain", "-z"])?
+        .split('\0')
+        .find_map(|field| field.strip_prefix("worktree ").map(PathBuf::from))
+        .ok_or_else(|| "Could not find the main worktree".to_owned())
 }
 
 fn branch_tip(root: &Path, branch: &str) -> Result<String, String> {

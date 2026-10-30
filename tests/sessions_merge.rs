@@ -169,3 +169,18 @@ fn a_conflict_aborts_and_leaves_main_as_it_was() {
     assert_eq!(git(&root, &["status", "--porcelain"]), "");
     assert!(!root.join(".git/MERGE_HEAD").exists());
 }
+
+#[test]
+fn merge_from_inside_the_session_lands_in_the_main_worktree() {
+    let root = repository();
+    let session = session_with_work(&root);
+    let review = sessions::review(&session.path, &session).unwrap();
+
+    sessions::merge(&session.path, &review).unwrap();
+
+    assert!(git(&root, &["log", "-1", "--format=%s"]).contains(&session.name));
+    assert_eq!(
+        fs::read_to_string(root.join("agent.txt")).unwrap(),
+        "from the agent\n"
+    );
+}
