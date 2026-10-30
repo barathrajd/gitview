@@ -119,7 +119,11 @@ pub(in crate::app) fn handle<H: Host>(
                     let result = expected
                         .as_ref()
                         .ok_or_else(|| "Amend preview is unavailable".to_owned())
-                        .and_then(|preview| crate::commit::amend_commit(&path, &message, preview));
+                        .and_then(|preview| {
+                            crate::writes::serialized(|| {
+                                crate::commit::amend_commit(&path, &message, preview)
+                            })
+                        });
                     let _ = sender.send((subject, description, true, result));
                 });
             }

@@ -22,3 +22,4 @@ pub mod tags;
 pub mod ui;
 pub mod watch;
 pub mod worktree;
+pub mod writes;

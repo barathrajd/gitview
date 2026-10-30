@@ -81,11 +81,11 @@ impl TagPage {
             let message = match action {
                 Action::Refresh => Ok(String::new()),
                 Action::Create(preview) => {
-                    tags::create(&root, &preview).map(|()| "Lightweight tag created.".into())
+                    crate::writes::serialized(|| tags::create(&root, &preview))
+                        .map(|()| "Lightweight tag created.".into())
                 }
-                Action::Delete(tag) => {
-                    tags::delete(&root, &tag).map(|()| "Local tag deleted.".into())
-                }
+                Action::Delete(tag) => crate::writes::serialized(|| tags::delete(&root, &tag))
+                    .map(|()| "Local tag deleted.".into()),
             };
             let _ = sender.send((message, tags::list(&root)));
         });

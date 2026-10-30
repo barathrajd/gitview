@@ -68,23 +68,33 @@ pub(in crate::app) fn handle<H: Host>(
                         let (success_message, result) = match action {
                             BranchAction::Previous(preview) => (
                                 "Returned to previous checkout.".to_owned(),
-                                crate::branches::switch_previous_checkout(&path, &preview),
+                                crate::writes::serialized(|| {
+                                    crate::branches::switch_previous_checkout(&path, &preview)
+                                }),
                             ),
                             BranchAction::Switch(name) => (
                                 "Branch switched successfully.".to_owned(),
-                                crate::branches::switch_branch(&path, &name),
+                                crate::writes::serialized(|| {
+                                    crate::branches::switch_branch(&path, &name)
+                                }),
                             ),
                             BranchAction::Rename { preview, name } => (
                                 "Branch renamed successfully.".to_owned(),
-                                crate::branches::rename_branch(&path, &preview, &name),
+                                crate::writes::serialized(|| {
+                                    crate::branches::rename_branch(&path, &preview, &name)
+                                }),
                             ),
                             BranchAction::Delete(preview) => (
                                 "Branch deleted successfully.".to_owned(),
-                                crate::branches::delete_branch(&path, &preview),
+                                crate::writes::serialized(|| {
+                                    crate::branches::delete_branch(&path, &preview)
+                                }),
                             ),
                             BranchAction::Create { name, base } => (
                                 "Branch created and switched successfully.".to_owned(),
-                                crate::branches::create_branch(&path, &name, &base),
+                                crate::writes::serialized(|| {
+                                    crate::branches::create_branch(&path, &name, &base)
+                                }),
                             ),
                         };
                         let _ = sender.send((success_message, result));

@@ -122,7 +122,9 @@ pub(in crate::app) fn handle<H: Host>(
                             .as_ref()
                             .ok_or_else(|| "Staged changes are unavailable".to_owned())
                             .and_then(|preview| {
-                                crate::commit::create_commit(&path, &message, preview)
+                                crate::writes::serialized(|| {
+                                    crate::commit::create_commit(&path, &message, preview)
+                                })
                             });
                         let _ = sender.send((subject, description, false, result));
                     });
