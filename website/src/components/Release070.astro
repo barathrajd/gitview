@@ -1,5 +1,8 @@
 ---
-// Each transcript below is real output from Gitview 0.7.0 or its installers,
+import TerminalShot from "./TerminalShot.astro";
+
+// Screens come from tests/website_screenshots.rs, which drives the real
+// application. Each transcript below is real output from Gitview 0.7.0 or its installers,
 // captured on October 30, 2026. The text follows README.md and the 0.7.0
 // release notes.
 const groups = [
@@ -15,6 +18,9 @@ const groups = [
       "       gitview [--ascii] --codex [args...]",
       "       gitview [--ascii] --session (--claude | --codex | --run <command>) [args...]",
       "       gitview mcp",
+    ],
+    shots: [
+      { name: "agent", label: "A shell in the agent pane runs git log and asks Gitview for the status through gitview mcp" },
     ],
   },
   {
@@ -35,6 +41,10 @@ const groups = [
     transcript: [
       "$ cd /tmp/notes && gitview --session --run sh -c 'sleep 30'",
       "Session session-20261030-110040 is kept on branch gitview/session-20261030-110040 at /private/tmp/notes/.git/gitview/sessions/session-20261030-110040.",
+    ],
+    shots: [
+      { name: "sessions", label: "The Sessions page (A): an agent session one commit ahead of main" },
+      { name: "session-review", label: "Reviewing the session: its commit and the diff it would bring into main" },
     ],
   },
   {
@@ -77,6 +87,11 @@ const groups = [
             <pre class="no-scrollbar overflow-x-auto whitespace-pre-wrap break-words rounded-xl border border-white/[0.11] bg-[#080e0c] p-4 font-mono text-[12px] leading-6 text-slate-300 sm:rounded-2xl sm:p-5 sm:text-[13px]" tabindex="0" aria-label={`Real output: ${group.title}`}>{group.transcript.join("\n")}</pre>
             <figcaption class="mt-3 px-1 font-mono text-[10px] uppercase tracking-[0.14em] text-slate-600">{group.note ?? "Real output from Gitview 0.7.0"}</figcaption>
           </figure>
+          {group.shots && (
+            <div class="mt-8 flex flex-col gap-8">
+              {group.shots.map((shot) => <TerminalShot name={shot.name} label={shot.label} />)}
+            </div>
+          )}
         </article>
       ))}
     </div>

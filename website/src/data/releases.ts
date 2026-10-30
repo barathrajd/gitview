@@ -22,12 +22,12 @@ export const releases: Release[] = [
     summary:
       "An agent workspace: run Claude Code, Codex, or any program beside your Git views, let it read and steer Gitview, and give it a worktree of its own. Adds Linux x86_64 and Homebrew installs.",
     highlights: [
-      "gitview --claude, --codex, or --run starts an agent in a pane; Ctrl+\\ moves focus, and narrow terminals take turns full screen.",
+      "`gitview --claude`, `--codex`, or `--run` starts an agent in a pane; `Ctrl+\\` moves focus, and narrow terminals take turns full screen.",
       "History, the working tree, branches, and an open diff refresh within about a second of the agent's changes, with no Git commands while idle.",
-      "gitview mcp lets the agent read status, history, and diffs and open commits and files on your screen, over a socket only you can open.",
-      "--session runs the agent in its own worktree and branch; the Sessions page (A) reviews, merges, and discards sessions.",
+      "`gitview mcp` lets the agent read status, history, and diffs and open commits and files on your screen, over a socket only you can open.",
+      "`--session` runs the agent in its own worktree and branch; the Sessions page (`A`) reviews, merges, and discards sessions.",
       "Gitview's own Git writes run one at a time and wait out a lock the agent's Git command holds.",
-      "A static Linux x86_64 release, Linux support in install.sh, and brew install barathrajd/tap/gitview.",
+      "A static Linux x86_64 release, Linux support in `install.sh`, and `brew install barathrajd/tap/gitview`.",
     ],
     note: "Known issues: the live suite against real agents hasn't run yet, mouse input and several terminal queries aren't forwarded to the agent, and a watcher timing test can fail under heavy load. Prebuilt binaries cover macOS Apple Silicon and Linux x86_64 only.",
     links: [
