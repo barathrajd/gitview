@@ -71,7 +71,18 @@ pub(super) fn render_cockpit(
 
     render_repository_header(frame, sections[0], repository, profile, branches, border);
 
-    if frame.area().width < 88 {
+    let mut workspace = crate::workspace::Workspace::new(false);
+    workspace.focus(match focused {
+        View::WorkingTree => crate::workspace::Panel::Sidebar,
+        View::History => crate::workspace::Panel::Center,
+    });
+    // The model reserves one bottom row, already owned by the status line.
+    let workspace_layout = workspace.layout(ratatui::layout::Rect {
+        height: sections[1].height.saturating_add(1),
+        ..sections[1]
+    });
+    let side_by_side = workspace_layout.sidebar.zip(workspace_layout.center);
+    if side_by_side.is_none() {
         match focused {
             View::History => {
                 render_history_panel(frame, sections[1], history, history_selection, true, border)
@@ -86,9 +97,8 @@ pub(super) fn render_cockpit(
                 border,
             ),
         }
-    } else if frame.area().width < 128 {
-        let panes = Layout::horizontal([Constraint::Percentage(36), Constraint::Percentage(64)])
-            .split(sections[1]);
+    } else if let Some((sidebar, center)) = side_by_side.filter(|_| frame.area().width < 128) {
+        let panes = [sidebar, center];
         render_worktree_panel(
             frame,
             panes[0],

@@ -99,7 +99,8 @@ fn renders_responsive_repository_cockpit() {
     assert!(!narrow.contains("DETAILS"));
     assert!(!narrow.contains("WORKTREE"));
 
-    let compact = render_cockpit(100);
+    assert!(!render_cockpit(118).contains("WORKTREE"));
+    let compact = render_cockpit(119);
     assert!(compact.contains("WORKTREE"));
     assert!(compact.contains("HISTORY"));
     assert!(!compact.contains("INSPECTOR"));

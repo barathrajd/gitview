@@ -145,3 +145,9 @@ workspace shortcuts are exposed yet.
 Verification: full `cargo test --locked --features test-support` passed
 (472 passed, 0 failed, 15 ignored). Clippy passed with warnings
 denied. An existing agent-exit timing test failed once; the full rerun passed.
+
+The cockpit renderer now uses the workspace model for its 119-column boundary
+and compact split. Real application replay tests cover 118 and 119 columns.
+Clippy passed. The full suite reached the known watcher shutdown timing
+failure; rerunning watcher tests and every remaining test target passed.
+Persistent state, panel controls, and combined agent geometry remain open.
