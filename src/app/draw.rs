@@ -107,6 +107,8 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                     Screen::PathHistoryInput { path }
                 } else if let Some(page) = &app.tag_page {
                     Screen::Tags(page)
+                } else if let Some(page) = &app.sessions_page {
+                    Screen::Sessions(page)
                 } else if app.profiles_view {
                     Screen::Profiles {
                         profiles,

@@ -79,6 +79,7 @@ pub fn render_in(
             &[("Enter", "apply/clear"), ("Esc", "cancel")],
         ),
         Screen::Tags(page) => page.render(frame, border),
+        Screen::Sessions(page) => page.render(frame, border),
         Screen::Cockpit(cockpit) => render_cockpit(frame, cockpit, border),
         Screen::Help => render_help(frame, border),
         Screen::BranchInput(input) => {

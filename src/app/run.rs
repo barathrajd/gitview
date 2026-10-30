@@ -297,6 +297,7 @@ pub fn run_app_with_agent<H: Host>(
         object_page,
         comparison_page,
         tag_page,
+        sessions_page: None,
         profiles_view,
         profile_selection,
         profile_feedback,
