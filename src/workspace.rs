@@ -35,7 +35,7 @@ impl Workspace {
             center: true,
             agent: has_agent,
             has_agent,
-            sidebar_width: 24,
+            sidebar_width: 40,
             agent_width: 40,
         }
     }

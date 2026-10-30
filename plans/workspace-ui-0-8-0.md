@@ -151,3 +151,19 @@ and compact split. Real application replay tests cover 118 and 119 columns.
 Clippy passed. The full suite reached the known watcher shutdown timing
 failure; rerunning watcher tests and every remaining test target passed.
 Persistent state, panel controls, and combined agent geometry remain open.
+
+### Persistent cockpit controls
+
+The app now owns its cockpit workspace model. `Ctrl-w h/l` focuses the
+worktree/history, `Ctrl-w +/-` resizes the worktree, `Ctrl-w x` hides the
+focused panel, and `Ctrl-w =` restores both. Help lists the controls. The
+default sidebar is 40 columns to keep ordinary filenames readable.
+
+Five runtime workspace tests pass, including hide/restore, persistent resize,
+and filename readability. Clippy passes. The full no-fail-fast suite exposed
+filename clipping (fixed) and watcher timing/event failures under parallel
+load. All affected targets and cockpit replays pass on a serial rerun
+(59 tests); the other full-suite targets passed.
+
+Milestone 1 remains in progress: the agent still uses its original geometry,
+and combined agent focus, visibility, and resize need integration.

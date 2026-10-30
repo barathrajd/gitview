@@ -255,7 +255,23 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                 };
                 if let Some(area) = gitview_area {
                     let mut viewport = ui::Viewport::new(frame, area);
-                    ui::render_in(&mut viewport, screen, app.border);
+                    if let Screen::Cockpit(cockpit) = screen {
+                        let panel = match cockpit.focused {
+                            View::History => crate::workspace::Panel::Center,
+                            View::WorkingTree => crate::workspace::Panel::Sidebar,
+                        };
+                        app.workspace.show(panel);
+                        app.workspace.focus(panel);
+                        viewport.render_widget(ratatui::widgets::Clear, area);
+                        ui::render_workspace_cockpit(
+                            &mut viewport,
+                            cockpit,
+                            &app.workspace,
+                            app.border,
+                        );
+                    } else {
+                        ui::render_in(&mut viewport, screen, app.border);
+                    }
                     if app.help {
                         ui::render_help_overlay_in(&mut viewport, help_page, app.border);
                     }
