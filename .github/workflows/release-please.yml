@@ -281,6 +281,15 @@ jobs:
           fi
           git push --quiet origin HEAD:main
 
+  deploy-website:
+    needs: [release-please, build-macos-arm64, build-linux-x86_64, publish-crate]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy-website.yml
+
   publish-crate:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.task == 'publish-crate') }}

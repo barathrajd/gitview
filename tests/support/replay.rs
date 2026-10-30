@@ -37,6 +37,9 @@ pub enum Step {
     Paste(&'static str),
     /// Print the current screen to stderr (visible with `--nocapture`).
     Dump,
+    /// Copy the rendered screen, colors included, for a website screenshot.
+    #[allow(dead_code)]
+    Capture(std::sync::Arc<std::sync::Mutex<Option<ratatui::buffer::Buffer>>>),
 }
 
 struct ScriptedHost {
@@ -108,6 +111,11 @@ impl Host for ScriptedHost {
                 return Ok(event);
             }
             Some(Step::Text(_)) => unreachable!("text steps are expanded into chars"),
+            Some(Step::Capture(slot)) => {
+                *slot.lock().unwrap() = Some(terminal.backend().buffer().clone());
+                self.steps.pop_front();
+                return Err(RecvTimeoutError::Timeout);
+            }
             Some(Step::Dump) => {
                 eprintln!("{screen}");
                 self.steps.pop_front();
@@ -200,14 +208,46 @@ pub fn replay_with_agent(
 
 /// A temporary Git repository with helpers for building history.
 pub struct Repo {
-    dir: tempfile::TempDir,
+    /// Removes the repository when dropped; `None` for one made with `at`.
+    _dir: Option<tempfile::TempDir>,
+    root: PathBuf,
 }
 
 impl Repo {
     pub fn new() -> Self {
-        let repo = Self {
-            dir: tempfile::tempdir().unwrap(),
-        };
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        Self::init(Self {
+            _dir: Some(dir),
+            root,
+        })
+    }
+
+    /// A repository at a fixed path, for screenshots whose header shows it.
+    /// The path is cleared first only when it holds this helper's marker,
+    /// so nothing else is ever deleted.
+    #[allow(dead_code)]
+    pub fn at(root: &std::path::Path) -> Self {
+        let marker = root.join(".gitview-sample");
+        if root.exists() {
+            assert!(
+                marker.exists(),
+                "{} exists and isn't a sample repository",
+                root.display()
+            );
+            std::fs::remove_dir_all(root).unwrap();
+        }
+        std::fs::create_dir_all(root).unwrap();
+        std::fs::write(&marker, "").unwrap();
+        let repo = Self::init(Self {
+            _dir: None,
+            root: root.to_path_buf(),
+        });
+        std::fs::write(root.join(".git/info/exclude"), ".gitview-sample\n").unwrap();
+        repo
+    }
+
+    fn init(repo: Self) -> Self {
         repo.git(&["init", "-q", "-b", "main"]);
         // The app runs plain `git commit`, so the identity must be in the repo.
         repo.git(&["config", "user.name", "Test"]);
@@ -216,12 +256,12 @@ impl Repo {
     }
 
     pub fn path(&self) -> PathBuf {
-        self.dir.path().to_path_buf()
+        self.root.clone()
     }
 
     pub fn git(&self, args: &[&str]) {
         let status = Command::new("git")
-            .current_dir(self.dir.path())
+            .current_dir(&self.root)
             .args(["-c", "user.name=Test", "-c", "user.email=test@example.com"])
             .args(args)
             .status()
@@ -232,7 +272,7 @@ impl Repo {
     /// Runs Git and returns its stdout.
     pub fn output(&self, args: &[&str]) -> String {
         let output = Command::new("git")
-            .current_dir(self.dir.path())
+            .current_dir(&self.root)
             .args(args)
             .output()
             .unwrap();
@@ -241,7 +281,7 @@ impl Repo {
     }
 
     pub fn write(&self, relative: &str, contents: &str) {
-        let path = self.dir.path().join(relative);
+        let path = &self.root.join(relative);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, contents).unwrap();
     }
@@ -254,7 +294,11 @@ impl Repo {
     /// Three commits: a readme, a 30-line library file, then edits to its
     /// first and last lines (two separate hunks).
     pub fn with_history() -> Self {
-        let repo = Self::new();
+        Self::new().add_history()
+    }
+
+    fn add_history(self) -> Self {
+        let repo = self;
         repo.write("README.md", "# Demo\n");
         repo.commit_all("Add readme");
         let lines = |first: &str, last: &str| {
@@ -276,7 +320,23 @@ impl Repo {
     /// section: `staged.txt` (staged), `README.md` (edited), `notes.txt`
     /// (untracked).
     pub fn with_changes() -> Self {
-        let repo = Self::with_history();
+        Self::new().add_history().add_changes()
+    }
+
+    /// `with_history` at a fixed path (see `at`).
+    #[allow(dead_code)]
+    pub fn with_history_at(root: &std::path::Path) -> Self {
+        Self::at(root).add_history()
+    }
+
+    /// `with_changes` at a fixed path (see `at`).
+    #[allow(dead_code)]
+    pub fn with_changes_at(root: &std::path::Path) -> Self {
+        Self::at(root).add_history().add_changes()
+    }
+
+    fn add_changes(self) -> Self {
+        let repo = self;
         repo.git(&["tag", "v1.0"]);
         repo.write("README.md", "# Demo\nmore\n");
         repo.write("notes.txt", "new\n");

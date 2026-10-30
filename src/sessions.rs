@@ -169,17 +169,24 @@ fn status(root: &Path, session: Session) -> SessionStatus {
     } else {
         Health::Ready
     };
-    let ahead = git(
-        root,
-        &[
-            "rev-list",
-            "--count",
-            &format!("{}..{branch_ref}", session.base_commit),
-        ],
-    )
-    .ok()
-    .and_then(|count| count.parse().ok())
-    .unwrap_or(0);
+    // Commits the base branch doesn't have yet, so a merged session counts
+    // zero. A session whose base branch is gone counts from where it started.
+    let base = if branch_tip(root, &session.base_branch).is_ok() {
+        format!("refs/heads/{}", session.base_branch)
+    } else {
+        session.base_commit.clone()
+    };
+    let ahead = if base.is_empty() {
+        0
+    } else {
+        git(
+            root,
+            &["rev-list", "--count", &format!("{base}..{branch_ref}")],
+        )
+        .ok()
+        .and_then(|count| count.parse().ok())
+        .unwrap_or(0)
+    };
     let dirty = health == Health::Ready
         && git(
             &session.path,

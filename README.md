@@ -1,4 +1,14 @@
+<p align="center">
+  <img src="website/public/logo.svg" width="96" height="96"
+    alt="Gitview logo: a Git branch with a terminal chevron" />
+</p>
+
 # Gitview
+
+[Website](https://gitview.barathrajdevarajan.dev/) ·
+[Features](https://gitview.barathrajdevarajan.dev/features/) ·
+[Changelog](https://gitview.barathrajdevarajan.dev/changelog/) ·
+[Install](https://gitview.barathrajdevarajan.dev/#install)
 
 Gitview is a keyboard-first terminal interface for reviewing Git history and
 working-tree changes. See [RELEASE.md](RELEASE.md) for release notes and

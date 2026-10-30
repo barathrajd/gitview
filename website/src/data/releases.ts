@@ -5,6 +5,7 @@ export interface Release {
   status: "planned" | "released";
   summary: string;
   highlights: string[];
+  featureIds?: (string | null)[];
   note?: string;
   links?: { label: string; url: string }[];
 }
@@ -17,17 +18,18 @@ const tag = (version: string) => ({
 export const releases: Release[] = [
   {
     version: "0.7.0",
+    featureIds: ["agent-pane", "agent-pane", "control-channel", "sessions", "sessions", "install"],
     date: "October 30, 2026",
     status: "released",
     summary:
       "An agent workspace: run Claude Code, Codex, or any program beside your Git views, let it read and steer Gitview, and give it a worktree of its own. Adds Linux x86_64 and Homebrew installs.",
     highlights: [
-      "gitview --claude, --codex, or --run starts an agent in a pane; Ctrl+\\ moves focus, and narrow terminals take turns full screen.",
+      "`gitview --claude`, `--codex`, or `--run` starts an agent in a pane; `Ctrl+\\` moves focus, and narrow terminals take turns full screen.",
       "History, the working tree, branches, and an open diff refresh within about a second of the agent's changes, with no Git commands while idle.",
-      "gitview mcp lets the agent read status, history, and diffs and open commits and files on your screen, over a socket only you can open.",
-      "--session runs the agent in its own worktree and branch; the Sessions page (A) reviews, merges, and discards sessions.",
+      "`gitview mcp` lets the agent read status, history, and diffs and open commits and files on your screen, over a socket only you can open.",
+      "`--session` runs the agent in its own worktree and branch; the Sessions page (`A`) reviews, merges, and discards sessions.",
       "Gitview's own Git writes run one at a time and wait out a lock the agent's Git command holds.",
-      "A static Linux x86_64 release, Linux support in install.sh, and brew install barathrajd/tap/gitview.",
+      "A static Linux x86_64 release, Linux support in `install.sh`, and `brew install barathrajd/tap/gitview`.",
     ],
     note: "Known issues: the live suite against real agents hasn't run yet, mouse input and several terminal queries aren't forwarded to the agent, and a watcher timing test can fail under heavy load. Prebuilt binaries cover macOS Apple Silicon and Linux x86_64 only.",
     links: [
@@ -38,6 +40,7 @@ export const releases: Release[] = [
   },
   {
     version: "0.6.0",
+    featureIds: ["repository", "worktree", "commit", "history", "refs", "inspect"],
     date: "October 29, 2026",
     status: "released",
     summary:
@@ -58,6 +61,7 @@ export const releases: Release[] = [
   },
   {
     version: "0.5.0",
+    featureIds: [null, null, null, "diff"],
     date: "October 28, 2026",
     status: "released",
     summary:
@@ -91,6 +95,7 @@ export const releases: Release[] = [
   },
   {
     version: "0.4.0",
+    featureIds: ["diff", "cockpit", "help", "cockpit"],
     date: "October 27, 2026",
     status: "released",
     summary: "Hunk-level staging, grouped worktree sections, and page-specific help.",
@@ -135,6 +140,7 @@ export const releases: Release[] = [
   },
   {
     version: "0.3.0",
+    featureIds: ["cockpit", "history", "diff", "help"],
     date: "October 27, 2026",
     status: "released",
     summary: "Improved history and diff review with a responsive cockpit and clearer search.",

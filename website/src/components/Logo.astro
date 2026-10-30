@@ -1,0 +1,10 @@
+---
+import { href } from "../lib/base";
+
+interface Props {
+  class?: string;
+}
+const { class: className = "size-5" } = Astro.props;
+---
+
+<img src={href("logo.svg")} width="64" height="64" class={className} alt="" aria-hidden="true" />

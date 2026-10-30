@@ -1,4 +1,5 @@
 ---
+import Logo from "./Logo.astro";
 import { href } from "../lib/base";
 ---
 <header class="sticky top-0 z-20 border-b border-white/[0.07] bg-[#050908]/85 backdrop-blur-xl">
@@ -7,11 +8,8 @@ import { href } from "../lib/base";
     aria-label="Main navigation"
   >
     <a href={href()} class="group flex items-center gap-3" aria-label="Gitview home">
-      <span class="grid size-9 place-items-center rounded-xl border border-emerald-300/20 bg-emerald-300/[0.08] text-emerald-300 transition group-hover:border-emerald-300/50 group-hover:bg-emerald-300/[0.13]" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" class="size-5">
-          <path d="M5 5h5a7 7 0 1 1 0 14H9V8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-          <path d="m14 9 3 3-3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
+      <span class="grid size-9 place-items-center text-emerald-300 transition group-hover:text-emerald-200" aria-hidden="true">
+        <Logo class="size-8" />
       </span>
       <span class="font-mono text-[15px] font-semibold tracking-tight text-slate-100">gitview<span class="text-emerald-400">.</span></span>
     </a>

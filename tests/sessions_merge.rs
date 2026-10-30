@@ -188,3 +188,14 @@ fn merge_from_inside_the_session_lands_in_the_main_worktree() {
         "from the agent\n"
     );
 }
+
+#[test]
+fn a_merged_session_is_no_longer_ahead_of_its_base() {
+    let root = repository();
+    let session = session_with_work(&root);
+    assert_eq!(sessions::list(&root).unwrap()[0].ahead, 1);
+
+    sessions::merge(&root, &sessions::review(&root, &session).unwrap()).unwrap();
+
+    assert_eq!(sessions::list(&root).unwrap()[0].ahead, 0);
+}
