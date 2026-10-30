@@ -2,6 +2,9 @@
 
 ## Now
 
+- [Linux release and Homebrew tap](plans/linux-release-homebrew.md) — a
+  static Linux x86_64 archive, Linux in `install.sh`, and
+  `brew install barathrajd/tap/gitview`, before 0.7.0 is cut.
 - [0.6.0 follow-ups](RELEASE.md#upcoming) — the known issues 0.6.0 shipped
   with: large-comparison memory variance, the renderer-only memory diagnostic,
   the security review, and a clean-revision rerun.
@@ -14,8 +17,6 @@
 
 ## Next
 
-- Linux x86_64 release — deferred from 0.6.0: native checks, performance
-  evidence, archive with checksum, and installer selection on a Linux runner.
 - [Agent workspace](plans/agent-workspace.md) — milestones 1 to 3 are done:
   `gitview --claude`, `--codex`, or `--run <command>` shows a program in a pane
   with a focus key, full screen on narrow terminals, and the Git views refresh

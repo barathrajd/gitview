@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing release tag to build or publish, such as v0.4.1
+        description: Existing release tag to build or publish, such as v0.4.1 (ignored by dry-run-linux-x86_64, which builds the chosen branch)
         required: true
         type: string
       task:
@@ -16,6 +16,9 @@ on:
         type: choice
         options:
           - build-macos-arm64
+          - build-linux-x86_64
+          - dry-run-linux-x86_64
+          - update-homebrew-tap
           - publish-crate
 
 permissions:
@@ -27,7 +30,7 @@ jobs:
   pre-release-checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -55,9 +58,9 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: release
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: .release-please-config.json
@@ -68,7 +71,7 @@ jobs:
     if: ${{ needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.task == 'build-macos-arm64') }}
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release-please.outputs.tag_name || inputs.release_tag }}
       - uses: dtolnay/rust-toolchain@stable
@@ -90,12 +93,200 @@ jobs:
           TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.release_tag }}
         run: gh release upload "$TAG_NAME" "$ARCHIVE" "$ARCHIVE.sha256" --clobber
 
+  build-linux-x86_64:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && (inputs.task == 'build-linux-x86_64' || inputs.task == 'dry-run-linux-x86_64')) }}
+    runs-on: ubuntu-latest
+    env:
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.task == 'dry-run-linux-x86_64' }}
+      TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # A dry run builds the branch it was started on.
+          ref: ${{ (github.event_name == 'workflow_dispatch' && inputs.task == 'dry-run-linux-x86_64') && github.sha || needs.release-please.outputs.tag_name || inputs.release_tag }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+      - name: Build and package release
+        run: |
+          test "$(uname -m)" = "x86_64"
+          version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
+          if [ "$DRY_RUN" = "true" ]; then
+            label="dry-run"
+          else
+            test "$TAG_NAME" = "v$version"
+            label="$TAG_NAME"
+          fi
+          cargo build --release --locked --target x86_64-unknown-linux-musl
+          binary=target/x86_64-unknown-linux-musl/release/gitview
+          scripts/smoke-linux-release.sh "$binary" "$version"
+          archive="gitview-${label}-linux-x86_64.tar.gz"
+          staging_dir="$(mktemp -d)"
+          cp "$binary" "$staging_dir/"
+          tar -czf "$archive" -C "$staging_dir" gitview
+          sha256sum "$archive" > "$archive.sha256"
+          echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
+      - name: Keep the dry-run archive
+        if: ${{ env.DRY_RUN == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: gitview-dry-run-linux-x86_64
+          path: |
+            ${{ env.ARCHIVE }}
+            ${{ env.ARCHIVE }}.sha256
+      - name: Upload release assets
+        if: ${{ env.DRY_RUN != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$TAG_NAME" "$ARCHIVE" "$ARCHIVE.sha256" --clobber
+
+  check-homebrew-formula:
+    # Dry runs only: installs the rendered formula from a local tap against the
+    # dry-run archive on Linux, and checks that an Intel Mac is refused.
+    needs: build-linux-x86_64
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.task == 'dry-run-linux-x86_64' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            expect: install
+          - runner: macos-15-intel
+            expect: refuse
+    runs-on: ${{ matrix.runner }}
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_ENV_HINTS: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: gitview-dry-run-linux-x86_64
+          path: dry-run
+      - name: Render the formula for the dry-run archive
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)"
+          tag="v$version"
+          archive="gitview-$tag-linux-x86_64.tar.gz"
+          mv dry-run/gitview-dry-run-linux-x86_64.tar.gz "dry-run/$archive"
+          (cd dry-run && shasum -a 256 "$archive" > "$archive.sha256")
+          printf '%064d  gitview-%s-macos-arm64.tar.gz\n' 0 "$tag" > dry-run/macos.sha256
+          scripts/render-homebrew-formula.sh "$tag" dry-run/macos.sha256 "dry-run/$archive.sha256" > gitview.rb
+          # Point the Linux URL at the local archive instead of the release.
+          # Homebrew can't read the version from a file:// path (it finds
+          # "86.64" in x86_64), so this test copy states it; the published
+          # formula's GitHub URLs parse correctly.
+          export RELEASE_URL="https://github.com/barathrajd/gitview/releases/download/$tag/$archive"
+          export LOCAL_URL="file://$PWD/dry-run/$archive" VERSION="$version"
+          perl -0pi -e 's/\Q$ENV{RELEASE_URL}\E/$ENV{LOCAL_URL}/; s/(    on_intel do\n      url "file:\/\/[^"]+"\n)/$1      version "$ENV{VERSION}"\n/' gitview.rb
+          grep -q "version \"$version\"" gitview.rb
+          # Ubuntu runners install Homebrew without putting it on PATH.
+          if ! command -v brew >/dev/null; then
+            eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          fi
+          brew --version
+          echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"
+          brew tap-new --no-git gitview-ci/check
+          cp gitview.rb "$(brew --repository gitview-ci/check)/Formula/gitview.rb"
+          brew trust gitview-ci/check
+          brew style gitview-ci/check/gitview
+      - name: Install and test on Linux
+        if: ${{ matrix.expect == 'install' }}
+        run: |
+          brew install gitview-ci/check/gitview
+          brew test gitview-ci/check/gitview
+          "$(brew --prefix)/bin/gitview" --version
+      - name: Refuse an Intel Mac
+        if: ${{ matrix.expect == 'refuse' }}
+        run: |
+          if brew install gitview-ci/check/gitview > install.log 2>&1; then
+            cat install.log
+            echo "Homebrew installed gitview on an Intel Mac" >&2
+            exit 1
+          fi
+          cat install.log
+          grep -i "arm64" install.log
+
+  update-homebrew-tap:
+    # Pushes Formula/gitview.rb to github.com/barathrajd/homebrew-tap once both
+    # archives are on the release. A dry run renders the formula for the
+    # dry-run archive and checks the token can reach the tap, but pushes
+    # nothing. A failure here leaves the archives and the crate unaffected.
+    needs: [release-please, build-macos-arm64, build-linux-x86_64]
+    if: ${{ always() && (needs.release-please.outputs.release_created == 'true' && needs.build-macos-arm64.result == 'success' && needs.build-linux-x86_64.result == 'success' || github.event_name == 'workflow_dispatch' && (inputs.task == 'update-homebrew-tap' || inputs.task == 'dry-run-linux-x86_64' && needs.build-linux-x86_64.result == 'success')) }}
+    runs-on: ubuntu-latest
+    env:
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.task == 'dry-run-linux-x86_64' }}
+      TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.release_tag }}
+      TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Get the archives' checksums
+        if: ${{ env.DRY_RUN != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir sums
+          gh release download "$TAG_NAME" --dir sums \
+            --pattern "gitview-$TAG_NAME-macos-arm64.tar.gz.sha256" \
+            --pattern "gitview-$TAG_NAME-linux-x86_64.tar.gz.sha256"
+          echo "MACOS_SUM=sums/gitview-$TAG_NAME-macos-arm64.tar.gz.sha256" >> "$GITHUB_ENV"
+          echo "LINUX_SUM=sums/gitview-$TAG_NAME-linux-x86_64.tar.gz.sha256" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v8
+        if: ${{ env.DRY_RUN == 'true' }}
+        with:
+          name: gitview-dry-run-linux-x86_64
+          path: sums
+      - name: Use the dry-run archive's checksum
+        if: ${{ env.DRY_RUN == 'true' }}
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)"
+          tag="v$version"
+          archive="gitview-$tag-linux-x86_64.tar.gz"
+          mv sums/gitview-dry-run-linux-x86_64.tar.gz "sums/$archive"
+          (cd sums && sha256sum "$archive" > "$archive.sha256")
+          printf '%064d  gitview-%s-macos-arm64.tar.gz\n' 0 "$tag" > sums/macos.sha256
+          {
+            echo "TAG_NAME=$tag"
+            echo "MACOS_SUM=sums/macos.sha256"
+            echo "LINUX_SUM=sums/$archive.sha256"
+          } >> "$GITHUB_ENV"
+      - name: Render and push the formula
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::error::HOMEBREW_TAP_TOKEN isn't set, so the formula can't be pushed. Add a fine-grained token with Contents read and write on barathrajd/homebrew-tap, then rerun with task update-homebrew-tap."
+            exit 1
+          fi
+          scripts/render-homebrew-formula.sh "$TAG_NAME" "$MACOS_SUM" "$LINUX_SUM" > gitview.rb
+          git clone --quiet --depth 1 "https://x-access-token:${TAP_TOKEN}@github.com/barathrajd/homebrew-tap.git" tap
+          mkdir -p tap/Formula
+          cp gitview.rb tap/Formula/gitview.rb
+          cd tap
+          git add Formula/gitview.rb
+          if git diff --cached --quiet; then
+            echo "The tap already has this formula."
+            exit 0
+          fi
+          git diff --cached --stat
+          git -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit --quiet -m "gitview ${TAG_NAME#v}"
+          if [ "$DRY_RUN" = "true" ]; then
+            # Asks GitHub to accept the update without sending it, which
+            # checks the token's write access to the tap.
+            git push --dry-run origin HEAD:main
+            echo "Dry run: the token can push to the tap; nothing was pushed."
+            exit 0
+          fi
+          git push --quiet origin HEAD:main
+
   publish-crate:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.task == 'publish-crate') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release-please.outputs.tag_name || inputs.release_tag }}
       - uses: dtolnay/rust-toolchain@stable
