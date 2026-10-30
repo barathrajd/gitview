@@ -185,6 +185,54 @@ pub(super) fn selected_search_commit(
     Some((index, id))
 }
 
+/// Rows a full-screen page shows: the Gitview area less `chrome`, the rows its
+/// borders, titles, and key hints take.
+pub(super) fn screen_page_rows(area: Option<ratatui::layout::Rect>, chrome: u16) -> usize {
+    area.map_or(1, |area| {
+        usize::from(area.height.saturating_sub(chrome)).max(1)
+    })
+}
+
+/// Chrome for the branch list: its border and the two hint rows.
+pub(super) const BRANCH_CHROME: u16 = 4;
+/// Chrome estimate for the diff, commit details, and profiles; their headers
+/// differ slightly.
+pub(super) const PAGE_CHROME: u16 = 6;
+
+/// Apply a motion key to a list of `len` rows. Returns false for keys the
+/// list should handle itself. Ctrl and Alt letters that are not motions are
+/// consumed, so they never run the list's plain-letter actions.
+pub(super) fn list_motion(
+    parser: &mut crate::motion::MotionParser,
+    key: KeyEvent,
+    selection: &mut ratatui::widgets::ListState,
+    len: usize,
+    page: usize,
+) -> bool {
+    use crate::motion::{Motion, Parsed};
+    match parser.key(key) {
+        Parsed::Pending => true,
+        Parsed::Motion(Motion::Center) => {
+            if let Some(selected) = selection.selected() {
+                *selection.offset_mut() = selected.saturating_sub(page / 2);
+            }
+            true
+        }
+        Parsed::Motion(motion) => {
+            if len > 0 {
+                selection.select(motion.select(selection.selected(), len, page));
+            }
+            true
+        }
+        Parsed::Other => {
+            matches!(key.code, KeyCode::Char(_))
+                && key.modifiers.intersects(
+                    crossterm::event::KeyModifiers::CONTROL | crossterm::event::KeyModifiers::ALT,
+                )
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

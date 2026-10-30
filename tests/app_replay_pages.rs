@@ -5,7 +5,7 @@
 mod replay;
 
 use crossterm::event::KeyCode::{Enter, Esc, Tab};
-use replay::{Repo, Step, Step::*, replay};
+use replay::{Repo, Step, Step::*, replay, replay_sized};
 
 /// `with_changes` plus a `feature` branch and an annotated `v2.0` tag.
 fn repository() -> Repo {
@@ -219,4 +219,54 @@ fn profile_page_shows_the_account_and_escape_returns_to_history() {
     let screen = replay(&repository.path(), steps);
 
     assert!(screen.contains("Change library"), "{screen}");
+}
+
+/// `main` plus `topic-01` through `topic-30`, listed after `main`.
+fn many_branches() -> Repo {
+    let repository = Repo::with_history();
+    for number in 1..=30 {
+        repository.git(&["branch", &format!("topic-{number:02}")]);
+    }
+    repository
+}
+
+/// The branch the list marks as selected.
+fn selected_branch(screen: &str) -> Option<&str> {
+    let line = screen.lines().find(|line| line.contains('›'))?;
+    ["main"]
+        .into_iter()
+        .chain((1..=30).map(|_| "topic-"))
+        .find_map(|name| line.find(name).map(|start| &line[start..]))
+        .map(|rest| rest.split_whitespace().next().unwrap_or(rest))
+}
+
+#[test]
+fn branch_list_accepts_motions() {
+    let repository = many_branches();
+    let cases = [
+        (vec![Char('G')], "topic-30"),
+        (vec![Char('G'), Char('g'), Char('g')], "main"),
+        (vec![Char('5'), Char('j')], "topic-05"),
+        (vec![Char('G'), Char('2'), Char('k')], "topic-28"),
+        // 24 rows leave 20 for branches, so half a page is 10.
+        (vec![Ctrl('d')], "topic-10"),
+    ];
+    for (keys, branch) in cases {
+        let mut steps = vec![WaitFor("Add library"), Char('b'), WaitFor("topic-01")];
+        steps.extend(keys);
+        let screen = replay_sized(&repository.path(), 140, 24, steps);
+        assert_eq!(selected_branch(&screen), Some(branch), "{screen}");
+    }
+}
+
+#[test]
+fn control_letters_do_not_run_branch_actions() {
+    let repository = repository();
+    let mut steps = branch_steps();
+    steps.extend([Ctrl('d'), Ctrl('c'), Ctrl('r'), Char('?'), WaitFor("HELP")]);
+
+    let screen = replay(&repository.path(), steps);
+
+    assert!(!screen.contains("Delete local branch"), "{screen}");
+    assert!(!screen.contains("New local branch name:"), "{screen}");
 }

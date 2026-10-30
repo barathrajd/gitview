@@ -586,17 +586,10 @@ fn page_rows(app: &App) -> usize {
     })
 }
 
-/// Rows a full-screen page (diff or commit details) shows: the Gitview area
-/// less its title and status rows. An estimate; the screens differ slightly.
-fn screen_page_rows(app: &App) -> usize {
-    app.gitview_area
-        .map_or(1, |area| usize::from(area.height.saturating_sub(6)).max(1))
-}
-
 /// Scroll the open diff. Its length is not known here, so `G` and `zz` do
 /// nothing and downward motions may scroll past the end, as `j` always has.
 fn scroll_diff(app: &mut App, motion: Motion) {
-    let rows = screen_page_rows(app);
+    let rows = screen_page_rows(app.gitview_area, PAGE_CHROME);
     let half = (rows / 2).max(1);
     let scroll = usize::from(app.diff_scroll);
     let scroll = match motion {
@@ -614,7 +607,7 @@ fn scroll_diff(app: &mut App, motion: Motion) {
 
 /// Move the selection in the open commit's changed-file list.
 fn move_file_selection(app: &mut App, motion: Motion) {
-    let rows = screen_page_rows(app);
+    let rows = screen_page_rows(app.gitview_area, PAGE_CHROME);
     if let Some((_, Some(Ok(commit)))) = &app.details {
         let selected = app.file_selection.selected();
         match motion {

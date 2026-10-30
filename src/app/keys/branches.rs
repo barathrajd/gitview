@@ -105,6 +105,20 @@ pub(in crate::app) fn handle<H: Host>(
             }
             return Ok(Flow::Handled);
         }
+        let branch_count = match &app.branches {
+            Some(Ok(data)) => data.branches.len(),
+            _ => 0,
+        };
+        let page = screen_page_rows(app.gitview_area, BRANCH_CHROME);
+        if list_motion(
+            &mut app.page_motions,
+            key,
+            &mut app.branch_selection,
+            branch_count,
+            page,
+        ) {
+            return Ok(Flow::Handled);
+        }
         match navigation_key(key) {
             KeyCode::Char('t') => {
                 app.tag_page = Some(crate::tag_page::TagPage::open(root));
@@ -161,21 +175,6 @@ pub(in crate::app) fn handle<H: Host>(
             KeyCode::Char('H') => {
                 app.branch_view = false;
                 let _ = app.app_state.handle_key(KeyCode::Char('H'), false);
-            }
-            KeyCode::Down => {
-                if let Some(Ok(data)) = &app.branches
-                    && !data.branches.is_empty()
-                {
-                    app.branch_selection.select(Some(
-                        (app.branch_selection.selected().unwrap_or(0) + 1)
-                            .min(data.branches.len() - 1),
-                    ));
-                }
-            }
-            KeyCode::Up => {
-                if let Some(index) = app.branch_selection.selected() {
-                    app.branch_selection.select(Some(index.saturating_sub(1)));
-                }
             }
             _ => {}
         }
