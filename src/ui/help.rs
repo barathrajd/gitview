@@ -20,6 +20,7 @@ pub const HELP: &str = concat!(
     "W                   Open working tree outside prompts\n",
     "Ctrl-w +/-          Grow/shrink focused panel (Tab changes focus)\n",
     "Ctrl-w x            Hide focused panel; Ctrl-w = restores both\n",
+    "Ctrl-w o            Toggle focused panel full width\n",
     "?                   Help outside prompts               b                   Browse local branches\n",
     "o                   Inspect a local Git object\n",
     "A                   Agent sessions: review, merge, or discard\n",
@@ -151,6 +152,7 @@ pub fn render_help_overlay_in(
 ) {
     const HISTORY: &[(&str, &str)] = &[
         ("Ctrl-w +/-", "Grow/shrink focused panel"),
+        ("Ctrl-w o", "Toggle focused panel full width"),
         ("Ctrl-w x/=", "Hide panel / restore both"),
         ("Up/Down, j/k", "Move through commits"),
         ("Enter, l", "Open selected commit"),
@@ -166,6 +168,7 @@ pub fn render_help_overlay_in(
     ];
     const WORKTREE: &[(&str, &str)] = &[
         ("Ctrl-w +/-", "Grow/shrink focused panel"),
+        ("Ctrl-w o", "Toggle focused panel full width"),
         ("Ctrl-w x/=", "Hide panel / restore both"),
         ("Up/Down, j/k", "Select a changed file"),
         ("Enter", "Open file diff"),

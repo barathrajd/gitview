@@ -15,7 +15,8 @@ mod theme;
 mod viewport;
 
 pub use agent_pane::{
-    AgentLayout, agent_pane_inner, plan_agent_layout, render_agent_bar, render_agent_pane,
+    AgentLayout, agent_pane_inner, plan_agent_layout, plan_workspace_agent_layout,
+    render_agent_bar, render_agent_pane,
 };
 pub use diff_layout::diff_hunk_line_positions;
 pub use help::{HELP, render_help_overlay, render_help_overlay_in};

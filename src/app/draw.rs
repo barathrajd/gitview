@@ -23,9 +23,9 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
     if app.needs_redraw {
         // Where Gitview and the agent go, and the size the agent should believe.
         let size = terminal.size().map_err(backend_error)?;
-        let layout = ui::plan_agent_layout(
+        let layout = ui::plan_workspace_agent_layout(
             Rect::new(0, 0, size.width, size.height),
-            app.pane.is_some(),
+            &app.workspace,
             app.focus == Focus::Agent,
         );
         let pane_area = match layout {

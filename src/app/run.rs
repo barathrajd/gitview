@@ -366,7 +366,7 @@ pub fn run_app_with_agent<H: Host>(
         watching,
         refresh: Refresh::default(),
         diff_refresh: None,
-        workspace: crate::workspace::Workspace::new(false),
+        workspace: crate::workspace::Workspace::new(pane.is_some()),
         workspace_prefix: false,
         focus: input::Focus::default(),
         pane,

@@ -83,3 +83,22 @@ fn center_can_hide_when_another_panel_remains() {
     assert!(layout.center.is_none());
     assert_eq!(layout.sidebar.unwrap().width, 140);
 }
+
+#[test]
+fn fullscreen_restores_sizes_and_hiding_exits_fullscreen() {
+    let mut workspace = Workspace::new(true);
+    let area = Rect::new(0, 0, 160, 30);
+    let original = workspace.layout(area).sidebar.unwrap();
+    workspace.focus(Panel::Sidebar);
+    workspace.toggle_fullscreen();
+    assert_eq!(workspace.layout(area).sidebar.unwrap().width, 160);
+    assert!(workspace.layout(area).center.is_none());
+    assert!(workspace.layout(area).agent.is_none());
+    workspace.toggle_fullscreen();
+    assert_eq!(workspace.layout(area).sidebar.unwrap(), original);
+    workspace.focus(Panel::Agent);
+    workspace.toggle_fullscreen();
+    assert_eq!(workspace.layout(area).agent.unwrap().width, 160);
+    workspace.hide(Panel::Agent);
+    assert!(!workspace.is_fullscreen());
+}

@@ -8,9 +8,10 @@ pub enum Panel {
     Agent,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Workspace {
     focused: Panel,
+    fullscreen: bool,
     sidebar: bool,
     center: bool,
     agent: bool,
@@ -31,13 +32,41 @@ impl Workspace {
     pub fn new(has_agent: bool) -> Self {
         Self {
             focused: Panel::Center,
+            fullscreen: false,
             sidebar: true,
             center: true,
             agent: has_agent,
             has_agent,
             sidebar_width: 40,
-            agent_width: 40,
+            agent_width: 70,
         }
+    }
+
+    /// The visible agent's requested width, before terminal bounds are applied.
+    pub fn agent_width(&self) -> Option<u16> {
+        self.agent.then_some(self.agent_width)
+    }
+
+    /// Lay out Gitview within the area left after the outer agent split.
+    pub fn gitview_layout(&self, area: Rect) -> WorkspaceLayout {
+        let mut gitview = self.clone();
+        gitview.agent = false;
+        if gitview.focused == Panel::Agent {
+            gitview.focused = if gitview.center {
+                Panel::Center
+            } else {
+                Panel::Sidebar
+            };
+        }
+        gitview.layout(area)
+    }
+
+    pub fn toggle_fullscreen(&mut self) {
+        self.fullscreen = !self.fullscreen;
+    }
+
+    pub fn is_fullscreen(&self) -> bool {
+        self.fullscreen
     }
 
     pub fn focused(&self) -> Panel {
@@ -71,6 +100,7 @@ impl Workspace {
         {
             return false;
         }
+        self.fullscreen = false;
         match panel {
             Panel::Center => self.center = false,
             Panel::Sidebar => self.sidebar = false,
@@ -117,7 +147,7 @@ impl Workspace {
             agent: None,
             bar: Rect::new(area.x, content.bottom(), area.width, bar_height),
         };
-        if area.width < 119 {
+        if area.width < 119 || self.fullscreen {
             match self.focused {
                 Panel::Sidebar => layout.sidebar = Some(content),
                 Panel::Center => layout.center = Some(content),

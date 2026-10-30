@@ -169,3 +169,23 @@ and combined agent focus, visibility, and resize need integration.
 
 User correction: keep Tab for panel focus; remove redundant Ctrl-w h/l.
 Resize targets the focused panel, matching the hide command.
+
+### Agent geometry and full-width mode
+
+The app initializes the workspace with the agent's presence. The outer agent
+split now uses its retained width and visibility from the workspace, clamps
+widths to the terminal, and resizes the PTY to the resulting inner rectangle.
+The cockpit lays out only the Gitview area so it does not reserve agent space
+twice. Existing Ctrl-backslash focus switching and agent input forwarding are
+preserved.
+
+`Ctrl-w o` toggles the focused Gitview panel to full width and back, retaining
+requested sizes. `Ctrl-w x` hides it and exits full-width mode; `Ctrl-w =`
+restores the Gitview panels. In full-width mode, Ctrl-backslash switches to the
+full-width agent and back. Return focus to Gitview before using Ctrl-w o; the
+agent continues receiving its own Ctrl-w keys. Help lists the new toggle.
+
+Verification: the full serial suite passed (481 passed, 15 ignored), Clippy
+passed, and an additional real-app replay confirmed full-width agent focus and
+layout restoration. Milestone 1 remains in progress: direct keyboard agent
+hide/restore and resize controls still need a route that preserves agent input.

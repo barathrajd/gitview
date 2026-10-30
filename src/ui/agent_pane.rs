@@ -196,6 +196,32 @@ pub fn plan_agent_layout(total: Rect, has_agent: bool, agent_focused: bool) -> A
     }
 }
 
+/// Use the workspace's retained agent width and visibility for the outer split.
+pub fn plan_workspace_agent_layout(
+    total: Rect,
+    workspace: &crate::workspace::Workspace,
+    agent_focused: bool,
+) -> AgentLayout {
+    if workspace.is_fullscreen() {
+        return if agent_focused && workspace.agent_width().is_some() {
+            AgentLayout::AgentFull(total)
+        } else {
+            AgentLayout::GitviewOnly(total)
+        };
+    }
+    let Some(width) = workspace.agent_width() else {
+        return AgentLayout::GitviewOnly(total);
+    };
+    if total.width >= 119 {
+        let width = width.clamp(20, total.width - 60);
+        let (gitview, agent) = split_side_pane(total, Some(width));
+        if let Some(agent) = agent {
+            return AgentLayout::SideBySide { gitview, agent };
+        }
+    }
+    plan_agent_layout(total, true, agent_focused)
+}
+
 /// Draws the one-line summary of the agent shown under a narrow Gitview.
 pub fn render_agent_bar(viewport: &mut Viewport<'_, '_>, area: Rect, pane: &AgentPane) {
     let mut text = title(pane);

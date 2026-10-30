@@ -113,3 +113,75 @@ fn resizing_history_changes_the_focused_panel_in_both_directions() {
     assert!(width(&render(Some('+'))) > before);
     assert!(width(&render(Some('-'))) < before);
 }
+
+#[test]
+fn fullscreen_toggle_restores_layout_and_close_hides_the_panel() {
+    let repository = Repo::with_changes();
+    let full = replay_sized(
+        &repository.path(),
+        140,
+        30,
+        [WaitFor("notes.txt"), Ctrl('w'), Char('o')],
+    );
+    assert!(full.contains("WORKTREE"));
+    assert!(!full.contains("HISTORY"));
+    let restored = replay_sized(
+        &repository.path(),
+        140,
+        30,
+        [
+            WaitFor("notes.txt"),
+            Ctrl('w'),
+            Char('o'),
+            Ctrl('w'),
+            Char('o'),
+        ],
+    );
+    assert!(restored.contains("WORKTREE"));
+    assert!(restored.contains("HISTORY"));
+    let closed = replay_sized(
+        &repository.path(),
+        140,
+        30,
+        [
+            WaitFor("notes.txt"),
+            Ctrl('w'),
+            Char('o'),
+            Ctrl('w'),
+            Char('x'),
+        ],
+    );
+    assert!(!closed.contains("WORKTREE"));
+    assert!(closed.contains("HISTORY"));
+}
+
+#[test]
+fn fullscreen_mode_can_show_the_agent_and_return_to_gitview() {
+    let repository = Repo::with_changes();
+    let screen = replay::replay_with_agent(
+        &repository.path(),
+        Some(&["sh", "-c", "echo agent-ready; sleep 30"]),
+        140,
+        30,
+        [WaitFor("agent-ready"), Ctrl('w'), Char('o'), Ctrl('\\')],
+    );
+    assert!(screen.contains("agent-ready"));
+    assert!(!screen.contains("WORKTREE"));
+    let restored = replay::replay_with_agent(
+        &repository.path(),
+        Some(&["sh", "-c", "echo agent-ready; sleep 30"]),
+        140,
+        30,
+        [
+            WaitFor("agent-ready"),
+            Ctrl('w'),
+            Char('o'),
+            Ctrl('\\'),
+            Ctrl('\\'),
+            Ctrl('w'),
+            Char('o'),
+        ],
+    );
+    assert!(restored.contains("WORKTREE"));
+    assert!(restored.contains("AGENT"));
+}

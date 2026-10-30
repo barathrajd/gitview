@@ -28,10 +28,14 @@ pub(in crate::app) fn handle(app: &mut App, key: KeyEvent) -> io::Result<Flow> {
     match key.code {
         KeyCode::Char('+') => app.workspace.resize(current, 4),
         KeyCode::Char('-') => app.workspace.resize(current, -4),
+        KeyCode::Char('o') => app.workspace.toggle_fullscreen(),
         KeyCode::Char('x') => {
             app.workspace.hide(current);
         }
         KeyCode::Char('=') => {
+            if app.workspace.is_fullscreen() {
+                app.workspace.toggle_fullscreen();
+            }
             app.workspace.show(Panel::Sidebar);
             app.workspace.show(Panel::Center);
         }

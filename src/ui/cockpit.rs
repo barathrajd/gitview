@@ -86,7 +86,7 @@ pub fn render_workspace_cockpit(
     render_repository_header(frame, sections[0], repository, profile, branches, border);
 
     // The model reserves one bottom row, already owned by the status line.
-    let workspace_layout = workspace.layout(ratatui::layout::Rect {
+    let workspace_layout = workspace.gitview_layout(ratatui::layout::Rect {
         height: sections[1].height.saturating_add(1),
         ..sections[1]
     });
