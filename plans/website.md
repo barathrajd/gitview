@@ -184,3 +184,22 @@ process.
   install commands.
 - Keep the site statically renderable and its browser-side behavior limited to
   lightweight install-tab and copy interactions.
+
+## Feature catalogue follow-up (October 30, 2026)
+
+The latest session requirements replace the release-based Features page with
+one continuous catalogue. Preserve real terminal captures and the current theme.
+
+- [x] Replace release panels with visible, anchored workflow sections and
+  introductory release badges. Static build and catalogue regression test pass.
+- [ ] Complete coverage of all released features, including config profiles
+  and earlier installation options, with precise per-feature release badges.
+- [ ] Capture multi-frame demos for every workflow; retain real CLI transcripts.
+- [ ] Link changelog highlights to the matching catalogue demos.
+- [ ] Verify desktop and phone layouts in a browser, including zero overflow.
+
+The catalogue foundation builds successfully. Both website tests pass (36
+assertions), including 21 changelog links to existing catalogue anchors.
+Playwright checks at 1440 px and iPhone 13 widths report zero horizontal
+overflow. Phone screenshots were inspected; complete demo interaction and
+320 px checks remain open.

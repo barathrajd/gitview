@@ -67,10 +67,10 @@ const anchor = (version: string) => `v${version.replaceAll(".", "-")}`;
                   <span>{release.highlights.length} changes</span>
                 </p>
                 <ul class="divide-y divide-white/[0.05]">
-                  {release.highlights.map((item) => (
+                  {release.highlights.map((item, index) => (
                     <li class="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-2 px-5 py-3.5 text-[15px] leading-7 text-slate-300 transition hover:bg-emerald-300/[0.025]">
                       <span class="select-none font-mono text-sm leading-7 text-emerald-400" aria-hidden="true">+</span>
-                      <span>{inlineCode(item).map((part) => part.code ? <code class="rounded-md bg-white/[0.06] px-1.5 py-0.5 font-mono text-[0.84em] text-emerald-200">{part.text}</code> : part.text)}</span>
+                      <span>{inlineCode(item).map((part) => part.code ? <code class="rounded-md bg-white/[0.06] px-1.5 py-0.5 font-mono text-[0.84em] text-emerald-200">{part.text}</code> : part.text)}{release.featureIds?.[index] && <a class="ml-3 inline-block font-mono text-xs text-emerald-300 underline underline-offset-4" href={href(`features/#${release.featureIds[index]}`)}>See it →</a>}</span>
                     </li>
                   ))}
                 </ul>
