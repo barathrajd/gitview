@@ -245,3 +245,67 @@ fn agent_fullscreen_also_works_when_control_is_held_for_both_keys() {
     assert!(screen.contains("AGENT"));
     assert!(!screen.contains("WORKTREE"));
 }
+
+#[test]
+fn focused_agent_resizes_in_both_directions() {
+    let repository = Repo::with_changes();
+    let render = |resize| {
+        let mut steps = vec![WaitFor("agent-ready"), Ctrl('\\')];
+        if let Some(key) = resize {
+            steps.extend([Ctrl('w'), Char(key)]);
+        }
+        replay::replay_with_agent(
+            &repository.path(),
+            Some(&["sh", "-c", "echo agent-ready; sleep 30"]),
+            140,
+            30,
+            steps,
+        )
+    };
+    let start = |screen: &str| {
+        screen
+            .lines()
+            .find(|line| line.contains("┌ AGENT"))
+            .unwrap()
+            .split("┌ AGENT")
+            .next()
+            .unwrap()
+            .chars()
+            .count()
+    };
+    let before = start(&render(None));
+    assert!(start(&render(Some('+'))) < before);
+    assert!(start(&render(Some('-'))) > before);
+}
+
+#[test]
+fn agent_can_hide_and_restore_without_ending_the_shell() {
+    let repository = Repo::with_changes();
+    let render = |restore| {
+        let mut steps = vec![
+            WaitFor("agent-ready"),
+            Ctrl('\\'),
+            Ctrl('w'),
+            Char('o'),
+            Ctrl('w'),
+            Char('x'),
+        ];
+        if restore {
+            steps.extend([Ctrl('w'), Char('='), Ctrl('\\')]);
+        }
+        replay::replay_with_agent(
+            &repository.path(),
+            Some(&["sh", "-c", "echo agent-ready; sleep 30"]),
+            140,
+            30,
+            steps,
+        )
+    };
+    let hidden = render(false);
+    assert!(!hidden.contains("AGENT"));
+    assert!(hidden.contains("WORKTREE") || hidden.contains("HISTORY"));
+    let restored = render(true);
+    assert!(restored.contains("agent-ready"));
+    assert!(restored.contains("WORKTREE") || restored.contains("HISTORY"));
+    assert!(restored.contains("running"));
+}

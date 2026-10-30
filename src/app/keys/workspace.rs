@@ -32,14 +32,12 @@ pub(in crate::app) fn handle(app: &mut App, key: KeyEvent) -> io::Result<Flow> {
         KeyCode::Char('x') => {
             app.workspace.hide(current);
         }
-        KeyCode::Char('=') => {
-            if app.workspace.is_fullscreen() {
-                app.workspace.toggle_fullscreen();
-            }
-            app.workspace.show(Panel::Sidebar);
-            app.workspace.show(Panel::Center);
-        }
+        KeyCode::Char('=') => app.workspace.restore_panels(),
         _ => {}
+    }
+    if app.workspace.focused() == Panel::Agent {
+        app.focus = crate::app::input::Focus::Agent;
+        return Ok(Flow::Handled);
     }
     app.app_state.show(match app.workspace.focused() {
         Panel::Sidebar => View::WorkingTree,

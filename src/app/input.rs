@@ -2,7 +2,7 @@
 //!
 //! Gitview and, when one is open, the agent pane can have focus. The focus key
 //! moves it. While the agent has focus every key and paste goes to the agent
-//! through the agent handler, which reserves Ctrl-w o for full width and
+//! through the agent handler, which reserves workspace Ctrl-w chords and
 //! forwards other sequences. The focus key always stays with Gitview.
 
 use crossterm::event::Event;

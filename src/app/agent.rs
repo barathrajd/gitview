@@ -3,7 +3,11 @@
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use super::{input::Focus, model::App};
-use crate::pane::{PaneState, encode_key, encode_paste};
+use crate::{
+    app::View,
+    pane::{PaneState, encode_key, encode_paste},
+    workspace::Panel,
+};
 
 /// Applies output the program produced, asks for a redraw when anything
 /// changed, and hands focus back to Gitview once the program has ended.
@@ -28,11 +32,15 @@ pub(super) fn toggle_focus(app: &mut App) {
     app.workspace_prefix = false;
     app.focus = match app.focus {
         Focus::Agent => Focus::Gitview,
-        Focus::Gitview => Focus::Agent,
+        Focus::Gitview => {
+            app.workspace.show(Panel::Agent);
+            app.workspace.focus(Panel::Agent);
+            Focus::Agent
+        }
     };
 }
 
-/// Reserve Ctrl-w o for agent full width; replay other sequences unchanged.
+/// Apply workspace chords to the agent; replay unrelated sequences unchanged.
 pub(super) fn workspace_key(app: &mut App, event: &Event) -> bool {
     if let Event::Key(key) = event {
         if key.kind == KeyEventKind::Release {
@@ -46,13 +54,29 @@ pub(super) fn workspace_key(app: &mut App, event: &Event) -> bool {
             return true;
         }
         if app.workspace_prefix
-            && key.code == KeyCode::Char('o')
+            && matches!(key.code, KeyCode::Char('o' | '+' | '-' | 'x' | '='))
             && !key
                 .modifiers
                 .intersects(KeyModifiers::ALT | KeyModifiers::SUPER)
         {
             app.workspace_prefix = false;
-            app.workspace.toggle_fullscreen();
+            app.workspace.focus(Panel::Agent);
+            match key.code {
+                KeyCode::Char('+') => app.workspace.resize(Panel::Agent, 4),
+                KeyCode::Char('-') => app.workspace.resize(Panel::Agent, -4),
+                KeyCode::Char('o') => app.workspace.toggle_fullscreen(),
+                KeyCode::Char('=') => app.workspace.restore_panels(),
+                KeyCode::Char('x') => {
+                    if app.workspace.hide(Panel::Agent) {
+                        app.focus = Focus::Gitview;
+                        app.app_state.show(match app.workspace.focused() {
+                            Panel::Sidebar => View::WorkingTree,
+                            _ => View::History,
+                        });
+                    }
+                }
+                _ => unreachable!(),
+            }
             return true;
         }
     }

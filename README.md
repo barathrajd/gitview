@@ -138,10 +138,13 @@ before it changes the terminal.
 Press `Ctrl+\` to move focus between Gitview and the agent; the pane's border
 shows the key. Press **Ctrl+w**, then **o**, to toggle the focused pane
 between full width and the workspace split. This works directly in the agent
-pane too. While the agent has focus, keys and paste go to it except the focus
-key and this full-width chord, so **q** still reaches the agent. Other Ctrl+w
-sequences are forwarded after the next key. While Gitview has focus, nothing
-reaches the agent. Focus returns to Gitview when the program ends.
+pane too. **Ctrl+w +** grows the focused pane, **Ctrl+w -** shrinks it, and
+**Ctrl+w x** hides it. Hiding the agent keeps its program running; press
+`Ctrl+\` to reopen it, or **Ctrl+w =** to restore all panes. These workspace
+chords stay with Gitview; other keys and paste reach the focused agent, so
+**q** still reaches it. Other Ctrl+w sequences are forwarded after the next
+key. While Gitview has focus, nothing reaches the agent. Focus returns to
+Gitview when the program ends.
 
 On a terminal 119 columns or wider, the agent sits to the right of Gitview. On a
 narrower one, Gitview and the agent take turns filling the screen, and a bar at

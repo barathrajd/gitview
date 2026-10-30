@@ -61,6 +61,13 @@ impl Workspace {
         gitview.layout(area)
     }
 
+    pub fn restore_panels(&mut self) {
+        self.sidebar = true;
+        self.center = true;
+        self.agent = self.has_agent;
+        self.fullscreen = false;
+    }
+
     pub fn toggle_fullscreen(&mut self) {
         self.fullscreen = !self.fullscreen;
     }

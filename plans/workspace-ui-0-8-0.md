@@ -202,3 +202,15 @@ Both Ctrl-w o and Ctrl-w Ctrl-o are supported. Verification: 28 agent and
 workspace replay tests passed, the optimized build passed, and the user
 confirmed shell full-width toggling works. Earlier control-channel tests and
 Clippy also passed for this slice.
+
+### Agent resize and hide/restore
+
+Ctrl-w +/- now resizes the focused agent. Ctrl-w x hides it without ending
+the child process and returns focus to Gitview, also leaving full-width mode.
+Ctrl-w = restores every available panel; Ctrl-backslash reopens a hidden agent.
+Unrecognized Ctrl-w sequences still reach the agent. README and help list the
+controls. The user requested manual test steps before committing this slice.
+
+Verification: full serial suite passed (487 passed, 0 failed,
+15 ignored), Clippy passed, and the optimized binary was rebuilt.
+The user confirmed resize, hide/restore, and full-width behavior works.
