@@ -377,3 +377,29 @@ fn an_idle_connection_is_closed() {
 
     assert!(client.send_raw(b"{\"tool\": \"get_status\"}\n").is_none());
 }
+
+#[test]
+fn sockets_left_by_dead_gitviews_are_removed_at_start() {
+    let root = repository();
+    let folder = unique("stale");
+    fs::create_dir(&folder).unwrap();
+    fs::set_permissions(&folder, fs::Permissions::from_mode(0o700)).unwrap();
+    let mut finished = Command::new("true").spawn().unwrap();
+    let dead = finished.id();
+    finished.wait().unwrap();
+    let mut running = Command::new("sleep").arg("5").spawn().unwrap();
+    let stale = folder.join(format!("gitview-{dead}-0.sock"));
+    let live = folder.join(format!("gitview-{}-0.sock", running.id()));
+    let unrelated = folder.join("notes.txt");
+    for path in [&stale, &live, &unrelated] {
+        fs::write(path, "").unwrap();
+    }
+
+    let (_server, _commands) = ControlServer::start_in(&root, &folder).unwrap();
+
+    let _ = running.kill();
+    let _ = running.wait();
+    assert!(!stale.exists());
+    assert!(live.exists());
+    assert!(unrelated.exists());
+}

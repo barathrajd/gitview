@@ -75,6 +75,7 @@ impl ControlServer {
         idle: Duration,
     ) -> Result<(Self, Receiver<ControlCommand>), String> {
         prepare_folder(folder)?;
+        remove_stale_sockets(folder);
         // Unique per server: a second server must never replace this one's
         // socket, or dropping this one would wait on a listener it can't wake.
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -156,6 +157,33 @@ fn prepare_folder(folder: &Path) -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+/// Remove sockets whose Gitview has ended without cleaning up, for example
+/// when it was killed. Only `gitview-<pid>-<n>.sock` files whose process is
+/// gone are touched.
+fn remove_stale_sockets(folder: &Path) {
+    let Ok(entries) = fs::read_dir(folder) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(pid) = name
+            .to_str()
+            .and_then(|name| name.strip_prefix("gitview-"))
+            .and_then(|rest| rest.strip_suffix(".sock"))
+            .and_then(|rest| rest.split_once('-'))
+            .and_then(|(pid, _)| pid.parse::<libc::pid_t>().ok())
+        else {
+            continue;
+        };
+        // Signal 0 checks that the process exists without touching it.
+        let gone = unsafe { libc::kill(pid, 0) } == -1
+            && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH);
+        if pid > 0 && gone {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
 }
 
 fn accept_loop(
