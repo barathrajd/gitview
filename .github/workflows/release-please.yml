@@ -29,7 +29,7 @@ jobs:
   pre-release-checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -57,9 +57,9 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: release
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: .release-please-config.json
@@ -70,7 +70,7 @@ jobs:
     if: ${{ needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.task == 'build-macos-arm64') }}
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release-please.outputs.tag_name || inputs.release_tag }}
       - uses: dtolnay/rust-toolchain@stable
@@ -100,7 +100,7 @@ jobs:
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.task == 'dry-run-linux-x86_64' }}
       TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.release_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # A dry run builds the branch it was started on.
           ref: ${{ (github.event_name == 'workflow_dispatch' && inputs.task == 'dry-run-linux-x86_64') && github.sha || needs.release-please.outputs.tag_name || inputs.release_tag }}
@@ -128,7 +128,7 @@ jobs:
           echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
       - name: Keep the dry-run archive
         if: ${{ env.DRY_RUN == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gitview-dry-run-linux-x86_64
           path: |
@@ -145,7 +145,7 @@ jobs:
     if: ${{ needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.task == 'publish-crate') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release-please.outputs.tag_name || inputs.release_tag }}
       - uses: dtolnay/rust-toolchain@stable
