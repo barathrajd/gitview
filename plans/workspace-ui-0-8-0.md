@@ -292,7 +292,7 @@ motions in other lists and diffs remain open.
 Fix (committed): Ctrl- and Alt-modified letters no longer run plain view
 shortcuts; Ctrl-u had unstaged and Ctrl-d opened the discard preview.
 
-### Milestone 2: page keys and zz (awaiting user testing)
+### Milestone 2: page keys and zz (committed)
 
 Ctrl-d/Ctrl-u move half the focused list's visible rows; Ctrl-f/Ctrl-b and
 Page Down/Up move a full page. Rows come from the workspace layout of the last
@@ -301,3 +301,15 @@ list keeps no scroll offset between frames, so `zz` there is still open.
 
 Verification: full serial suite passed (511 passed, 0 failed, 16 ignored),
 Clippy passed, optimized binary rebuilt.
+
+### Milestone 2: Worktree scroll and zz (committed)
+
+The Worktree list now keeps its scroll offset (in display rows, counting
+section headings) between frames, so `zz` centers the selected file there
+too. User testing found `r` reset it to the top: refresh cleared the cached
+status, so the reload lost the selected file (an older reset that scroll
+memory exposed). `r` now keeps the list until the reload arrives, and a
+loading list no longer overwrites the saved offset.
+Verification: full serial suite passed (512 passed, 0 failed,
+16 ignored), Clippy passed, optimized binary rebuilt. Motions in the other
+lists and in diffs remain open.

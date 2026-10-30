@@ -255,7 +255,8 @@ pub(in crate::app) fn handle<H: Host>(
                 }
             }
             AppAction::RefreshWorkingTree => {
-                app.status = None;
+                // Keep the current list until the reload arrives, so the
+                // selected file and its scroll position survive it.
                 app.status_request += 1;
                 let id = app.status_request;
                 let sender = app.status_sender.clone();
@@ -280,10 +281,19 @@ pub(in crate::app) fn handle<H: Host>(
             | AppAction::PageUp => move_by_page(app, action),
             AppAction::CenterSelection => {
                 let rows = page_rows(app);
-                if app.app_state.view() == View::History
-                    && let Some(selected) = app.selection.selected()
-                {
-                    *app.selection.offset_mut() = selected.saturating_sub(rows / 2);
+                match app.app_state.view() {
+                    View::History => {
+                        if let Some(selected) = app.selection.selected() {
+                            *app.selection.offset_mut() = selected.saturating_sub(rows / 2);
+                        }
+                    }
+                    View::WorkingTree => {
+                        if let Some(row) = app.status_selection.selected().and_then(|index| {
+                            crate::ui::worktree_display_row(app.status.as_ref(), index)
+                        }) {
+                            *app.status_selection.offset_mut() = row.saturating_sub(rows / 2);
+                        }
+                    }
                 }
             }
         }

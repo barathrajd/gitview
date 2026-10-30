@@ -198,6 +198,8 @@ pub(super) fn render_worktree_panel(
             .selected()
             .and_then(|index| selection_index.get(index).copied().flatten()),
     );
+    // `selection` keeps the scroll offset in display rows between frames.
+    *display_selection.offset_mut() = selection.offset();
     render_panel_list(
         frame,
         area,
@@ -208,6 +210,19 @@ pub(super) fn render_worktree_panel(
         border,
         highlight,
     );
+    // A loading or empty list draws one placeholder row, which clamps the
+    // offset to zero; keep the files' position for when they return.
+    if !selection_index.is_empty() {
+        *selection.offset_mut() = display_selection.offset();
+    }
+}
+
+/// The list row that shows entry `index`, counting the section headings.
+pub fn worktree_display_row(
+    status: Option<&Result<Vec<Entry>, String>>,
+    index: usize,
+) -> Option<usize> {
+    worktree_items(status).1.get(index).copied().flatten()
 }
 
 pub(super) fn worktree_items(
