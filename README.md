@@ -408,11 +408,16 @@ stash, rebase, and submodule workflows are not implemented. See the
 coverage and planned work.
 
 The agent pane is a first version, checked on macOS with `claude` and `codex`.
-It doesn't forward mouse input, and it doesn't answer the questions programs ask
-their terminal, such as the cursor position or the theme colors; the programs
-start without the answers. Shift+Enter is sent as Alt+Enter, which agents read
-as a new line. The control channel was checked with Claude Code and with Codex
-0.165.0 on macOS; on Linux only its automated tests have run.
+It keeps the last 2,000 lines of the agent's scrollback. It answers a program's
+questions about the cursor position and the terminal type, but not others, such
+as the theme colors or keyboard modes; programs start without those answers. It
+doesn't forward mouse input, focus changes, hyperlinks, or notifications, and it
+draws without waiting for a program's synchronized updates, so a half-drawn
+frame can show briefly. Shift+Enter is sent as Alt+Enter, which agents read as
+a new line. The control channel was checked with Claude Code and with Codex
+0.165.0 on macOS; on Linux only its automated tests have run. See the
+[security review](docs/agent-workspace-security.md) for what the control
+channel allows and what it guards against.
 
 History is limited to 200 commits. Diffs are limited to 1 MB or 5,000 lines and
 indicate truncation; binary changes show Git's binary notice. IDE diffs show

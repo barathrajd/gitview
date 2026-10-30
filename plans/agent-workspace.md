@@ -269,9 +269,30 @@ since review.
   processes creating sessions at the same moment could each save a manifest
   missing the other's entry. The lost session would then show as unrecorded,
   not vanish. Revisit in milestone 7.
-- [ ] **7. Harden and document:** Memory and scrollback budgets, ASCII mode,
+- [x] **7. Harden and document:** Memory and scrollback budgets, ASCII mode,
   security review of the socket, controls and limitations in the docs, and the
   full format, test, lint, and release-build pass.
+  *Done:*
+  - **ASCII mode:** the agent pane draws its border in ASCII with `--ascii`.
+  - **Security review:** written up in
+    [docs/agent-workspace-security.md](../docs/agent-workspace-security.md).
+    The socket now serves at most 8 connections and closes idle ones after
+    10 minutes. Sockets left by killed Gitviews are removed at start, and the
+    agent pane's title says "tools off" when the socket can't start.
+    `manifest.lock` stops two Gitviews from picking the same session name or
+    saving over each other's manifest. A test that creates 8 sessions at once
+    failed on a name clash before the lock.
+  - **Terminal queries:** the pane answers cursor position (`CSI 6 n`, with
+    the cursor where the query arrived, even mid-write or split across
+    writes) and device attributes (`CSI c`, as a VT100 with advanced video).
+  *Measured* (release build, 200 by 50 terminal, macOS): Gitview alone uses
+  10.6 MiB resident, and 11.0 MiB with an idle agent. With an agent writing
+  400,000 colored lines it uses 22.5 MiB, and with 1.6 million lines 22.7 MiB.
+  The 2,000-line scrollback cap holds memory flat.
+  *Still open:* mouse forwarding, focus reporting, synchronized output,
+  OSC 8 and 9, the colors and kitty-flags queries, a real Shift+Enter, and
+  creating a session from the Sessions page. A connection from another user ID
+  is still untested.
 
 ## Risks & open questions
 
