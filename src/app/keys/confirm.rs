@@ -25,7 +25,9 @@ pub(in crate::app) fn handle<H: Host>(
                 let path = root.to_path_buf();
                 let sender = app.discard_sender.clone();
                 std::thread::spawn(move || {
-                    let _ = sender.send(crate::worktree::discard(&path, &preview));
+                    let _ = sender.send(crate::writes::serialized(|| {
+                        crate::worktree::discard(&path, &preview)
+                    }));
                 });
             }
             KeyCode::Char('n') | KeyCode::Esc => app.discard_confirm = None,
@@ -45,7 +47,9 @@ pub(in crate::app) fn handle<H: Host>(
                 let path = root.to_path_buf();
                 let sender = app.untrack_sender.clone();
                 std::thread::spawn(move || {
-                    let _ = sender.send(crate::worktree::untrack(&path, &preview));
+                    let _ = sender.send(crate::writes::serialized(|| {
+                        crate::worktree::untrack(&path, &preview)
+                    }));
                 });
             }
             KeyCode::Char('n') | KeyCode::Esc => app.untrack_confirm = None,
@@ -65,7 +69,9 @@ pub(in crate::app) fn handle<H: Host>(
                 let path = root.to_path_buf();
                 let sender = app.remove_sender.clone();
                 std::thread::spawn(move || {
-                    let _ = sender.send(crate::worktree::remove_path(&path, &preview));
+                    let _ = sender.send(crate::writes::serialized(|| {
+                        crate::worktree::remove_path(&path, &preview)
+                    }));
                 });
             }
             KeyCode::Char('n') | KeyCode::Esc => app.remove_confirm = None,
@@ -85,7 +91,9 @@ pub(in crate::app) fn handle<H: Host>(
                 let path = root.to_path_buf();
                 let sender = app.move_sender.clone();
                 std::thread::spawn(move || {
-                    let _ = sender.send(crate::worktree::move_path(&path, &preview));
+                    let _ = sender.send(crate::writes::serialized(|| {
+                        crate::worktree::move_path(&path, &preview)
+                    }));
                 });
             }
             KeyCode::Char('n') | KeyCode::Esc => app.move_confirm = None,

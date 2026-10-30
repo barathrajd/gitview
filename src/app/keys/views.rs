@@ -180,7 +180,7 @@ pub(in crate::app) fn handle<H: Host>(
                 app.mutation_pending = true;
                 app.status_mutation = Some(id);
                 std::thread::spawn(move || {
-                    let result = crate::worktree::stage_all(&path);
+                    let result = crate::writes::serialized(|| crate::worktree::stage_all(&path));
                     let _ = sender.send((
                         id,
                         result.and_then(|()| crate::worktree::load_status(&path)),
@@ -195,7 +195,7 @@ pub(in crate::app) fn handle<H: Host>(
                 app.mutation_pending = true;
                 app.status_mutation = Some(id);
                 std::thread::spawn(move || {
-                    let result = crate::worktree::unstage_all(&path);
+                    let result = crate::writes::serialized(|| crate::worktree::unstage_all(&path));
                     let _ = sender.send((
                         id,
                         result.and_then(|()| crate::worktree::load_status(&path)),
@@ -223,9 +223,11 @@ pub(in crate::app) fn handle<H: Host>(
                         app.status_mutation = Some(id);
                         std::thread::spawn(move || {
                             let result = if stage {
-                                crate::worktree::stage(&path, &entry)
+                                crate::writes::serialized(|| crate::worktree::stage(&path, &entry))
                             } else {
-                                crate::worktree::unstage(&path, &entry)
+                                crate::writes::serialized(|| {
+                                    crate::worktree::unstage(&path, &entry)
+                                })
                             };
                             let _ = sender.send((
                                 id,
@@ -442,13 +444,17 @@ pub(in crate::app) fn handle<H: Host>(
                 let path = root.to_path_buf();
                 std::thread::spawn(move || {
                     let result = if all_hunks && stage {
-                        crate::worktree::stage(&path, &entry)
+                        crate::writes::serialized(|| crate::worktree::stage(&path, &entry))
                     } else if all_hunks {
-                        crate::worktree::unstage(&path, &entry)
+                        crate::writes::serialized(|| crate::worktree::unstage(&path, &entry))
                     } else if stage {
-                        crate::worktree::stage_hunk(&path, &entry, hunk)
+                        crate::writes::serialized(|| {
+                            crate::worktree::stage_hunk(&path, &entry, hunk)
+                        })
                     } else {
-                        crate::worktree::unstage_hunk(&path, &entry, hunk)
+                        crate::writes::serialized(|| {
+                            crate::worktree::unstage_hunk(&path, &entry, hunk)
+                        })
                     };
                     let status_result = result.and_then(|()| crate::worktree::load_status(&path));
                     let diff_result = match &status_result {
