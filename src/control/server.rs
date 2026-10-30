@@ -28,8 +28,12 @@ pub const MAX_REQUEST: usize = 64 * 1024;
 /// What the agent asked Gitview to show.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ControlCommand {
+    /// A full commit ID.
     SelectCommit(String),
-    SelectFile { path: String, staged: bool },
+    SelectFile {
+        path: String,
+        staged: bool,
+    },
     FocusAgent,
     FocusGitview,
 }
@@ -53,7 +57,14 @@ impl ControlServer {
         folder: &Path,
     ) -> Result<(Self, Receiver<ControlCommand>), String> {
         prepare_folder(folder)?;
-        let path = folder.join(format!("gitview-{}.sock", std::process::id()));
+        // Unique per server: a second server must never replace this one's
+        // socket, or dropping this one would wait on a listener it can't wake.
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let path = folder.join(format!(
+            "gitview-{}-{}.sock",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
         let _ = fs::remove_file(&path);
         let listener = UnixListener::bind(&path)
             .map_err(|error| format!("Could not open the control socket: {error}"))?;
@@ -196,7 +207,7 @@ fn respond(line: &[u8], root: &Path, sender: &Sender<ControlCommand>) -> Value {
         return failure(&id, "Request needs a tool name");
     };
     let args = request.get("args").cloned().unwrap_or_else(|| json!({}));
-    let result = match selection(tool, &args) {
+    let result = match selection(root, tool, &args) {
         Some(command) => command.and_then(|command| {
             sender
                 .send(command)
@@ -220,7 +231,7 @@ fn respond(line: &[u8], root: &Path, sender: &Sender<ControlCommand>) -> Value {
 }
 
 /// Parse a tool that changes what Gitview shows, or `None` for other tools.
-fn selection(tool: &str, args: &Value) -> Option<Result<ControlCommand, String>> {
+fn selection(root: &Path, tool: &str, args: &Value) -> Option<Result<ControlCommand, String>> {
     let text = |key: &str| {
         args.get(key)
             .and_then(Value::as_str)
@@ -228,13 +239,9 @@ fn selection(tool: &str, args: &Value) -> Option<Result<ControlCommand, String>>
             .ok_or(format!("{key} must be a string"))
     };
     Some(match tool {
-        "select_commit" => text("revision").and_then(|revision| {
-            if revision.is_empty() || revision.starts_with('-') {
-                Err("revision must name a commit, not an option".into())
-            } else {
-                Ok(ControlCommand::SelectCommit(revision))
-            }
-        }),
+        "select_commit" => text("revision")
+            .and_then(|revision| tools::resolve_commit(root, &revision))
+            .map(ControlCommand::SelectCommit),
         "select_file" => text("path").and_then(|path| {
             tools::check_relative(&path)?;
             let staged = match args.get("staged") {

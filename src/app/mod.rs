@@ -1,4 +1,5 @@
 mod agent;
+mod control;
 mod drain;
 mod draw;
 mod helpers;
@@ -68,6 +69,11 @@ pub struct AppState {
 impl AppState {
     pub fn view(&self) -> View {
         self.view
+    }
+
+    /// Show `view`, as the agent can ask through the control channel.
+    pub fn show(&mut self, view: View) {
+        self.view = view;
     }
 
     /// Apply Tab when the active screen permits workspace navigation.

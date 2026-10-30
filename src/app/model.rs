@@ -126,4 +126,12 @@ pub(super) struct App {
     /// hunk to put back when the new text arrives.
     pub(super) diff_refresh: Option<(u64, u16, usize)>,
     pub(super) needs_redraw: bool,
+    /// The socket the agent reaches Gitview through, and its requests.
+    pub(super) control: Option<(
+        crate::control::server::ControlServer,
+        Receiver<crate::control::server::ControlCommand>,
+    )>,
+    /// A request waiting for the user to finish a prompt, or for its target
+    /// to load, until the deadline.
+    pub(super) pending_control: Option<(crate::control::server::ControlCommand, Instant)>,
 }

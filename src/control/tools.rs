@@ -127,19 +127,7 @@ fn get_show(root: &Path, args: &Map<String, Value>) -> Result<ToolOutput, String
         .get("revision")
         .and_then(Value::as_str)
         .ok_or("revision must be a string")?;
-    if revision.is_empty() || revision.starts_with('-') {
-        return Err("revision must name a commit, not an option".into());
-    }
-    let verified = process::git_command()
-        .current_dir(root)
-        .args(["rev-parse", "--verify", "--quiet", "--end-of-options"])
-        .arg(format!("{revision}^{{commit}}"))
-        .output()
-        .map_err(|error| format!("Could not run Git: {error}"))?;
-    if !verified.status.success() {
-        return Err(format!("Unknown revision: {revision}"));
-    }
-    let id = String::from_utf8_lossy(&verified.stdout).trim().to_owned();
+    let id = resolve_commit(root, revision)?;
     let mut command = process::git_command();
     command
         .current_dir(root)
@@ -154,6 +142,23 @@ fn get_show(root: &Path, args: &Map<String, Value>) -> Result<ToolOutput, String
         String::from_utf8_lossy(&output.stdout).into_owned(),
         output.truncated,
     ))
+}
+
+/// The full ID of the commit `revision` names. A revision can't be an option.
+pub(crate) fn resolve_commit(root: &Path, revision: &str) -> Result<String, String> {
+    if revision.is_empty() || revision.starts_with('-') {
+        return Err("revision must name a commit, not an option".into());
+    }
+    let verified = process::git_command()
+        .current_dir(root)
+        .args(["rev-parse", "--verify", "--quiet", "--end-of-options"])
+        .arg(format!("{revision}^{{commit}}"))
+        .output()
+        .map_err(|error| format!("Could not run Git: {error}"))?;
+    if !verified.status.success() {
+        return Err(format!("Unknown revision: {revision}"));
+    }
+    Ok(String::from_utf8_lossy(&verified.stdout).trim().to_owned())
 }
 
 /// Refuse anything but a plain path inside the repository.

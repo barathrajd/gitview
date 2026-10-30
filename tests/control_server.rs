@@ -154,11 +154,30 @@ fn an_oversized_request_closes_the_connection() {
 
 #[test]
 fn selection_tools_reach_gitview() {
-    let (server, commands, _root) = start();
+    let (server, commands, root) = start();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .current_dir(&root)
+            .args([
+                "-c",
+                "user.name=T",
+                "-c",
+                "user.email=t@e",
+                "-c",
+                "commit.gpgsign=false",
+            ])
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        String::from_utf8(output.stdout).unwrap().trim().to_owned()
+    };
+    git(&["commit", "-q", "--allow-empty", "-m", "one"]);
+    let id = git(&["rev-parse", "HEAD"]);
     let mut client = Client::connect(server.path());
 
     let replies = [
-        client.send(json!({"tool": "select_commit", "args": {"revision": "main"}})),
+        client.send(json!({"tool": "select_commit", "args": {"revision": "HEAD"}})),
         client.send(json!({"tool": "select_file", "args": {"path": "a b.txt", "staged": true}})),
         client.send(json!({"tool": "focus_pane", "args": {"pane": "agent"}})),
     ];
@@ -170,7 +189,7 @@ fn selection_tools_reach_gitview() {
     assert_eq!(
         received,
         [
-            ControlCommand::SelectCommit("main".into()),
+            ControlCommand::SelectCommit(id),
             ControlCommand::SelectFile {
                 path: "a b.txt".into(),
                 staged: true
@@ -187,6 +206,7 @@ fn selection_arguments_are_checked() {
 
     for request in [
         json!({"tool": "select_commit", "args": {"revision": "--all"}}),
+        json!({"tool": "select_commit", "args": {"revision": "no-such-commit"}}),
         json!({"tool": "select_file", "args": {"path": "../x"}}),
         json!({"tool": "focus_pane", "args": {"pane": "elsewhere"}}),
     ] {
@@ -205,4 +225,19 @@ fn dropping_the_server_removes_the_socket() {
 
     assert!(!path.exists());
     assert!(UnixStream::connect(&path).is_err());
+}
+
+#[test]
+fn two_servers_in_one_folder_keep_their_own_sockets() {
+    let root = repository();
+    let folder = unique("pair");
+    let (first, _a) = ControlServer::start_in(&root, &folder).unwrap();
+    let (second, _b) = ControlServer::start_in(&root, &folder).unwrap();
+
+    assert_ne!(first.path(), second.path());
+    drop(first);
+    assert_eq!(
+        Client::connect(second.path()).send(json!({"tool": "get_status"}))["ok"],
+        true
+    );
 }

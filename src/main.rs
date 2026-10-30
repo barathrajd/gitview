@@ -4,7 +4,7 @@ use gitview::{
         run::{Navigation, run_app_with_agent},
         terminal::{BracketedPasteMode, TerminalHost},
     },
-    pane::{check_installed, split_agent_args},
+    pane::{check_installed, register_gitview_mcp, split_agent_args},
     ui::HELP,
 };
 use std::{env, process::ExitCode};
@@ -32,7 +32,7 @@ fn run() -> Result<(), String> {
     }
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "Usage: gitview [--ascii] [--version]\n       gitview [--ascii] --run <command> [args...]\n       gitview [--ascii] --claude [args...]\n       gitview [--ascii] --codex [args...]\n       gitview init [directory]\n       gitview clone <repository> [directory]\n       gitview mcp\n       gitview --shell-integration\n\nOpen the current Git repository. Use init or clone to set up a repository.\nUse --run, --claude, or --codex to start a coding agent, or any program, in a pane beside Gitview. Everything after --run, --claude, or --codex goes to that program, and it ends when you quit Gitview. Ctrl+\\ moves focus between Gitview and the agent; on a terminal too narrow for two panes (under 119 columns) they take turns filling the full screen. An agent started this way gets GITVIEW_SOCKET, the path of a socket only you can open; `gitview mcp` is a stdio MCP server that uses it to let the agent read status, history, and diffs and select what Gitview shows. Use --ascii for plain terminal borders. Folder-specific Git config profiles are loaded automatically. Run --shell-integration for the optional zsh hook.\n\n{HELP}"
+            "Usage: gitview [--ascii] [--version]\n       gitview [--ascii] --run <command> [args...]\n       gitview [--ascii] --claude [args...]\n       gitview [--ascii] --codex [args...]\n       gitview init [directory]\n       gitview clone <repository> [directory]\n       gitview mcp\n       gitview --shell-integration\n\nOpen the current Git repository. Use init or clone to set up a repository.\nUse --run, --claude, or --codex to start a coding agent, or any program, in a pane beside Gitview. Everything after --run, --claude, or --codex goes to that program, and it ends when you quit Gitview. Ctrl+\\ moves focus between Gitview and the agent; on a terminal too narrow for two panes (under 119 columns) they take turns filling the full screen. An agent started this way gets GITVIEW_SOCKET, the path of a socket only you can open; `gitview mcp` is a stdio MCP server that uses it to let the agent read status, history, and diffs and select what Gitview shows. --claude registers it automatically. Use --ascii for plain terminal borders. Folder-specific Git config profiles are loaded automatically. Run --shell-integration for the optional zsh hook.\n\n{HELP}"
         );
         return Ok(());
     }
@@ -55,6 +55,10 @@ fn run() -> Result<(), String> {
     if let Some(request) = &agent {
         check_installed(request, env::var_os("PATH").as_deref())?;
     }
+    let agent = match (agent, env::current_exe()) {
+        (Some(request), Ok(gitview)) => Some(register_gitview_mcp(request, &gitview)),
+        (agent, _) => agent,
+    };
     Navigation::init_and_load_file(None)
         .map_err(|e| format!("Could not initialize keybindings: {e}"))?;
     let ascii = args.iter().any(|arg| arg == "--ascii");

@@ -14,7 +14,7 @@ use ratatui::{Terminal, backend::Backend, widgets::ListState};
 
 pub use super::helpers::Navigation;
 use super::{
-    agent, drain, draw,
+    agent, control, drain, draw,
     helpers::{CommitReadResult, backend_error},
     input::{self, Route},
     keys,
@@ -109,13 +109,27 @@ pub fn run_app_with_agent<H: Host>(
     profiles: &mut Vec<crate::config::FolderProfile>,
     agent: Option<Vec<String>>,
 ) -> io::Result<()> {
+    // Without a socket the agent still runs; it just can't reach Gitview.
+    let control = agent
+        .as_ref()
+        .and_then(|_| crate::control::server::ControlServer::start(root).ok());
     let pane = match agent {
         Some(command) => {
             let size = terminal.size().map_err(backend_error)?;
             // The first draw corrects this to the pane's real size.
             let rows = size.height.saturating_sub(2).max(1);
             let columns = (size.width / 2).saturating_sub(2).max(1);
-            Some(AgentPane::spawn(&command, root, rows, columns).map_err(io::Error::other)?)
+            let socket = control
+                .as_ref()
+                .map(|(server, _)| server.path().as_os_str());
+            let env: Vec<_> = socket
+                .map(|path| ("GITVIEW_SOCKET", path))
+                .into_iter()
+                .collect();
+            Some(
+                AgentPane::spawn_with_env(&command, root, rows, columns, &env)
+                    .map_err(io::Error::other)?,
+            )
         }
         None => None,
     };
@@ -348,6 +362,8 @@ pub fn run_app_with_agent<H: Host>(
         diff_refresh: None,
         focus: input::Focus::default(),
         pane,
+        control,
+        pending_control: None,
     };
     let mut env = Env {
         terminal,
@@ -359,6 +375,7 @@ pub fn run_app_with_agent<H: Host>(
     loop {
         step!(drain::drain_results(&mut app, &mut env));
         agent::poll(&mut app);
+        control::step(&mut app, env.root);
         refresh::step(&mut app, &mut env);
         step!(draw::draw_screen(&mut app, &mut env));
         let event = match env.host.next_event(env.terminal, Duration::from_millis(50)) {

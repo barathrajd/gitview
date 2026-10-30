@@ -124,12 +124,15 @@ fn path_with_fake(name: &str) -> (tempfile::TempDir, std::ffi::OsString) {
 }
 
 #[test]
-fn claude_runs_the_claude_program_with_the_rest_of_the_line() {
+fn claude_runs_the_claude_program_with_the_gitview_mcp_server_and_the_rest_of_the_line() {
     let (_dir, path) = path_with_fake("claude");
     let mut session =
         Session::start_with(&["--claude", "--resume", "--model", "opus"], Some(&path));
 
-    session.wait_for("fake claude args: --resume --model opus");
+    // Gitview's MCP config comes first, then the user's own arguments.
+    session.wait_for("fake claude args: --mcp-config={\"mcpServers\"");
+    session.wait_for("\"type\":\"stdio\"}}}");
+    session.wait_for("--resume --model opus");
     session.wait_for("AGENT · claude · running");
     session.send(b"q");
 

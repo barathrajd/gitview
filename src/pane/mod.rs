@@ -3,7 +3,9 @@ mod launch;
 mod queries;
 
 pub use keys::{FOCUS_KEY_LABEL, encode_key, encode_paste, is_focus_key};
-pub use launch::{AgentRequest, check_installed, find_executable, split_agent_args};
+pub use launch::{
+    AgentRequest, check_installed, find_executable, register_gitview_mcp, split_agent_args,
+};
 
 use queries::QueryScanner;
 
@@ -148,6 +150,17 @@ pub struct AgentPane {
 
 impl AgentPane {
     pub fn spawn(argv: &[String], cwd: &Path, rows: u16, cols: u16) -> Result<Self, PaneError> {
+        Self::spawn_with_env(argv, cwd, rows, cols, &[])
+    }
+
+    /// Like `spawn`, with extra environment variables for the program.
+    pub fn spawn_with_env(
+        argv: &[String],
+        cwd: &Path,
+        rows: u16,
+        cols: u16,
+        env: &[(&str, &std::ffi::OsStr)],
+    ) -> Result<Self, PaneError> {
         let command = argv.first().cloned().unwrap_or_default();
         let fail = |message: String| PaneError {
             command: command.clone(),
@@ -171,6 +184,9 @@ impl AgentPane {
         let mut builder = CommandBuilder::new(&argv[0]);
         builder.args(&argv[1..]);
         builder.cwd(cwd);
+        for (key, value) in env {
+            builder.env(key, value);
+        }
         let child = pair
             .slave
             .spawn_command(builder)
