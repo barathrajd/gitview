@@ -17,6 +17,24 @@ const tag = (version: string) => ({
 
 export const releases: Release[] = [
   {
+    version: "0.7.1",
+    date: "October 30, 2026",
+    status: "released",
+    summary: "Patch fixes for installation and agent-session status, plus a searchable feature catalogue and refreshed branding on the website.",
+    highlights: [
+      "The installer reliably finds the latest release without cutting curl off early.",
+      "Merged sessions correctly show zero commits ahead of their base branch.",
+      "The website adds searchable feature navigation, linked changelog highlights, real terminal demos, and a shared logo.",
+      "The website reads its version from Cargo.toml and redeploys after a release.",
+    ],
+    featureIds: ["install", "sessions", null, null],
+    note: "The known limitations listed for 0.7.0 still apply. This patch adds no new Git workflows.",
+    links: [
+      { label: "crates.io 0.7.1", url: "https://crates.io/crates/gitview/0.7.1" },
+      tag("0.7.1"),
+    ],
+  },
+  {
     version: "0.7.0",
     featureIds: ["agent-pane", "agent-pane", "control-channel", "sessions", "sessions", "install"],
     date: "October 30, 2026",

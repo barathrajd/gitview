@@ -4,6 +4,14 @@ This file is the single release plan and release-notes record for Gitview.
 
 ## Upcoming
 
+### Gitview 0.7.1 — patch release
+
+This patch fixes latest-release discovery in the installer and the commit count
+shown for a merged agent session. The website adds a searchable feature sidebar,
+changelog links to feature demonstrations, shared branding, and automatic
+version updates and deployment after a release. Known 0.7.0 limitations remain.
+
+
 ### Next release — follow-up tasks carried over from 0.6.0
 
 Gitview 0.6.0 shipped with the known issues below. They are open work for a
