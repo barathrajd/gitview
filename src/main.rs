@@ -32,7 +32,7 @@ fn run() -> Result<(), String> {
     }
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "Usage: gitview [--ascii] [--version]\n       gitview [--ascii] --run <command> [args...]\n       gitview [--ascii] --claude [args...]\n       gitview [--ascii] --codex [args...]\n       gitview init [directory]\n       gitview clone <repository> [directory]\n       gitview --shell-integration\n\nOpen the current Git repository. Use init or clone to set up a repository.\nUse --run, --claude, or --codex to start a coding agent, or any program, in a pane beside Gitview. Everything after --run, --claude, or --codex goes to that program, and it ends when you quit Gitview. Ctrl+\\ moves focus between Gitview and the agent; on a terminal too narrow for two panes (under 119 columns) they take turns filling the full screen. Use --ascii for plain terminal borders. Folder-specific Git config profiles are loaded automatically. Run --shell-integration for the optional zsh hook.\n\n{HELP}"
+            "Usage: gitview [--ascii] [--version]\n       gitview [--ascii] --run <command> [args...]\n       gitview [--ascii] --claude [args...]\n       gitview [--ascii] --codex [args...]\n       gitview init [directory]\n       gitview clone <repository> [directory]\n       gitview mcp\n       gitview --shell-integration\n\nOpen the current Git repository. Use init or clone to set up a repository.\nUse --run, --claude, or --codex to start a coding agent, or any program, in a pane beside Gitview. Everything after --run, --claude, or --codex goes to that program, and it ends when you quit Gitview. Ctrl+\\ moves focus between Gitview and the agent; on a terminal too narrow for two panes (under 119 columns) they take turns filling the full screen. An agent started this way gets GITVIEW_SOCKET, the path of a socket only you can open; `gitview mcp` is a stdio MCP server that uses it to let the agent read status, history, and diffs and select what Gitview shows. Use --ascii for plain terminal borders. Folder-specific Git config profiles are loaded automatically. Run --shell-integration for the optional zsh hook.\n\n{HELP}"
         );
         return Ok(());
     }
@@ -45,6 +45,12 @@ fn run() -> Result<(), String> {
     }
     if args.first().is_some_and(|arg| arg == "clone") {
         return run_clone(&args[1..]);
+    }
+    if args.first().is_some_and(|arg| arg == "mcp") && agent.is_none() {
+        let socket = env::var_os("GITVIEW_SOCKET").map(std::path::PathBuf::from);
+        let stdin = std::io::stdin().lock();
+        return gitview::control::mcp::serve(stdin, std::io::stdout().lock(), socket.as_deref())
+            .map_err(|error| format!("MCP server stopped: {error}"));
     }
     if let Some(request) = &agent {
         check_installed(request, env::var_os("PATH").as_deref())?;
