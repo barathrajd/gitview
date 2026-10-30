@@ -7,7 +7,7 @@ use std::{
 
 use gitview::{
     pane::{AgentPane, PaneState},
-    ui::{Viewport, render_agent_pane},
+    ui::{ASCII_BORDER, Viewport, render_agent_pane},
 };
 use ratatui::{
     Terminal,
@@ -36,12 +36,14 @@ fn pane_showing(script: &str, until: &str) -> AgentPane {
     pane
 }
 
+const PLAIN: ratatui::symbols::border::Set<'static> = ratatui::symbols::border::PLAIN;
+
 fn draw(pane: &AgentPane, focused: bool) -> Terminal<TestBackend> {
     let mut terminal = Terminal::new(TestBackend::new(60, 14)).unwrap();
     terminal
         .draw(|frame| {
             let area = Rect::new(2, 1, 42, 12);
-            render_agent_pane(&mut Viewport::new(frame, area), area, pane, focused);
+            render_agent_pane(&mut Viewport::new(frame, area), area, pane, focused, PLAIN);
         })
         .unwrap();
     terminal
@@ -185,7 +187,7 @@ fn top_row(pane: &AgentPane, width: u16) -> String {
     terminal
         .draw(|frame| {
             let area = Rect::new(0, 0, width, 6);
-            render_agent_pane(&mut Viewport::new(frame, area), area, pane, false);
+            render_agent_pane(&mut Viewport::new(frame, area), area, pane, false, PLAIN);
         })
         .unwrap();
     let buffer = terminal.backend().buffer();
@@ -210,4 +212,29 @@ fn the_focus_hint_gives_way_to_the_status_as_the_pane_narrows() {
     let narrow = top_row(&pane, 31);
     assert!(narrow.contains("running"), "{narrow}");
     assert!(!narrow.contains("Ctrl"), "{narrow}");
+}
+
+#[test]
+fn ascii_mode_draws_the_border_with_plain_characters() {
+    let pane = pane_showing("printf 'ascii'; sleep 5", "ascii");
+    let mut terminal = Terminal::new(TestBackend::new(40, 6)).unwrap();
+    terminal
+        .draw(|frame| {
+            let area = Rect::new(0, 0, 40, 6);
+            render_agent_pane(
+                &mut Viewport::new(frame, area),
+                area,
+                &pane,
+                false,
+                ASCII_BORDER,
+            );
+        })
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+
+    for (x, y) in [(0, 0), (39, 0), (0, 5), (39, 5), (10, 5), (0, 3)] {
+        let symbol = buffer[(x, y)].symbol();
+        assert!(symbol.is_ascii(), "({x}, {y}) is {symbol:?}");
+    }
+    assert_eq!(buffer[(0, 0)].symbol(), "+");
 }
