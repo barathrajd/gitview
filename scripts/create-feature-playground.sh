@@ -2,7 +2,11 @@
 # Build an isolated repository with representative data for Gitview's current TUI.
 set -eu
 
-playground=$(mktemp -d "${TMPDIR:-/tmp}/gitview-playground.XXXXXXXX")
+# GITVIEW_PLAYGROUND_PARENT keeps playgrounds in one folder, such as
+# target/playground, so they can be deleted together.
+parent=${GITVIEW_PLAYGROUND_PARENT:-${TMPDIR:-/tmp}}
+mkdir -p "$parent"
+playground=$(mktemp -d "$parent/gitview-playground.XXXXXXXX")
 repo="$playground/repo"
 config="$playground/config/gitview"
 mkdir -p "$repo" "$config/profiles"
@@ -36,6 +40,22 @@ git -C "$repo" add -- main-notes.txt
 git -C "$repo" commit -qm 'feat: add main branch notes'
 git -C "$repo" merge --no-ff -qm 'merge: include demo branch' demo-branch
 git -C "$repo" tag playground-v1
+
+# Enough history and changed files to exercise counts, page keys, gg/G, and zz.
+mkdir -p "$repo/notes"
+for number in $(seq -w 1 30); do
+  printf 'Note %s\n' "$number" > "$repo/notes/note-$number.txt"
+done
+git -C "$repo" add -- notes
+git -C "$repo" commit -qm 'docs: add thirty notes in one commit'
+for number in $(seq -w 1 30); do
+  git -C "$repo" branch "topic-$number"
+done
+for number in $(seq -w 1 40); do
+  printf 'Entry %s\n' "$number" >> "$repo/log.txt"
+  git -C "$repo" add -- log.txt
+  git -C "$repo" commit -qm "chore: add log entry $number"
+done
 
 cat > "$repo/hunk-playground.txt" <<'EOF'
 Hunk staging fixture
@@ -83,6 +103,13 @@ EOF
 cat > "$repo/untracked playground.txt" <<'EOF'
 This untracked file is ready for staging or discard confirmation.
 EOF
+
+# Optional: many untracked files for Worktree scrolling.
+if [ -n "${GITVIEW_PLAYGROUND_LARGE:-}" ]; then
+  for number in $(seq -w 1 40); do
+    printf 'new\n' > "$repo/untracked-$number.txt"
+  done
+fi
 
 cat > "$config/profiles.json" <<EOF
 {

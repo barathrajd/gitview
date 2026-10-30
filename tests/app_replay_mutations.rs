@@ -382,3 +382,30 @@ fn escape_closes_a_confirmation_without_changing_anything() {
 
     assert!(repository.path().join("src/lib.rs").exists());
 }
+
+#[test]
+fn control_y_does_not_confirm_a_discard() {
+    let repository = repository();
+
+    replay(
+        &repository.path(),
+        [
+            WaitFor("STAGED 1"),
+            Char('j'),
+            Char('d'),
+            WaitFor("CONFIRM DISCARD"),
+            Ctrl('y'),
+            Ctrl('n'),
+            // Still asking: neither modified letter answered the prompt.
+            Char('?'),
+            WaitFor("HELP"),
+        ],
+    );
+    // A misread Ctrl-y discards on a worker thread; give it time to land.
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    assert_eq!(
+        std::fs::read_to_string(repository.path().join("README.md")).unwrap(),
+        "# Demo\nmore\n"
+    );
+}

@@ -185,10 +185,92 @@ pub(super) fn selected_search_commit(
     Some((index, id))
 }
 
+/// Rows a full-screen page shows: the Gitview area less `chrome`, the rows its
+/// borders, titles, and key hints take.
+pub(super) fn screen_page_rows(area: Option<ratatui::layout::Rect>, chrome: u16) -> usize {
+    area.map_or(1, |area| {
+        usize::from(area.height.saturating_sub(chrome)).max(1)
+    })
+}
+
+/// Chrome for the branch list: its border and the two hint rows.
+pub(super) const BRANCH_CHROME: u16 = 4;
+/// Chrome for search results: their border and one hint row.
+pub(super) const SEARCH_CHROME: u16 = 3;
+/// Chrome estimate for the diff, commit details, and profiles; their headers
+/// differ slightly.
+pub(super) const PAGE_CHROME: u16 = 6;
+
+/// Apply a motion key to a list of `len` rows. Returns false for keys the
+/// list should handle itself. Ctrl and Alt letters that are not motions are
+/// consumed, so they never run the list's plain-letter actions.
+pub(super) fn list_motion(
+    parser: &mut crate::motion::MotionParser,
+    key: KeyEvent,
+    selection: &mut ratatui::widgets::ListState,
+    len: usize,
+    page: usize,
+) -> bool {
+    use crate::motion::{Motion, Parsed};
+    match parser.key(key) {
+        Parsed::Pending => true,
+        Parsed::Motion(Motion::Center) => {
+            if let Some(selected) = selection.selected() {
+                *selection.offset_mut() = selected.saturating_sub(page / 2);
+            }
+            true
+        }
+        Parsed::Motion(motion) => {
+            if len > 0 {
+                selection.select(motion.select(selection.selected(), len, page));
+            }
+            true
+        }
+        Parsed::Other => {
+            matches!(key.code, KeyCode::Char(_))
+                && key.modifiers.intersects(
+                    crossterm::event::KeyModifiers::CONTROL | crossterm::event::KeyModifiers::ALT,
+                )
+        }
+    }
+}
+
+/// The key code with Ctrl- or Alt-modified characters replaced by
+/// `KeyCode::Null`, so `Ctrl-y` never answers a prompt or runs a page's plain
+/// `y`. Ctrl+Alt together is kept: AltGr characters such as `@` arrive that
+/// way on some layouts and must still reach text inputs.
+pub(super) fn plain_code(key: KeyEvent) -> KeyCode {
+    use crossterm::event::KeyModifiers;
+    let control = key.modifiers.contains(KeyModifiers::CONTROL);
+    let alt = key.modifiers.contains(KeyModifiers::ALT);
+    match key.code {
+        KeyCode::Char(_) if control != alt => KeyCode::Null,
+        code => code,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crossterm::event::KeyModifiers;
+
+    #[test]
+    fn plain_code_drops_control_or_alt_characters_but_keeps_altgr() {
+        use crossterm::event::KeyModifiers;
+        let key = |modifiers| KeyEvent::new(KeyCode::Char('y'), modifiers);
+        assert_eq!(plain_code(key(KeyModifiers::NONE)), KeyCode::Char('y'));
+        assert_eq!(plain_code(key(KeyModifiers::SHIFT)), KeyCode::Char('y'));
+        assert_eq!(plain_code(key(KeyModifiers::CONTROL)), KeyCode::Null);
+        assert_eq!(plain_code(key(KeyModifiers::ALT)), KeyCode::Null);
+        assert_eq!(
+            plain_code(key(KeyModifiers::CONTROL | KeyModifiers::ALT)),
+            KeyCode::Char('y')
+        );
+        assert_eq!(
+            plain_code(KeyEvent::new(KeyCode::Enter, KeyModifiers::CONTROL)),
+            KeyCode::Enter
+        );
+    }
 
     #[test]
     fn keybinding_library_maps_vim_navigation_without_capturing_modifiers() {

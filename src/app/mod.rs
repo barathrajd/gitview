@@ -11,7 +11,8 @@ mod refresh;
 pub mod run;
 pub mod terminal;
 
-use crossterm::event::KeyCode;
+use crate::motion::{Motion, Parsed};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum View {
@@ -83,12 +84,7 @@ pub enum BranchAction {
 #[derive(Debug, Default)]
 pub struct AppState {
     view: View,
-    /// Digits typed before a motion, such as the `12` of `12j`.
-    count: Option<usize>,
-    /// The first `g` of `gg`.
-    pending_g: bool,
-    /// The first `z` of `zz`.
-    pending_z: bool,
+    motions: crate::motion::MotionParser,
 }
 
 impl AppState {
@@ -122,55 +118,32 @@ impl AppState {
     /// Translate a Ctrl-modified letter into a page motion. Other Ctrl
     /// letters do nothing, so they never run a plain-key shortcut.
     pub fn handle_control(&mut self, letter: char, blocked: bool) -> Option<AppAction> {
-        self.count = None;
-        self.pending_g = false;
-        self.pending_z = false;
+        let key = KeyEvent::new(KeyCode::Char(letter), KeyModifiers::CONTROL);
+        let parsed = self.motions.key(key);
         if blocked {
             return None;
         }
-        match letter {
-            'd' => Some(AppAction::HalfPageDown),
-            'u' => Some(AppAction::HalfPageUp),
-            'f' => Some(AppAction::PageDown),
-            'b' => Some(AppAction::PageUp),
-            _ => None,
+        match parsed {
+            Parsed::Motion(motion) => Some(motion_action(motion)),
+            Parsed::Pending | Parsed::Other => None,
         }
     }
 
     /// Translate a key in the active workspace into an app action.
     pub fn handle_key(&mut self, key: KeyCode, blocked: bool) -> Option<AppAction> {
-        // Pending motion input applies only to the key right after it.
-        let count = self.count.take();
-        let pending_g = std::mem::take(&mut self.pending_g);
-        let pending_z = std::mem::take(&mut self.pending_z);
         if key == KeyCode::Tab {
+            self.motions.reset();
             return self.handle_tab(blocked);
         }
         if blocked {
+            self.motions.reset();
             return None;
         }
-        match key {
-            KeyCode::Char('g') if pending_g => return Some(AppAction::MoveTop),
-            KeyCode::Char('g') => {
-                self.pending_g = true;
-                return None;
-            }
-            KeyCode::Char(digit @ '0'..='9') if digit != '0' || count.is_some() => {
-                let digit = digit as usize - '0' as usize;
-                self.count = Some(count.unwrap_or(0).saturating_mul(10).saturating_add(digit));
-                return None;
-            }
-            KeyCode::Char('z') if pending_z => return Some(AppAction::CenterSelection),
-            KeyCode::Char('z') => {
-                self.pending_z = true;
-                return None;
-            }
-            KeyCode::Char('G') => return Some(AppAction::MoveBottom),
-            KeyCode::PageDown => return Some(AppAction::PageDown),
-            KeyCode::PageUp => return Some(AppAction::PageUp),
-            KeyCode::Up if count.is_some() => return count.map(AppAction::MoveUpBy),
-            KeyCode::Down if count.is_some() => return count.map(AppAction::MoveDownBy),
-            _ => {}
+        match self.motions.key(KeyEvent::new(key, KeyModifiers::NONE)) {
+            Parsed::Pending => return None,
+            // Plain arrows keep their own actions, matched below.
+            Parsed::Motion(Motion::Up(1) | Motion::Down(1)) | Parsed::Other => {}
+            Parsed::Motion(motion) => return Some(motion_action(motion)),
         }
         if key == KeyCode::Char('W') {
             self.view = View::WorkingTree;
@@ -209,6 +182,22 @@ impl AppState {
         }
     }
 }
+fn motion_action(motion: Motion) -> AppAction {
+    match motion {
+        Motion::Up(1) => AppAction::MoveUp,
+        Motion::Down(1) => AppAction::MoveDown,
+        Motion::Up(count) => AppAction::MoveUpBy(count),
+        Motion::Down(count) => AppAction::MoveDownBy(count),
+        Motion::Top => AppAction::MoveTop,
+        Motion::Bottom => AppAction::MoveBottom,
+        Motion::HalfPageUp => AppAction::HalfPageUp,
+        Motion::HalfPageDown => AppAction::HalfPageDown,
+        Motion::PageUp => AppAction::PageUp,
+        Motion::PageDown => AppAction::PageDown,
+        Motion::Center => AppAction::CenterSelection,
+    }
+}
+
 pub fn move_down(selected: Option<usize>, len: usize) -> Option<usize> {
     (len > 0).then(|| (selected.unwrap_or(0) + 1).min(len - 1))
 }

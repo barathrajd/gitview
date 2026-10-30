@@ -105,7 +105,7 @@ pub(in crate::app) fn handle<H: Host>(
         if app.mutation_pending {
             return Ok(Flow::Handled);
         }
-        match key.code {
+        match plain_code(key) {
             KeyCode::Char('?') => app.help = true,
             KeyCode::Char('y') => {
                 let subject = app.commit_message.clone().unwrap_or_default();

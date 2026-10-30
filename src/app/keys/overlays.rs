@@ -48,13 +48,13 @@ pub(in crate::app) fn handle<H: Host>(
         return Ok(Flow::Handled);
     }
     if let Some(page) = &mut app.object_page {
-        if !page.key(root, key.code) {
+        if !page.key(root, plain_code(key)) {
             app.object_page = None;
         }
         return Ok(Flow::Handled);
     }
     if let Some(page) = &mut app.comparison_page {
-        if !page.key(root, key.code) {
+        if !page.key(root, plain_code(key)) {
             app.comparison_page = None;
         }
         return Ok(Flow::Handled);
@@ -88,7 +88,7 @@ pub(in crate::app) fn handle<H: Host>(
         return Ok(Flow::Handled);
     }
     if let Some(page) = &mut app.tag_page {
-        if !page.key(root, key.code) {
+        if !page.key(root, plain_code(key)) {
             app.tag_page = None;
             app.history_request += 1;
             let id = app.history_request;
@@ -106,12 +106,22 @@ pub(in crate::app) fn handle<H: Host>(
         return Ok(Flow::Handled);
     }
     if let Some(page) = &mut app.sessions_page {
-        if !page.key(root, key.code) {
+        if !page.key(root, plain_code(key)) {
             app.sessions_page = None;
         }
         return Ok(Flow::Handled);
     }
     if app.profiles_view {
+        let page = screen_page_rows(app.gitview_area, PAGE_CHROME);
+        if list_motion(
+            &mut app.page_motions,
+            key,
+            &mut app.profile_selection,
+            profiles.len(),
+            page,
+        ) {
+            return Ok(Flow::Handled);
+        }
         match key.code {
             KeyCode::Esc | KeyCode::Char('h') => app.profiles_view = false,
             KeyCode::Char('?') => app.help = true,
@@ -130,16 +140,6 @@ pub(in crate::app) fn handle<H: Host>(
                     Ok(()) => app.profile_feedback = "Git config profiles reloaded.".into(),
                     Err(error) => app.profile_feedback = error,
                 }
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                app.profile_selection
-                    .select(crate::app::move_up(app.profile_selection.selected()));
-            }
-            KeyCode::Down | KeyCode::Char('j') => {
-                app.profile_selection.select(crate::app::move_down(
-                    app.profile_selection.selected(),
-                    profiles.len(),
-                ));
             }
             _ => {}
         }

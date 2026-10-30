@@ -313,3 +313,41 @@ loading list no longer overwrites the saved offset.
 Verification: full serial suite passed (512 passed, 0 failed,
 16 ignored), Clippy passed, optimized binary rebuilt. Motions in the other
 lists and in diffs remain open.
+
+### Milestone 2: shared parser, commit files, and diffs (committed)
+
+Counts, `gg`, `zz`, and page-key parsing now live in `src/motion.rs`
+(committed as a no-behavior refactor). The commit-details file list accepts
+every motion; diffs accept counts, `gg`, and the page keys. Diff `G`/`zz`
+need the rendered line count and remain open; detail/diff page sizes are an
+estimate from the Gitview area. Remaining: branches, search results,
+sessions, profiles, comparison, objects, and tags (typed-input modes keep
+their characters).
+
+Verification: full serial suite passed (518 passed, 0 failed, 16 ignored),
+Clippy passed, optimized binary rebuilt.
+
+### Milestone 2: branches and profiles (committed)
+
+A shared `list_motion` helper applies motions to a list and consumes Ctrl/Alt
+letters that are not motions. Branches and profiles use it; before this,
+Ctrl-d opened the branch delete confirmation and Ctrl-c started creating a
+branch. Branch pages use their exact chrome (border plus two hint rows);
+profiles render as a paragraph, so `zz` there has nothing to scroll.
+
+Verification: full serial suite passed (520 passed, 0 failed, 16 ignored),
+Clippy passed, optimized binary rebuilt. Remaining: search results, sessions,
+comparison, objects, tags, and diff `G`/`zz`.
+
+Fix (committed): Ctrl- or Alt-modified letters no longer answer
+y/n prompts (discard, untrack, remove, move, amend, branch actions) or reach
+the sessions, tag, comparison, and object pages as plain letters. Ctrl+Alt is
+kept for AltGr characters in text inputs. Before this, Ctrl-y confirmed a
+discard or branch switch. Full serial suite: 523 passed, 0 failed, 16 ignored.
+
+### Milestone 2: search results (committed)
+
+Typed characters keep editing the query. Ctrl-d/Ctrl-u and Ctrl-f/Ctrl-b and
+Page Down/Up move the results by their exact visible rows; other Ctrl or Alt
+letters are ignored instead of typed (Ctrl-d used to add `d`). AltGr
+characters still type. Full serial suite: 524 passed, 0 failed, 16 ignored.

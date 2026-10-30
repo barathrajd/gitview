@@ -27,6 +27,8 @@ pub(super) struct App {
     pub(super) workspace_prefix: bool,
     /// Where the last frame drew Gitview, for sizing page motions.
     pub(super) gitview_area: Option<ratatui::layout::Rect>,
+    /// Pending counts and `g`/`z` for the diff and commit-details screens.
+    pub(super) page_motions: crate::motion::MotionParser,
     pub(super) border: ratatui::symbols::border::Set<'static>,
     pub(super) help: bool,
     pub(super) searching: bool,

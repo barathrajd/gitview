@@ -6,6 +6,7 @@ use crate::app::{
     model::App,
     run::{Env, Flow, Host},
 };
+use crate::motion::{Motion, Parsed};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 pub(in crate::app) fn handle<H: Host>(
@@ -19,6 +20,22 @@ pub(in crate::app) fn handle<H: Host>(
         profiles,
         ..
     } = env;
+    if !app.help && (app.diff.is_some() || app.details.is_some()) {
+        match app.page_motions.key(key) {
+            Parsed::Pending => return Ok(Flow::Handled),
+            Parsed::Motion(motion) => {
+                if app.diff.is_some() {
+                    scroll_diff(app, motion);
+                } else {
+                    move_file_selection(app, motion);
+                }
+                return Ok(Flow::Handled);
+            }
+            Parsed::Other => {}
+        }
+    } else {
+        app.page_motions.reset();
+    }
     // Letter shortcuts are plain keys; Ctrl or Alt never runs them.
     if let KeyCode::Char(letter) = key.code
         && key
@@ -373,12 +390,6 @@ pub(in crate::app) fn handle<H: Host>(
                     });
             }
         }
-        KeyCode::Down if !app.help && app.diff.is_some() => {
-            app.diff_scroll = app.diff_scroll.saturating_add(1);
-        }
-        KeyCode::Up if !app.help && app.diff.is_some() => {
-            app.diff_scroll = app.diff_scroll.saturating_sub(1);
-        }
         KeyCode::Char(']')
             if !app.help
                 && app
@@ -508,20 +519,6 @@ pub(in crate::app) fn handle<H: Host>(
                 });
             }
         }
-        KeyCode::Down if !app.help && app.details.is_some() => {
-            if let Some((_, Some(Ok(commit)))) = &app.details
-                && !commit.files.is_empty()
-            {
-                app.file_selection.select(Some(
-                    (app.file_selection.selected().unwrap_or(0) + 1).min(commit.files.len() - 1),
-                ));
-            }
-        }
-        KeyCode::Up if !app.help && app.details.is_some() => {
-            if let Some(i) = app.file_selection.selected() {
-                app.file_selection.select(Some(i.saturating_sub(1)));
-            }
-        }
         _ => {}
     }
     Ok(Flow::Next)
@@ -587,4 +584,41 @@ fn page_rows(app: &App) -> usize {
     panel.map_or(1, |panel| {
         usize::from(panel.height.saturating_sub(2)).max(1)
     })
+}
+
+/// Scroll the open diff. Its length is not known here, so `G` and `zz` do
+/// nothing and downward motions may scroll past the end, as `j` always has.
+fn scroll_diff(app: &mut App, motion: Motion) {
+    let rows = screen_page_rows(app.gitview_area, PAGE_CHROME);
+    let half = (rows / 2).max(1);
+    let scroll = usize::from(app.diff_scroll);
+    let scroll = match motion {
+        Motion::Up(count) => scroll.saturating_sub(count),
+        Motion::Down(count) => scroll.saturating_add(count),
+        Motion::Top => 0,
+        Motion::HalfPageUp => scroll.saturating_sub(half),
+        Motion::HalfPageDown => scroll.saturating_add(half),
+        Motion::PageUp => scroll.saturating_sub(rows),
+        Motion::PageDown => scroll.saturating_add(rows),
+        Motion::Bottom | Motion::Center => scroll,
+    };
+    app.diff_scroll = u16::try_from(scroll).unwrap_or(u16::MAX);
+}
+
+/// Move the selection in the open commit's changed-file list.
+fn move_file_selection(app: &mut App, motion: Motion) {
+    let rows = screen_page_rows(app.gitview_area, PAGE_CHROME);
+    if let Some((_, Some(Ok(commit)))) = &app.details {
+        let selected = app.file_selection.selected();
+        match motion {
+            Motion::Center => {
+                if let Some(selected) = selected {
+                    *app.file_selection.offset_mut() = selected.saturating_sub(rows / 2);
+                }
+            }
+            motion => app
+                .file_selection
+                .select(motion.select(selected, commit.files.len(), rows)),
+        }
+    }
 }
