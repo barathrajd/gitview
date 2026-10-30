@@ -109,10 +109,13 @@ pub fn run_app_with_agent<H: Host>(
     profiles: &mut Vec<crate::config::FolderProfile>,
     agent: Option<Vec<String>>,
 ) -> io::Result<()> {
-    // Without a socket the agent still runs; it just can't reach Gitview.
+    // Without a socket the agent still runs; it just can't reach Gitview, and
+    // the pane's title says so.
     let control = agent
         .as_ref()
-        .and_then(|_| crate::control::server::ControlServer::start(root).ok());
+        .map(|_| crate::control::server::ControlServer::start(root));
+    let control_failed = matches!(control, Some(Err(_)));
+    let control = control.and_then(Result::ok);
     let pane = match agent {
         Some(command) => {
             let size = terminal.size().map_err(backend_error)?;
@@ -126,10 +129,12 @@ pub fn run_app_with_agent<H: Host>(
                 .map(|path| ("GITVIEW_SOCKET", path))
                 .into_iter()
                 .collect();
-            Some(
-                AgentPane::spawn_with_env(&command, root, rows, columns, &env)
-                    .map_err(io::Error::other)?,
-            )
+            let mut pane = AgentPane::spawn_with_env(&command, root, rows, columns, &env)
+                .map_err(io::Error::other)?;
+            if control_failed {
+                pane.set_note("tools off");
+            }
+            Some(pane)
         }
         None => None,
     };

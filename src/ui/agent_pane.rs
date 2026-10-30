@@ -73,7 +73,10 @@ fn title(pane: &AgentPane) -> String {
         PaneState::Exited(Some(code)) => format!("exited {code}"),
         PaneState::Exited(None) => "ended by signal".to_owned(),
     };
-    format!(" AGENT · {} · {status} ", pane.command())
+    match pane.note() {
+        Some(note) => format!(" AGENT · {} · {status} · {note} ", pane.command()),
+        None => format!(" AGENT · {} · {status} ", pane.command()),
+    }
 }
 
 /// The reminder of the focus key, as long as fits beside the title: the status

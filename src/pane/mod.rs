@@ -146,6 +146,7 @@ pub struct AgentPane {
     command: String,
     generation: u64,
     queries: QueryScanner,
+    note: Option<String>,
 }
 
 impl AgentPane {
@@ -226,6 +227,7 @@ impl AgentPane {
             command,
             generation: 0,
             queries: QueryScanner::default(),
+            note: None,
         })
     }
 
@@ -272,6 +274,16 @@ impl AgentPane {
     }
 
     /// The program that was started.
+    /// A short remark shown in the pane's title, such as that Gitview's tools
+    /// are off.
+    pub fn note(&self) -> Option<&str> {
+        self.note.as_deref()
+    }
+
+    pub fn set_note(&mut self, note: impl Into<String>) {
+        self.note = Some(note.into());
+    }
+
     pub fn command(&self) -> &str {
         &self.command
     }
