@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test';
 import { readFileSync } from 'node:fs';
-test('feature catalogue renders continuous anchored sections', () => {
+test('feature catalogue preserves anchored sections', () => {
   const page = readFileSync(new URL('../dist/features/index.html', import.meta.url), 'utf8');
   expect(page).not.toContain('data-release=');
   expect(page).toContain('Since 0.3.0');
@@ -17,4 +17,11 @@ test('release highlights link to existing catalogue sections', () => {
   const links = [...notes.matchAll(/href="\/features\/#([^"]+)"/g)];
   expect(links.length).toBeGreaterThanOrEqual(20);
   for (const [, id] of links) expect(catalogue.includes(`id="${id}"`)).toBe(true);
+});
+test('catalogue provides a searchable feature navigator', () => {
+  const page = readFileSync(new URL('../dist/features/index.html', import.meta.url), 'utf8');
+  expect(page.includes('id="feature-search"')).toBe(true);
+  expect(page.includes('data-feature-link="sessions"')).toBe(true);
+  expect(page.includes('data-feature="sessions"')).toBe(true);
+  expect(page.includes('No matching features')).toBe(true);
 });

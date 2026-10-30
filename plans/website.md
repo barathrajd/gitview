@@ -203,3 +203,18 @@ assertions), including 21 changelog links to existing catalogue anchors.
 Playwright checks at 1440 px and iPhone 13 widths report zero horizontal
 overflow. Phone screenshots were inspected; complete demo interaction and
 320 px checks remain open.
+
+### Searchable feature browser
+
+The user requested a sidebar with search instead of a long scrolling catalogue.
+The page now shows one selected workflow, with a sticky desktop sidebar and a
+bounded feature list above the panel on phones. Search covers titles and
+descriptions. Feature hashes and browser history preserve direct links.
+
+- [x] Add search, selection, match count, and an empty state.
+- [x] Preserve changelog anchors and browser back navigation.
+- [x] Verify selection, Enter, Escape, empty results, direct links, and zero
+  horizontal overflow at 1440, 390, and 320 px in Chrome.
+- [x] Build the site and pass all three website tests (40 assertions).
+
+Full feature coverage and additional real demo captures remain separate work.
