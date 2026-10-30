@@ -1,4 +1,4 @@
-use gitview::control::server::{ControlCommand, ControlServer, MAX_REQUEST};
+use gitview::control::server::{ControlCommand, ControlServer, MAX_CONNECTIONS, MAX_REQUEST};
 use serde_json::{Value, json};
 use std::{
     fs,
@@ -333,4 +333,47 @@ fn two_servers_in_one_folder_keep_their_own_sockets() {
         Client::connect(second.path()).send(json!({"tool": "get_status"}))["ok"],
         true
     );
+}
+
+#[test]
+fn connections_beyond_the_limit_are_turned_away() {
+    let (server, _commands, _root) = start();
+    let mut held: Vec<_> = (0..MAX_CONNECTIONS)
+        .map(|_| Client::connect(server.path()))
+        .collect();
+    // Each held connection is being served once it has had a reply.
+    for client in &mut held {
+        assert_eq!(client.send(json!({"tool": "get_status"}))["ok"], true);
+    }
+
+    let mut extra = Client::connect(server.path());
+    let reply = extra.send_raw(b"{\"tool\": \"get_status\"}\n").unwrap();
+    assert!(
+        reply["error"]
+            .as_str()
+            .unwrap()
+            .contains("Too many connections"),
+        "{reply}"
+    );
+    assert!(extra.send_raw(b"{\"tool\": \"get_status\"}\n").is_none());
+
+    drop(held.pop());
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(
+        Client::connect(server.path()).send(json!({"tool": "get_status"}))["ok"],
+        true
+    );
+}
+
+#[test]
+fn an_idle_connection_is_closed() {
+    let root = repository();
+    let (server, _commands) =
+        ControlServer::start_with_idle_limit(&root, &unique("idle"), Duration::from_millis(200))
+            .unwrap();
+    let mut client = Client::connect(server.path());
+
+    std::thread::sleep(Duration::from_millis(500));
+
+    assert!(client.send_raw(b"{\"tool\": \"get_status\"}\n").is_none());
 }
