@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.0](https://github.com/barathrajd/gitview/compare/v0.7.0...v0.8.0) (2026-10-30)
+
+
+### Features
+
+* **release:** redeploy the website after each release ([c27deb7](https://github.com/barathrajd/gitview/commit/c27deb76afd13363f28ffa01879700790349dbe8))
+* **website:** features by release with live terminal demos ([81e08ca](https://github.com/barathrajd/gitview/commit/81e08ca766e057066f26752a1854c10d5a656fb8))
+* **website:** replace release panels with an anchored feature catalogue ([8a74d9b](https://github.com/barathrajd/gitview/commit/8a74d9bbc2f8c0f43b7a8a0e467621bc0d8ec784))
+* **website:** version from Cargo.toml, changelog by version, new logo ([7ffa2cd](https://github.com/barathrajd/gitview/commit/7ffa2cdd8289f53f9db05afbd17770c8ba41e60e))
+
+
+### Bug Fixes
+
+* **install:** find the latest release without cutting curl off ([e2fec55](https://github.com/barathrajd/gitview/commit/e2fec550306ac75f0311979b3907f2b6d46cd5cb))
+* **install:** find the latest release without cutting curl off ([7d4c059](https://github.com/barathrajd/gitview/commit/7d4c059304fb32e31a97cba7d030e342af932b1c))
+* **sessions:** count a session's commits against its base branch ([d7ba471](https://github.com/barathrajd/gitview/commit/d7ba47156d838a24a61f6d0fa2e55fe20a6f2cbc))
+* **website:** add searchable feature navigation and shared branding ([5aaf7fb](https://github.com/barathrajd/gitview/commit/5aaf7fb54c32555ffe8b4b5b84d9d99137167107))
+
 ## [0.7.0](https://github.com/barathrajd/gitview/compare/v0.6.0...v0.7.0) (2026-10-30)
 
 
