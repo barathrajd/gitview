@@ -10,6 +10,7 @@ pub mod diff;
 pub mod diff_loader;
 pub mod editor;
 pub mod history;
+pub mod motion;
 pub mod object;
 pub mod object_page;
 pub mod pane;
