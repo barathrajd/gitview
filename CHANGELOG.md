@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.8.0](https://github.com/barathrajd/gitview/compare/v0.7.0...v0.8.0) (2026-10-30)
+## [0.7.1](https://github.com/barathrajd/gitview/compare/v0.7.0...v0.7.1) (2026-10-30)
 
 
 ### Features
