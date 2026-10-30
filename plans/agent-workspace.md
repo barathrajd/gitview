@@ -213,8 +213,28 @@ since review.
   root; the check is in `accept_loop`), Linux, and a long interactive session.
   If the socket can't be created, the agent runs without `GITVIEW_SOCKET` and
   Gitview says nothing about it; revisit in milestone 7.
-- [ ] **5. Serialize writes:** Route user and control-channel Git mutations
+- [x] **5. Serialize writes:** Route user and control-channel Git mutations
   through one queue. Test concurrent stage and unstage from both sides.
+  *Decided (2026-10-30):* the control channel has no write tools (see Out of
+  scope), so "both sides" means Gitview and the agent's own Git commands in its
+  terminal. Gitview can't queue those; it can run its writes one at a time and
+  wait out the agent's locks.
+  *Done:* `writes::serialized` runs one write at a time under a process-wide
+  lock and retries while Git reports a held lock file (`….lock': File exists`),
+  for up to 2 s with backoff, then says another Git command is using the
+  repository. Git takes its lock before changing anything, so a refused write
+  changed nothing. A multi-step write rechecks its preview, so a retry after a
+  partial change fails safely. All 21 write calls in the app go through it:
+  stage, unstage, hunks, stage and unstage all, discard, untrack, remove, move,
+  commit, amend, the five branch actions, and tag create and delete. Gitview's
+  reads already set `GIT_OPTIONAL_LOCKS=0`, so they never block the agent.
+  *Tested:* overlapping writes never run together; a write waits out an
+  `index.lock` released after 300 ms; a lock that stays is reported after the
+  wait; other errors aren't retried; and 20 rounds of stage and unstage succeed
+  while a second process loops `git add` and `git reset` (this fails 3 of 3
+  runs with the retry turned off). In the app, `S` succeeds while a lock is held
+  for 300 ms. Agent write tools, and a queue they would share, wait for their own
+  design.
 - [ ] **6. Worktree sessions:** Add create, list, review, merge, and discard for
   per-session worktrees. Test dirty trees, changed refs, and cleanup after a
   crash.
