@@ -249,8 +249,8 @@ fn many_panes_can_be_opened_at_once() {
 
 #[test]
 fn counts_the_terminal_queries_a_program_sends() {
-    // Gitview does not answer these yet; a program waiting on a reply may stall,
-    // so they are recorded.
+    // Gitview answers cursor position and device attributes; the rest are
+    // recorded, since a program waiting on a reply may stall.
     let script = r"printf '\033[6n\033[6n\033[c\033[>0c\033[?u\033[?2026$p\033]11;?\007\033]10;?\033\\\033[>0q\033[18t'";
     let mut pane = AgentPane::spawn(&argv(&["sh", "-c", script]), Path::new("."), 24, 80).unwrap();
 
@@ -265,8 +265,8 @@ fn counts_the_terminal_queries_a_program_sends() {
             .find(|(query, _)| query == name)
             .map_or(0, |(_, count)| *count)
     };
-    assert_eq!(count("cursor position (CSI 6 n)"), 2, "{queries:?}");
-    assert_eq!(count("device attributes (CSI c)"), 1, "{queries:?}");
+    assert_eq!(count("cursor position (CSI 6 n)"), 0, "{queries:?}");
+    assert_eq!(count("device attributes (CSI c)"), 0, "{queries:?}");
     assert_eq!(
         count("secondary device attributes (CSI > c)"),
         1,
@@ -283,7 +283,7 @@ fn counts_the_terminal_queries_a_program_sends() {
 #[test]
 fn finds_a_query_split_across_reads() {
     // The shell writes the sequence in two parts with a pause between them.
-    let script = r"printf '\033[6'; sleep 0.2; printf 'n'; sleep 0.2";
+    let script = r"printf '\033[18'; sleep 0.2; printf 't'; sleep 0.2";
     let mut pane = AgentPane::spawn(&argv(&["sh", "-c", script]), Path::new("."), 24, 80).unwrap();
 
     wait_until(&mut pane, |pane| {
@@ -292,7 +292,7 @@ fn finds_a_query_split_across_reads() {
 
     assert_eq!(
         pane.unanswered_queries(),
-        vec![("cursor position (CSI 6 n)".to_owned(), 1)]
+        vec![("text area size (CSI 18 t)".to_owned(), 1)]
     );
 }
 
@@ -316,7 +316,7 @@ fn ordinary_output_is_not_mistaken_for_a_query() {
 #[test]
 fn a_query_is_counted_once_when_more_output_follows() {
     let script =
-        r"printf '\033[6n'; sleep 0.2; printf 'more output'; sleep 0.2; printf ' and more'";
+        r"printf '\033[18t'; sleep 0.2; printf 'more output'; sleep 0.2; printf ' and more'";
     let mut pane = AgentPane::spawn(&argv(&["sh", "-c", script]), Path::new("."), 24, 80).unwrap();
 
     wait_until(&mut pane, |pane| {
@@ -325,6 +325,49 @@ fn a_query_is_counted_once_when_more_output_follows() {
 
     assert_eq!(
         pane.unanswered_queries(),
-        vec![("cursor position (CSI 6 n)".to_owned(), 1)]
+        vec![("text area size (CSI 18 t)".to_owned(), 1)]
+    );
+}
+
+/// Runs `script` in bash with the terminal in raw mode, as programs that ask
+/// their terminal questions do, and waits for its last line.
+fn reply_to(script: &str, expected: &str) {
+    let full = format!("stty -icanon -echo; {script}; sleep 5");
+    let mut pane = AgentPane::spawn(&argv(&["bash", "-c", &full]), Path::new("."), 24, 80).unwrap();
+    wait_until(&mut pane, |pane| pane.screen_text().contains(expected));
+}
+
+#[test]
+fn answers_where_the_cursor_is() {
+    // Moves the cursor to row 3, column 7, asks, and prints the reply without
+    // its leading escape.
+    reply_to(
+        r#"printf '\033[3;7H\033[6n'; IFS= read -r -d R reply; printf '\r\ngot:%s' "${reply:1}""#,
+        "got:[3;7",
+    );
+}
+
+#[test]
+fn answers_the_cursor_position_where_the_query_was_in_the_output() {
+    // Text after the query in the same write must not move the answer.
+    reply_to(
+        r#"printf 'ab\033[6ncdef'; IFS= read -r -d R reply; printf '\r\ngot:%s' "${reply:1}""#,
+        "got:[1;3",
+    );
+}
+
+#[test]
+fn answers_device_attributes_as_a_vt100() {
+    reply_to(
+        r#"printf '\033[c'; IFS= read -r -d c reply; printf 'got:%s' "${reply:1}""#,
+        "got:[?1;2",
+    );
+}
+
+#[test]
+fn answers_a_query_split_across_writes() {
+    reply_to(
+        r#"printf '\033[6'; sleep 0.2; printf 'n'; IFS= read -r -d R reply; printf '\r\ngot:%s' "${reply:1}""#,
+        "got:[1;1",
     );
 }

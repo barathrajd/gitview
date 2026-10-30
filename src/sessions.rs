@@ -64,6 +64,9 @@ pub fn create(root: &Path) -> Result<Session, String> {
         .map_err(|error| format!("Could not create {}: {error}", folder.display()))?;
     let folder = fs::canonicalize(&folder)
         .map_err(|error| format!("Could not resolve {}: {error}", folder.display()))?;
+    // Held until the session is recorded, so two Gitviews can't pick the same
+    // name or save over each other's manifest.
+    let _lock = ManifestLock::take(&folder)?;
     let mut manifest = read_manifest(&folder)?;
     let name = unique_name(root, &manifest, &timestamp())?;
     let session = Session {
@@ -404,6 +407,7 @@ pub fn discard(root: &Path, preview: &DiscardPreview) -> Result<(), String> {
     if preview.tip.is_some() {
         git(root, &["branch", "-D", &session.branch])?;
     }
+    let _lock = ManifestLock::take(&folder)?;
     let mut manifest = read_manifest(&folder)?;
     let before = manifest.sessions.len();
     manifest
@@ -442,6 +446,47 @@ fn sessions_dir(root: &Path) -> Result<PathBuf, String> {
         &["rev-parse", "--path-format=absolute", "--git-common-dir"],
     )?;
     Ok(PathBuf::from(common).join("gitview").join("sessions"))
+}
+
+/// `manifest.lock`, held while a Gitview changes the manifest. A lock older
+/// than a minute was left by a crash and is taken over.
+struct ManifestLock(PathBuf);
+
+impl ManifestLock {
+    fn take(folder: &Path) -> Result<Self, String> {
+        let path = folder.join("manifest.lock");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            match fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+            {
+                Ok(_) => return Ok(Self(path)),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    let stale = fs::metadata(&path)
+                        .and_then(|metadata| metadata.modified())
+                        .ok()
+                        .and_then(|modified| modified.elapsed().ok())
+                        .is_some_and(|age| age > std::time::Duration::from_secs(60));
+                    if stale {
+                        let _ = fs::remove_file(&path);
+                    } else if std::time::Instant::now() >= deadline {
+                        return Err("Another Gitview is changing the sessions; try again".into());
+                    } else {
+                        std::thread::sleep(std::time::Duration::from_millis(20));
+                    }
+                }
+                Err(error) => return Err(format!("Could not lock the session manifest: {error}")),
+            }
+        }
+    }
+}
+
+impl Drop for ManifestLock {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
 }
 
 fn read_manifest(folder: &Path) -> Result<Manifest, String> {

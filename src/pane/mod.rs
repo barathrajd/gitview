@@ -146,6 +146,7 @@ pub struct AgentPane {
     command: String,
     generation: u64,
     queries: QueryScanner,
+    note: Option<String>,
 }
 
 impl AgentPane {
@@ -226,6 +227,7 @@ impl AgentPane {
             command,
             generation: 0,
             queries: QueryScanner::default(),
+            note: None,
         })
     }
 
@@ -235,8 +237,25 @@ impl AgentPane {
         loop {
             match self.output.try_recv() {
                 Ok(bytes) => {
-                    self.queries.scan(&bytes);
-                    self.parser.process(&bytes);
+                    // Answer each query with the screen as it was when the
+                    // query arrived, not after the rest of the chunk.
+                    let mut done = 0;
+                    for (end, query) in self.queries.scan(&bytes) {
+                        self.parser.process(&bytes[done..end]);
+                        done = end;
+                        let reply = match query {
+                            queries::Answerable::CursorPosition => {
+                                let (row, column) = self.parser.screen().cursor_position();
+                                format!("\x1b[{};{}R", row + 1, column + 1)
+                            }
+                            // A VT100 with advanced video, as xterm reports at
+                            // its plainest.
+                            queries::Answerable::DeviceAttributes => "\x1b[?1;2c".to_owned(),
+                        };
+                        // A failed write means the program just ended.
+                        let _ = self.send(reply.as_bytes());
+                    }
+                    self.parser.process(&bytes[done..]);
                     self.generation += 1;
                 }
                 Err(TryRecvError::Empty) => break,
@@ -272,6 +291,16 @@ impl AgentPane {
     }
 
     /// The program that was started.
+    /// A short remark shown in the pane's title, such as that Gitview's tools
+    /// are off.
+    pub fn note(&self) -> Option<&str> {
+        self.note.as_deref()
+    }
+
+    pub fn set_note(&mut self, note: impl Into<String>) {
+        self.note = Some(note.into());
+    }
+
     pub fn command(&self) -> &str {
         &self.command
     }

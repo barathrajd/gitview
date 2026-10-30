@@ -73,7 +73,10 @@ fn title(pane: &AgentPane) -> String {
         PaneState::Exited(Some(code)) => format!("exited {code}"),
         PaneState::Exited(None) => "ended by signal".to_owned(),
     };
-    format!(" AGENT · {} · {status} ", pane.command())
+    match pane.note() {
+        Some(note) => format!(" AGENT · {} · {status} · {note} ", pane.command()),
+        None => format!(" AGENT · {} · {status} ", pane.command()),
+    }
 }
 
 /// The reminder of the focus key, as long as fits beside the title: the status
@@ -94,10 +97,16 @@ fn focus_hint(title: &str, width: u16, focused: bool) -> String {
     .unwrap_or_default()
 }
 
-fn frame_block(title: String, hint: String, color: Color) -> Block<'static> {
+fn frame_block(
+    title: String,
+    hint: String,
+    color: Color,
+    border: ratatui::symbols::border::Set<'static>,
+) -> Block<'static> {
     let style = Style::default().fg(color);
     Block::default()
         .borders(Borders::ALL)
+        .border_set(border)
         .border_style(style)
         .title(Line::from(title).style(style))
         .title(Line::from(hint).right_aligned().style(style))
@@ -106,21 +115,28 @@ fn frame_block(title: String, hint: String, color: Color) -> Block<'static> {
 /// The part of `area` where the program's screen is drawn, inside the border.
 /// The program should be told this size.
 pub fn agent_pane_inner(area: Rect) -> Rect {
-    frame_block(String::new(), String::new(), Color::Reset).inner(area)
+    frame_block(
+        String::new(),
+        String::new(),
+        Color::Reset,
+        Default::default(),
+    )
+    .inner(area)
 }
 
-/// Draws `pane` in `area` with a border, and puts the terminal cursor where the
-/// program's cursor is when `focused`.
+/// Draws `pane` in `area` with a border drawn from `border`, and puts the
+/// terminal cursor where the program's cursor is when `focused`.
 pub fn render_agent_pane(
     viewport: &mut Viewport<'_, '_>,
     area: Rect,
     pane: &AgentPane,
     focused: bool,
+    border: ratatui::symbols::border::Set<'static>,
 ) {
     let border_color = if focused { ACCENT } else { MUTED };
     let title = title(pane);
     let hint = focus_hint(&title, area.width, focused);
-    let block = frame_block(title, hint, border_color);
+    let block = frame_block(title, hint, border_color, border);
     let inner = block.inner(area);
     viewport.render_widget(block, area);
     viewport.render_widget(PaneScreen(pane.screen()), inner);

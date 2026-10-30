@@ -262,7 +262,13 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                 }
                 if let (Some(area), Some(pane)) = (pane_area, app.pane.as_ref()) {
                     let focused = app.focus == Focus::Agent;
-                    ui::render_agent_pane(&mut ui::Viewport::new(frame, area), area, pane, focused);
+                    ui::render_agent_pane(
+                        &mut ui::Viewport::new(frame, area),
+                        area,
+                        pane,
+                        focused,
+                        app.border,
+                    );
                 }
                 if let (ui::AgentLayout::GitviewWithBar { bar, .. }, Some(pane)) =
                     (layout, app.pane.as_ref())

@@ -12,10 +12,11 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         mpsc::{self, Receiver, Sender},
     },
     thread::JoinHandle,
+    time::Duration,
 };
 
 use serde_json::{Map, Value, json};
@@ -24,6 +25,10 @@ use super::tools;
 
 /// The longest request line accepted; a longer one closes the connection.
 pub const MAX_REQUEST: usize = 64 * 1024;
+/// The most connections served at once; more are turned away.
+pub const MAX_CONNECTIONS: usize = 8;
+/// How long a connection may wait without sending a request.
+pub const IDLE_LIMIT: Duration = Duration::from_secs(600);
 
 /// What the agent asked Gitview to show.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -60,7 +65,17 @@ impl ControlServer {
         root: &Path,
         folder: &Path,
     ) -> Result<(Self, Receiver<ControlCommand>), String> {
+        Self::start_with_idle_limit(root, folder, IDLE_LIMIT)
+    }
+
+    /// Like `start_in`, closing connections idle for longer than `idle`.
+    pub fn start_with_idle_limit(
+        root: &Path,
+        folder: &Path,
+        idle: Duration,
+    ) -> Result<(Self, Receiver<ControlCommand>), String> {
         prepare_folder(folder)?;
+        remove_stale_sockets(folder);
         // Unique per server: a second server must never replace this one's
         // socket, or dropping this one would wait on a listener it can't wake.
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -81,7 +96,7 @@ impl ControlServer {
             let stop = Arc::clone(&stop);
             let busy = Arc::clone(&busy);
             let root = root.to_owned();
-            std::thread::spawn(move || accept_loop(listener, root, sender, stop, busy))
+            std::thread::spawn(move || accept_loop(listener, root, sender, stop, busy, idle))
         };
         Ok((
             Self {
@@ -144,13 +159,42 @@ fn prepare_folder(folder: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Remove sockets whose Gitview has ended without cleaning up, for example
+/// when it was killed. Only `gitview-<pid>-<n>.sock` files whose process is
+/// gone are touched.
+fn remove_stale_sockets(folder: &Path) {
+    let Ok(entries) = fs::read_dir(folder) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(pid) = name
+            .to_str()
+            .and_then(|name| name.strip_prefix("gitview-"))
+            .and_then(|rest| rest.strip_suffix(".sock"))
+            .and_then(|rest| rest.split_once('-'))
+            .and_then(|(pid, _)| pid.parse::<libc::pid_t>().ok())
+        else {
+            continue;
+        };
+        // Signal 0 checks that the process exists without touching it.
+        let gone = unsafe { libc::kill(pid, 0) } == -1
+            && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH);
+        if pid > 0 && gone {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
+}
+
 fn accept_loop(
     listener: UnixListener,
     root: PathBuf,
     sender: Sender<ControlCommand>,
     stop: Arc<AtomicBool>,
     busy: Arc<AtomicBool>,
+    idle: Duration,
 ) {
+    let open = Arc::new(AtomicUsize::new(0));
     for stream in listener.incoming() {
         if stop.load(Ordering::SeqCst) {
             break;
@@ -159,11 +203,27 @@ fn accept_loop(
         if peer_uid(&stream) != Some(unsafe { libc::geteuid() }) {
             continue;
         }
+        if open.load(Ordering::SeqCst) >= MAX_CONNECTIONS {
+            let mut stream = stream;
+            let reply = failure(
+                &Value::Null,
+                "Too many connections to Gitview; close one and retry",
+            );
+            let _ = writeln!(stream, "{reply}");
+            continue;
+        }
+        if stream.set_read_timeout(Some(idle)).is_err() {
+            continue;
+        }
+        open.fetch_add(1, Ordering::SeqCst);
         let root = root.clone();
         let sender = sender.clone();
         let busy = Arc::clone(&busy);
+        let open = Arc::clone(&open);
         std::thread::spawn(move || {
+            // An idle connection's read times out and ends `serve`.
             let _ = serve(stream, &root, &sender, &busy);
+            open.fetch_sub(1, Ordering::SeqCst);
         });
     }
 }
