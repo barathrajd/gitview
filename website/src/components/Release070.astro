@@ -1,0 +1,84 @@
+---
+// Each transcript below is real output from Gitview 0.7.0 or its installers,
+// captured on October 30, 2026. The text follows README.md and the 0.7.0
+// release notes.
+const groups = [
+  {
+    id: "agent-pane",
+    title: "Run a coding agent beside Gitview",
+    body: "Start Claude Code, Codex, or any program in a pane next to the Git views. Ctrl+\\ moves focus between Gitview and the agent, and on a terminal under 119 columns they take turns filling the screen. The views refresh by themselves within about a second of the agent's changes, and an idle Gitview runs no Git commands.",
+    transcript: [
+      "$ gitview --help",
+      "Usage: gitview [--ascii] [--version]",
+      "       gitview [--ascii] --run <command> [args...]",
+      "       gitview [--ascii] --claude [args...]",
+      "       gitview [--ascii] --codex [args...]",
+      "       gitview [--ascii] --session (--claude | --codex | --run <command>) [args...]",
+      "       gitview mcp",
+    ],
+  },
+  {
+    id: "control-channel",
+    title: "Let the agent read and steer Gitview",
+    body: "An agent started from Gitview reaches it through gitview mcp, a stdio MCP server, over a socket only you can open. It can read status, history, diffs, and commits, and open a commit, a commit's file, or a changed file on your screen. No tool stages, commits, or changes files, and every reply is capped at 64 KiB. --claude registers the server for you; Codex needs a few lines of config.",
+    transcript: [
+      "$ printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}' | gitview mcp",
+      "get_status  get_log  get_diff  get_show",
+      "select_commit  select_file  focus_pane",
+    ],
+    note: "Tool names from the tools/list reply",
+  },
+  {
+    id: "sessions",
+    title: "Give each agent its own worktree",
+    body: "With --session, the agent works in a new worktree on its own branch, created from the branch you're on. Press A for the Sessions page: review a session's commits and diff, merge it with a merge commit, or discard it after seeing what would be lost. Gitview refuses a merge if anything moved since your review, and a conflict changes nothing.",
+    transcript: [
+      "$ cd /tmp/notes && gitview --session --run sh -c 'sleep 30'",
+      "Session session-20261030-110040 is kept on branch gitview/session-20261030-110040 at /private/tmp/notes/.git/gitview/sessions/session-20261030-110040.",
+    ],
+  },
+  {
+    id: "install",
+    title: "Install with Homebrew, on macOS and Linux",
+    body: "Releases now ship a static Linux x86_64 binary next to the macOS Apple Silicon one. Homebrew installs either from the barathrajd/tap tap, and the installer script picks the right archive and verifies its checksum.",
+    transcript: [
+      "$ brew install barathrajd/tap/gitview",
+      "🍺  /opt/homebrew/Cellar/gitview/0.7.0: 4 files, 6.2MB, built in 1 second",
+      "",
+      "# Alpine Linux, x86_64",
+      "$ curl -fsSL https://raw.githubusercontent.com/barathrajd/gitview/main/install.sh | bash",
+      "Verifying SHA-256...",
+      "gitview-v0.7.0-linux-x86_64.tar.gz: OK",
+      "Installed Gitview v0.7.0 to /root/.local/bin/gitview",
+    ],
+  },
+];
+---
+
+<section id="new-in-070" class="relative px-5 py-16 sm:px-8 sm:py-20">
+  <div class="mx-auto max-w-7xl">
+    <p class="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-400">Released October 30, 2026</p>
+    <h2 class="mt-4 max-w-3xl text-2xl font-semibold tracking-[-0.03em] text-slate-100 sm:text-3xl">New in Gitview 0.7.0</h2>
+    <p class="mt-5 max-w-2xl text-base leading-7 text-slate-400">
+      Version 0.7.0 adds an agent workspace: run a coding agent beside your Git views, let it read and steer Gitview, and give it a worktree of its own. It's the version the install options below give you. Known issues are listed in the changelog.
+    </p>
+    <ul class="mt-6 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[11px] text-slate-500">
+      <li>macOS Apple Silicon and Linux x86_64 releases</li>
+      <li>Agent tools are read-only</li>
+      <li>No remote, merge-conflict, or export workflows</li>
+    </ul>
+
+    <div class="mt-14 flex flex-col gap-16">
+      {groups.map((group) => (
+        <article id={group.id} class="scroll-mt-24">
+          <h3 class="text-xl font-semibold tracking-tight text-slate-100">{group.title}</h3>
+          <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-400">{group.body}</p>
+          <figure class="mt-6 m-0">
+            <pre class="no-scrollbar overflow-x-auto whitespace-pre-wrap break-words rounded-xl border border-white/[0.11] bg-[#080e0c] p-4 font-mono text-[12px] leading-6 text-slate-300 sm:rounded-2xl sm:p-5 sm:text-[13px]" tabindex="0" aria-label={`Real output: ${group.title}`}>{group.transcript.join("\n")}</pre>
+            <figcaption class="mt-3 px-1 font-mono text-[10px] uppercase tracking-[0.14em] text-slate-600">{group.note ?? "Real output from Gitview 0.7.0"}</figcaption>
+          </figure>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>

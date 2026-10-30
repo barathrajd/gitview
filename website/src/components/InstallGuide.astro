@@ -1,6 +1,7 @@
 ---
+const brewCommand = "brew install barathrajd/tap/gitview";
 const cargoCommand = "cargo install gitview --locked";
-const macCommand =
+const scriptCommand =
   "curl -fsSL https://raw.githubusercontent.com/barathrajd/gitview/main/install.sh | bash";
 ---
 
@@ -11,14 +12,14 @@ const macCommand =
       <p class="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-300">Get started</p>
       <h2 class="mt-4 max-w-lg text-3xl font-semibold tracking-[-0.04em] text-slate-100 sm:text-4xl">One install away from a clearer review.</h2>
       <p class="mt-5 max-w-lg text-base leading-7 text-slate-400">
-        Choose Cargo to build from crates.io, or use the verified prebuilt release on macOS Apple Silicon.
+        Install the prebuilt release with Homebrew or the installer script on macOS Apple Silicon and Linux x86_64, or build it from crates.io with Cargo.
       </p>
       <div class="mt-8 space-y-3 font-mono text-xs text-slate-500">
         <p class="flex gap-3"><span class="text-emerald-400">01</span><span>Install Git and open a repository.</span></p>
         <p class="flex gap-3"><span class="text-emerald-400">02</span><span>Run <code class="text-slate-300">gitview</code> from your terminal.</span></p>
         <p class="flex gap-3"><span class="text-emerald-400">03</span><span>Press <kbd class="rounded border border-white/10 px-1.5 py-0.5 text-slate-300">?</kbd> any time for key help.</span></p>
       </div>
-      <p class="mt-7 max-w-lg text-xs leading-5 text-slate-600">The prebuilt archive supports macOS Apple Silicon. Cargo builds from source on systems with Rust installed; Linux release packaging and Windows support are not currently provided.</p>
+      <p class="mt-7 max-w-lg text-xs leading-5 text-slate-600">Prebuilt releases cover macOS Apple Silicon and Linux x86_64; the Linux binary is static and runs on any distribution. Cargo builds from source wherever Rust runs. Windows isn't supported.</p>
     </div>
 
     <div class="overflow-hidden rounded-2xl border border-white/[0.1] bg-[#050908] shadow-[0_30px_90px_-55px_rgba(34,211,238,0.3)]">
@@ -34,28 +35,49 @@ const macCommand =
         <div class="flex gap-6" role="tablist" aria-label="Installation method">
           <button
             type="button"
-            id="tab-cargo"
+            id="tab-brew"
             role="tab"
             aria-selected="true"
-            aria-controls="panel-cargo"
+            aria-controls="panel-brew"
             tabindex="0"
-            data-install-tab="cargo"
+            data-install-tab="brew"
             class="install-tab relative py-3.5 font-mono text-xs text-emerald-300"
-          >Cargo</button>
+          >Homebrew</button>
           <button
             type="button"
-            id="tab-macos"
+            id="tab-script"
             role="tab"
             aria-selected="false"
-            aria-controls="panel-macos"
+            aria-controls="panel-script"
             tabindex="-1"
-            data-install-tab="macos"
+            data-install-tab="script"
             class="install-tab relative py-3.5 font-mono text-xs text-slate-500"
-          >macOS prebuilt</button>
+          >Installer script</button>
+          <button
+            type="button"
+            id="tab-cargo"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panel-cargo"
+            tabindex="-1"
+            data-install-tab="cargo"
+            class="install-tab relative py-3.5 font-mono text-xs text-slate-500"
+          >Cargo</button>
         </div>
       </div>
 
-      <div id="panel-cargo" role="tabpanel" aria-labelledby="tab-cargo" data-install-panel="cargo" class="p-4 sm:p-6">
+      <div id="panel-brew" role="tabpanel" aria-labelledby="tab-brew" data-install-panel="brew" class="p-4 sm:p-6">
+        <p class="font-mono text-[10px] uppercase tracking-wider text-slate-600">Homebrew · macOS Apple Silicon and Linux x86_64</p>
+        <div class="mt-3 flex min-w-0 items-center gap-3 rounded-xl border border-white/[0.08] bg-[#080e0c] p-3 sm:p-4">
+          <span class="font-mono text-sm text-emerald-400">$</span>
+          <code class="no-scrollbar min-w-0 flex-1 overflow-x-auto break-all font-mono text-xs text-slate-200 sm:whitespace-nowrap sm:break-normal sm:text-sm" data-install-command>{brewCommand}</code>
+          <button type="button" data-copy-command={brewCommand} class="shrink-0 rounded-lg border border-white/10 px-3 py-2 font-mono text-[10px] text-slate-300 transition hover:border-emerald-300/30 hover:text-emerald-200" aria-label="Copy Homebrew install command">Copy</button>
+        </div>
+        <p class="mt-3 min-h-4 font-mono text-[10px] text-slate-600" data-copy-status aria-live="polite"></p>
+        <p class="mt-2 text-xs leading-5 text-slate-500">Installs the prebuilt release from the barathrajd/tap tap. Upgrade with <code class="text-slate-300">brew upgrade gitview</code>.</p>
+      </div>
+
+      <div id="panel-cargo" role="tabpanel" aria-labelledby="tab-cargo" data-install-panel="cargo" class="hidden p-4 sm:p-6" hidden>
         <p class="font-mono text-[10px] uppercase tracking-wider text-slate-600">Build and install from crates.io</p>
         <div class="mt-3 flex min-w-0 items-center gap-3 rounded-xl border border-white/[0.08] bg-[#080e0c] p-3 sm:p-4">
           <span class="font-mono text-sm text-emerald-400">$</span>
@@ -66,15 +88,15 @@ const macCommand =
         <p class="mt-2 text-xs leading-5 text-slate-500">Requires Rust and Git. Cargo installs the latest published crate.</p>
       </div>
 
-      <div id="panel-macos" role="tabpanel" aria-labelledby="tab-macos" data-install-panel="macos" class="hidden p-4 sm:p-6" hidden>
-        <p class="font-mono text-[10px] uppercase tracking-wider text-slate-600">Verified binary installer · macOS Apple Silicon</p>
+      <div id="panel-script" role="tabpanel" aria-labelledby="tab-script" data-install-panel="script" class="hidden p-4 sm:p-6" hidden>
+        <p class="font-mono text-[10px] uppercase tracking-wider text-slate-600">Verified binary installer · macOS Apple Silicon and Linux x86_64</p>
         <div class="mt-3 flex min-w-0 items-center gap-3 rounded-xl border border-white/[0.08] bg-[#080e0c] p-3 sm:p-4">
           <span class="font-mono text-sm text-emerald-400">$</span>
-          <code class="no-scrollbar min-w-0 flex-1 overflow-x-auto break-all font-mono text-[10px] text-slate-200 sm:whitespace-nowrap sm:break-normal sm:text-xs" data-install-command>{macCommand}</code>
-          <button type="button" data-copy-command={macCommand} class="shrink-0 rounded-lg border border-white/10 px-3 py-2 font-mono text-[10px] text-slate-300 transition hover:border-emerald-300/30 hover:text-emerald-200" aria-label="Copy macOS installer command">Copy</button>
+          <code class="no-scrollbar min-w-0 flex-1 overflow-x-auto break-all font-mono text-[10px] text-slate-200 sm:whitespace-nowrap sm:break-normal sm:text-xs" data-install-command>{scriptCommand}</code>
+          <button type="button" data-copy-command={scriptCommand} class="shrink-0 rounded-lg border border-white/10 px-3 py-2 font-mono text-[10px] text-slate-300 transition hover:border-emerald-300/30 hover:text-emerald-200" aria-label="Copy installer script command">Copy</button>
         </div>
         <p class="mt-3 min-h-4 font-mono text-[10px] text-slate-600" data-copy-status aria-live="polite"></p>
-        <p class="mt-2 text-xs leading-5 text-slate-500">The installer verifies the release checksum and prompts you to choose the prebuilt binary or Cargo.</p>
+        <p class="mt-2 text-xs leading-5 text-slate-500">Picks the archive for your platform, verifies its checksum, and installs into ~/.local/bin. Needs Bash and curl.</p>
       </div>
 
       <div class="flex items-center gap-2 border-t border-white/[0.06] px-4 py-3 font-mono text-[10px] text-slate-600 sm:px-6">
