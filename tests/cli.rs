@@ -357,3 +357,28 @@ fn help_documents_the_mcp_server() {
     assert!(help.contains("gitview mcp"), "{help}");
     assert!(help.contains("GITVIEW_SOCKET"), "{help}");
 }
+
+#[test]
+fn session_needs_an_agent() {
+    let temp = TempDir::new("session-no-agent");
+    git(&temp.0, &["init", "-q"]);
+    let output = Command::new(env!("CARGO_BIN_EXE_gitview"))
+        .arg("--session")
+        .current_dir(&temp.0)
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(error.contains("--session needs an agent"), "{error}");
+    assert!(!temp.0.join(".git/gitview").exists());
+}
+
+#[test]
+fn help_documents_sessions() {
+    let output = Command::new(env!("CARGO_BIN_EXE_gitview"))
+        .arg("--help")
+        .output()
+        .unwrap();
+    let help = String::from_utf8_lossy(&output.stdout);
+    assert!(help.contains("--session"), "{help}");
+}

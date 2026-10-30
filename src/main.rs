@@ -32,7 +32,7 @@ fn run() -> Result<(), String> {
     }
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "Usage: gitview [--ascii] [--version]\n       gitview [--ascii] --run <command> [args...]\n       gitview [--ascii] --claude [args...]\n       gitview [--ascii] --codex [args...]\n       gitview init [directory]\n       gitview clone <repository> [directory]\n       gitview mcp\n       gitview --shell-integration\n\nOpen the current Git repository. Use init or clone to set up a repository.\nUse --run, --claude, or --codex to start a coding agent, or any program, in a pane beside Gitview. Everything after --run, --claude, or --codex goes to that program, and it ends when you quit Gitview. Ctrl+\\ moves focus between Gitview and the agent; on a terminal too narrow for two panes (under 119 columns) they take turns filling the full screen. An agent started this way gets GITVIEW_SOCKET, the path of a socket only you can open; `gitview mcp` is a stdio MCP server that uses it to let the agent read status, history, and diffs and select what Gitview shows. --claude registers it automatically. Use --ascii for plain terminal borders. Folder-specific Git config profiles are loaded automatically. Run --shell-integration for the optional zsh hook.\n\n{HELP}"
+            "Usage: gitview [--ascii] [--version]\n       gitview [--ascii] --run <command> [args...]\n       gitview [--ascii] --claude [args...]\n       gitview [--ascii] --codex [args...]\n       gitview [--ascii] --session (--claude | --codex | --run <command>) [args...]\n       gitview init [directory]\n       gitview clone <repository> [directory]\n       gitview mcp\n       gitview --shell-integration\n\nOpen the current Git repository. Use init or clone to set up a repository.\nUse --run, --claude, or --codex to start a coding agent, or any program, in a pane beside Gitview. Everything after --run, --claude, or --codex goes to that program, and it ends when you quit Gitview. With --session, the agent works in a new worktree on its own branch, created from the branch you're on, and Gitview shows that worktree; the session stays after you quit. Ctrl+\\ moves focus between Gitview and the agent; on a terminal too narrow for two panes (under 119 columns) they take turns filling the full screen. An agent started this way gets GITVIEW_SOCKET, the path of a socket only you can open; `gitview mcp` is a stdio MCP server that uses it to let the agent read status, history, and diffs and select what Gitview shows. --claude registers it automatically. Use --ascii for plain terminal borders. Folder-specific Git config profiles are loaded automatically. Run --shell-integration for the optional zsh hook.\n\n{HELP}"
         );
         return Ok(());
     }
@@ -51,6 +51,13 @@ fn run() -> Result<(), String> {
         let stdin = std::io::stdin().lock();
         return gitview::control::mcp::serve(stdin, std::io::stdout().lock(), socket.as_deref())
             .map_err(|error| format!("MCP server stopped: {error}"));
+    }
+    let session = args.iter().any(|arg| arg == "--session");
+    if session && agent.is_none() {
+        return Err(
+            "--session needs an agent to run in the new worktree, for example: gitview --session --claude"
+                .into(),
+        );
     }
     if let Some(request) = &agent {
         check_installed(request, env::var_os("PATH").as_deref())?;
@@ -85,7 +92,14 @@ fn run() -> Result<(), String> {
     if !output.status.success() {
         return Err("Not in a Git repository. Run gitview from a repository.".into());
     }
-    let root = gitview::repository::parse_root(&output.stdout);
+    let mut root = gitview::repository::parse_root(&output.stdout);
+    let session = if session {
+        let created = gitview::sessions::create(&root)?;
+        root = created.path.clone();
+        Some(created)
+    } else {
+        None
+    };
     let mut terminal =
         ratatui::try_init().map_err(|e| format!("Could not initialize terminal: {e}"))?;
     let paste_mode = match BracketedPasteMode::enable() {
@@ -110,6 +124,14 @@ fn run() -> Result<(), String> {
     ratatui::restore();
     result.map_err(|e| format!("Terminal error: {e}"))?;
     paste_result.map_err(|error| format!("Could not disable bracketed paste: {error}"))?;
+    if let Some(session) = session {
+        println!(
+            "Session {} is kept on branch {} at {}.",
+            session.name,
+            session.branch,
+            session.path.display()
+        );
+    }
     Ok(())
 }
 
