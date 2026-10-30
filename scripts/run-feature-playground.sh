@@ -8,5 +8,9 @@ playground=$("$script_dir/create-feature-playground.sh")
 
 printf 'Opening Gitview playground: %s\n' "$playground" >&2
 cd "$playground/repo"
+# GITVIEW_BIN runs a prebuilt binary, such as the optimized build.
+if [ -n "${GITVIEW_BIN:-}" ]; then
+  XDG_CONFIG_HOME="$playground/config" exec "$GITVIEW_BIN" "$@"
+fi
 XDG_CONFIG_HOME="$playground/config" \
-  cargo run --manifest-path "$source_dir/Cargo.toml" --bin gitview
+  cargo run --manifest-path "$source_dir/Cargo.toml" --bin gitview -- "$@"

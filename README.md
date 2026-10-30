@@ -368,20 +368,25 @@ config directory. Use it to try the current workflows without changing your
 own repository or Gitview profiles. Create a fresh playground whenever you want
 to reset its state.
 
-Install `cargo-make` once, then run the task from the Gitview source directory:
+Run these from the Gitview source directory:
 
 ```sh
-cargo install cargo-make
-cargo make playground
+make playground          # build the optimized binary and open a new playground
+make playground-large    # the same, plus 40 untracked files for Worktree scrolling
+make playground ARGS="--run sh"   # pass Gitview arguments
+make playground-clean    # delete every playground
 ```
 
-The task invokes `scripts/run-feature-playground.sh`, which creates a temporary
-repository, prints its path, and runs the `gitview` binary there with an
-isolated config directory. You can also run that launcher directly. The sample
-repository includes:
+The targets invoke `scripts/run-feature-playground.sh`, which creates a
+repository under `target/playground/`, prints its path, and runs the optimized
+`gitview` binary there with an isolated config directory. You can also run that
+launcher directly; it then creates the playground in your temporary directory
+and uses `cargo run`. The sample repository includes:
 
 - A main branch, a topic branch, a merge commit, and a tag for history and graph
   browsing, search, commit details, and branch switching.
+- Forty small commits and one commit that changes thirty files, for list
+  motions such as counts, page keys, `gg`/`G`, and `zz`.
 - A clean working-tree file, a staged file, an unstaged file, and an untracked
   file for status navigation, staging, unstaging, and discard confirmation.
 - A file with one staged hunk and a separate unstaged hunk for reviewing diffs
