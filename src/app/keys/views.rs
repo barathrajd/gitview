@@ -250,30 +250,16 @@ pub(in crate::app) fn handle<H: Host>(
                     let _ = sender.send((id, crate::worktree::load_status(&path)));
                 });
             }
-            AppAction::MoveUp => match app.app_state.view() {
-                View::History => app
-                    .selection
-                    .select(crate::app::move_up(app.selection.selected())),
-                View::WorkingTree => app
-                    .status_selection
-                    .select(crate::app::move_up(app.status_selection.selected())),
-            },
-            AppAction::MoveDown => match app.app_state.view() {
-                View::History => {
-                    if let Some(Ok(rows)) = &app.history {
-                        app.selection
-                            .select(crate::app::move_down(app.selection.selected(), rows.len()));
-                    }
-                }
-                View::WorkingTree => {
-                    if let Some(Ok(entries)) = &app.status {
-                        app.status_selection.select(crate::app::move_down(
-                            app.status_selection.selected(),
-                            entries.len(),
-                        ));
-                    }
-                }
-            },
+            AppAction::MoveUp => move_selection(app, |selected, _| crate::app::move_up(selected)),
+            AppAction::MoveDown => move_selection(app, crate::app::move_down),
+            AppAction::MoveUpBy(count) => {
+                move_selection(app, |selected, _| crate::app::move_up_by(selected, count))
+            }
+            AppAction::MoveDownBy(count) => move_selection(app, |selected, len| {
+                crate::app::move_down_by(selected, len, count)
+            }),
+            AppAction::MoveTop => move_selection(app, |_, len| (len > 0).then_some(0)),
+            AppAction::MoveBottom => move_selection(app, |_, len| len.checked_sub(1)),
         }
         return Ok(Flow::Handled);
     }
@@ -503,4 +489,23 @@ pub(in crate::app) fn handle<H: Host>(
         _ => {}
     }
     Ok(Flow::Next)
+}
+
+/// Move the focused list's selection; `motion` maps the current selection and
+/// row count to the new one. Lists that have not loaded keep their selection.
+fn move_selection(app: &mut App, motion: impl FnOnce(Option<usize>, usize) -> Option<usize>) {
+    match app.app_state.view() {
+        View::History => {
+            if let Some(Ok(rows)) = &app.history {
+                let selected = motion(app.selection.selected(), rows.len());
+                app.selection.select(selected);
+            }
+        }
+        View::WorkingTree => {
+            if let Some(Ok(entries)) = &app.status {
+                let selected = motion(app.status_selection.selected(), entries.len());
+                app.status_selection.select(selected);
+            }
+        }
+    }
 }

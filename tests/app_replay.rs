@@ -301,3 +301,20 @@ fn hunk_keys_scroll_a_working_tree_diff_to_each_change() {
 
     assert!(!screen.contains("last edited"), "{screen}");
 }
+
+#[test]
+fn history_motions_jump_and_count_through_real_keys() {
+    let repository = Repo::with_history();
+    let cases: [(&[char], &str); 4] = [
+        (&['G'], "Add readme"),
+        (&['G', 'g', 'g'], "Change library"),
+        (&['2', 'j'], "Add readme"),
+        (&['G', '1', 'k'], "Add library"),
+    ];
+    for (keys, subject) in cases {
+        let mut steps = history_steps();
+        steps.extend(keys.iter().map(|key| Char(*key)));
+        let screen = replay(&repository.path(), steps);
+        assert!(history_selects(&screen, subject), "{keys:?}\n{screen}");
+    }
+}

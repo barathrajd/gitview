@@ -45,6 +45,14 @@ pub enum AppAction {
     RefreshWorkingTree,
     MoveUp,
     MoveDown,
+    /// A counted `k`/Up, such as `5k`.
+    MoveUpBy(usize),
+    /// A counted `j`/Down, such as `5j`.
+    MoveDownBy(usize),
+    /// `gg`.
+    MoveTop,
+    /// `G`.
+    MoveBottom,
 }
 
 #[derive(Clone)]
@@ -65,6 +73,10 @@ pub enum BranchAction {
 #[derive(Debug, Default)]
 pub struct AppState {
     view: View,
+    /// Digits typed before a motion, such as the `12` of `12j`.
+    count: Option<usize>,
+    /// The first `g` of `gg`.
+    pending_g: bool,
 }
 
 impl AppState {
@@ -97,11 +109,30 @@ impl AppState {
 
     /// Translate a key in the active workspace into an app action.
     pub fn handle_key(&mut self, key: KeyCode, blocked: bool) -> Option<AppAction> {
+        // Pending motion input applies only to the key right after it.
+        let count = self.count.take();
+        let pending_g = std::mem::take(&mut self.pending_g);
         if key == KeyCode::Tab {
             return self.handle_tab(blocked);
         }
         if blocked {
             return None;
+        }
+        match key {
+            KeyCode::Char('g') if pending_g => return Some(AppAction::MoveTop),
+            KeyCode::Char('g') => {
+                self.pending_g = true;
+                return None;
+            }
+            KeyCode::Char(digit @ '0'..='9') if digit != '0' || count.is_some() => {
+                let digit = digit as usize - '0' as usize;
+                self.count = Some(count.unwrap_or(0).saturating_mul(10).saturating_add(digit));
+                return None;
+            }
+            KeyCode::Char('G') => return Some(AppAction::MoveBottom),
+            KeyCode::Up if count.is_some() => return count.map(AppAction::MoveUpBy),
+            KeyCode::Down if count.is_some() => return count.map(AppAction::MoveDownBy),
+            _ => {}
         }
         if key == KeyCode::Char('W') {
             self.view = View::WorkingTree;
@@ -145,5 +176,15 @@ pub fn move_down(selected: Option<usize>, len: usize) -> Option<usize> {
 }
 
 pub fn move_up(selected: Option<usize>) -> Option<usize> {
-    selected.map(|index| index.saturating_sub(1))
+    move_up_by(selected, 1)
+}
+
+/// Move `count` rows down, stopping at the last of `len` rows.
+pub fn move_down_by(selected: Option<usize>, len: usize, count: usize) -> Option<usize> {
+    (len > 0).then(|| selected.unwrap_or(0).saturating_add(count).min(len - 1))
+}
+
+/// Move `count` rows up, stopping at the first row.
+pub fn move_up_by(selected: Option<usize>, count: usize) -> Option<usize> {
+    selected.map(|index| index.saturating_sub(count))
 }
