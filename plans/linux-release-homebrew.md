@@ -120,9 +120,12 @@ The formula uses `on_macos` and `on_linux` blocks with `on_arm` and
 
 ## Milestones
 
-1. **Linux archive in the release.** *Built; x86_64 dry run pending: the
-   first one stopped in `pre-release-checks` on session tests that need a Git
-   identity, fixed separately on `fix/session-test-identity`.* Add the `build-linux-x86_64` job with
+1. **Linux archive in the release.** *Done. The x86_64 dry run passed on
+   GitHub (run 41035029170): the musl build, the smoke test with its Alpine
+   stage, and a 2.8 MB `gitview-dry-run-linux-x86_64` artifact. The first dry
+   run had stopped on session tests that needed a Git identity, fixed in #19.
+   Don't start a dry run while a `main` run is in progress: both runs'
+   release-please steps update release PR #14's branch, and one fails.* Add the `build-linux-x86_64` job with
    its smoke test, plus a dry-run dispatch that skips the upload. Verify with
    a dry run on this branch on GitHub's x86_64 runner: the archive builds,
    `file` says static, and the Alpine run passes. Locally (arm64 Linux), the
