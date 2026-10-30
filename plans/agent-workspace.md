@@ -242,9 +242,33 @@ since review.
   "File status changed; refresh and try again" rather than acting on stale
   state, and the watcher then shows the real index. Agent write tools, and a
   queue they would share, wait for their own design.
-- [ ] **6. Worktree sessions:** Add create, list, review, merge, and discard for
+- [x] **6. Worktree sessions:** Add create, list, review, merge, and discard for
   per-session worktrees. Test dirty trees, changed refs, and cleanup after a
   crash.
+  *Decided (2026-10-30):* start with `--session`; worktrees live under
+  `<git common dir>/gitview/sessions` on `gitview/session-<yyyymmdd-hhmmss>`
+  branches; merge makes a `--no-ff` merge commit; discard removes the worktree
+  and the branch.
+  *Done:* `sessions` creates a session from the checked-out branch (refused on
+  a detached HEAD or before the first commit) and records it in a manifest
+  that is replaced in one step; a failed manifest write removes the new
+  worktree again. `list` reports commits ahead, uncommitted work, and sessions
+  whose folder or branch is gone, plus worktrees in the folder that the
+  manifest never recorded. `review` shows the commits and the diff; `merge`
+  runs in the main worktree and refuses a dirty main worktree, uncommitted
+  session work, a base branch that isn't checked out, or either branch moving
+  since the review, and aborts on a conflict leaving nothing changed.
+  `discard` shows the commits only the session has and its uncommitted files,
+  refuses if either changed since, cleans up half-gone sessions, and refuses
+  the session Gitview runs in. `gitview --session --claude` (or `--codex`, or
+  `--run`) runs the agent and Gitview in a new session. The Sessions page (`A`)
+  lists, reviews, merges, and discards, off the render loop and through the
+  shared write path.
+  *Not done:* creating a session from the page, and a session per agent run
+  without `--session`. The manifest is replaced atomically, but two Gitview
+  processes creating sessions at the same moment could each save a manifest
+  missing the other's entry. The lost session would then show as unrecorded,
+  not vanish. Revisit in milestone 7.
 - [ ] **7. Harden and document:** Memory and scrollback budgets, ASCII mode,
   security review of the socket, controls and limitations in the docs, and the
   full format, test, lint, and release-build pass.
