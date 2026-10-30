@@ -1,5 +1,11 @@
 ---
+interface Props {
+  /** Inside a page panel: no page padding of its own. */
+  embedded?: boolean;
+}
+const { embedded = false } = Astro.props;
 import TerminalShot from "./TerminalShot.astro";
+import TerminalDemo from "./TerminalDemo.astro";
 
 // Screens come from tests/website_screenshots.rs, which drives the real
 // application. Each transcript below is real output from Gitview 0.7.0 or its installers,
@@ -65,8 +71,8 @@ const groups = [
 ];
 ---
 
-<section id="new-in-070" class="relative px-5 py-16 sm:px-8 sm:py-20">
-  <div class="mx-auto max-w-7xl">
+<section id="new-in-070" class:list={["relative", !embedded && "px-5 py-16 sm:px-8 sm:py-20"]}>
+  <div class:list={[!embedded && "mx-auto max-w-7xl"]}>
     <p class="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-400">Released October 30, 2026</p>
     <h2 class="mt-4 max-w-3xl text-2xl font-semibold tracking-[-0.03em] text-slate-100 sm:text-3xl">New in Gitview 0.7.0</h2>
     <p class="mt-5 max-w-2xl text-base leading-7 text-slate-400">
@@ -78,7 +84,28 @@ const groups = [
       <li>No remote, merge-conflict, or export workflows</li>
     </ul>
 
-    <div class="mt-14 flex flex-col gap-16">
+    <div class="mt-10 flex flex-col gap-12">
+      <TerminalDemo
+        id="agent"
+        title="gitview --run sh  ·  agent opens a diff"
+        frames={[
+          { name: "agent-1", keys: "MCP", caption: "The agent asks Gitview to open README.md with select_file." },
+          { name: "agent-2", caption: "Gitview opens the diff on your screen, and tells the agent what it will show." },
+        ]}
+      />
+      <TerminalDemo
+        id="sessions"
+        title="gitview  ·  review and merge an agent session"
+        frames={[
+          { name: "sessions-1", keys: "A", caption: "The Sessions page lists the agent's session, one commit ahead of main." },
+          { name: "sessions-2", keys: "Enter", caption: "Review the session's commit and the diff it would bring into main." },
+          { name: "sessions-3", keys: "m", caption: "Gitview asks before merging, and says when it would refuse." },
+          { name: "sessions-4", keys: "y", caption: "Merged into main with a merge commit; the session is now even with main." },
+        ]}
+      />
+    </div>
+
+    <div class="mt-16 flex flex-col gap-16">
       {groups.map((group) => (
         <article id={group.id} class="scroll-mt-24">
           <h3 class="text-xl font-semibold tracking-tight text-slate-100">{group.title}</h3>

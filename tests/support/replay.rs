@@ -323,6 +323,12 @@ impl Repo {
         Self::new().add_history().add_changes()
     }
 
+    /// `with_history` at a fixed path (see `at`).
+    #[allow(dead_code)]
+    pub fn with_history_at(root: &std::path::Path) -> Self {
+        Self::at(root).add_history()
+    }
+
     /// `with_changes` at a fixed path (see `at`).
     #[allow(dead_code)]
     pub fn with_changes_at(root: &std::path::Path) -> Self {

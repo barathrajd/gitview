@@ -95,52 +95,6 @@ const anchor = (version: string) => `v${version.replaceAll(".", "-")}`;
 </BaseLayout>
 
 <script>
-  // Shows one release at a time, chosen by the URL's #v0-7-0 anchor (the latest
-  // by default). Without JavaScript every release stays visible in order.
-  const articles = Array.from(document.querySelectorAll<HTMLElement>("[data-release]"));
-  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>("[data-release-link]"));
-
-  function show(id: string | undefined) {
-    const chosen = articles.find((article) => article.dataset.release === id) ?? articles[0];
-    if (!chosen) return;
-    articles.forEach((article) => {
-      article.hidden = article !== chosen;
-    });
-    links.forEach((link) => {
-      const active = link.dataset.releaseLink === chosen.dataset.release;
-      link.classList.toggle("is-active", active);
-      link.classList.toggle("text-emerald-300", active);
-      link.classList.toggle("border-emerald-300/40", active);
-      link.classList.toggle("lg:border-emerald-400", active);
-      if (active) {
-        link.setAttribute("aria-current", "true");
-        // Bring the chip into view in the phone's scrolling row only.
-        const row = link.closest("ol");
-        if (row && row.scrollWidth > row.clientWidth) {
-          row.scrollLeft = link.offsetLeft - row.clientWidth / 2 + link.offsetWidth / 2;
-        }
-      } else {
-        link.removeAttribute("aria-current");
-      }
-    });
-  }
-
-  const panel = document.getElementById("release-panel");
-
-  // Switch releases without the browser's anchor jump, which would land on a
-  // position that moves once the other releases are hidden.
-  links.forEach((link) => {
-    link.addEventListener("click", (event) => {
-      event.preventDefault();
-      const id = link.dataset.releaseLink;
-      history.pushState(null, "", `#${id}`);
-      show(id);
-      if (panel && panel.getBoundingClientRect().top < 0) panel.scrollIntoView({ block: "start" });
-    });
-  });
-
-  window.addEventListener("popstate", () => show(window.location.hash.slice(1) || undefined));
-  const initial = window.location.hash.slice(1);
-  show(initial || undefined);
-  if (initial) panel?.scrollIntoView({ block: "start" });
+  import { setupReleaseSwitcher } from "../lib/release-switcher";
+  setupReleaseSwitcher();
 </script>

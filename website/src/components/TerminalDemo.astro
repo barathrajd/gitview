@@ -1,0 +1,220 @@
+---
+// Plays real frames of a Gitview workflow like a short terminal recording.
+// Frames come from tests/website_screenshots.rs, which drives the real
+// application; nothing here is drawn by hand. Desktop frames are 140x24 and
+// phone frames 64x30, so the text stays readable at either width.
+interface Frame {
+  name: string;
+  /** The key pressed to reach this frame, shown as a key cap. */
+  keys?: string;
+  caption: string;
+}
+interface Props {
+  id: string;
+  title: string;
+  frames: Frame[];
+}
+const { id, title, frames } = Astro.props;
+
+const desktop = import.meta.glob("../assets/demo/*.svg", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+const mobile = import.meta.glob("../assets/m/demo/*.svg", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+const screens = frames.map((frame) => ({
+  ...frame,
+  wide: desktop[`../assets/demo/${frame.name}.svg`],
+  narrow: mobile[`../assets/m/demo/${frame.name}.svg`] ?? desktop[`../assets/demo/${frame.name}.svg`],
+}));
+const missing = screens.filter((screen) => !screen.wide).map((screen) => screen.name);
+if (missing.length) throw new Error(`TerminalDemo ${id}: no captured frame for ${missing.join(", ")}`);
+---
+
+<figure class="terminal-demo group/demo m-0 min-w-0" data-demo={id} aria-roledescription="demo" aria-label={title}>
+  <div class="overflow-hidden rounded-xl border border-white/[0.11] bg-[#080e0c] shadow-[0_35px_100px_-35px_rgba(16,185,129,0.25)] ring-1 ring-black/50 sm:rounded-2xl">
+    <!-- Window chrome: dots, title, and which step is showing. -->
+    <div class="flex items-center gap-3 border-b border-white/[0.07] bg-white/[0.02] px-4 py-2.5">
+      <span class="flex gap-1.5" aria-hidden="true">
+        <span class="size-2.5 rounded-full bg-[#ff5f57]/80"></span>
+        <span class="size-2.5 rounded-full bg-[#febc2e]/80"></span>
+        <span class="size-2.5 rounded-full bg-[#28c840]/80"></span>
+      </span>
+      <span class="min-w-0 flex-1 truncate font-mono text-[11px] text-slate-500">{title}</span>
+      <span class="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-emerald-300/80">
+        <span class="demo-live size-1.5 rounded-full bg-emerald-400" aria-hidden="true"></span>
+        <span data-demo-step>1 / {screens.length}</span>
+      </span>
+    </div>
+
+    <!-- Frames stack on one grid cell and cross-fade. -->
+    <div class="grid">
+      {screens.map((screen, index) => (
+        <div
+          data-demo-frame={index}
+          class:list={["col-start-1 row-start-1 transition-opacity duration-500 ease-out", index === 0 ? "opacity-100" : "opacity-0"]}
+          aria-hidden={index === 0 ? "false" : "true"}
+        >
+          <div class="hidden md:block" set:html={screen.wide} />
+          <div class="md:hidden" set:html={screen.narrow} />
+        </div>
+      ))}
+    </div>
+
+    <!-- Step caption with the key pressed, and the controls. -->
+    <div class="flex flex-col gap-3 border-t border-white/[0.07] bg-[#060b0a] px-4 py-3 sm:flex-row sm:items-center sm:gap-4">
+      <p class="flex min-h-10 min-w-0 flex-1 items-center gap-3 text-sm leading-5 text-slate-300" aria-live="polite">
+        {screens.map((screen, index) => (
+          <span data-demo-caption={index} class:list={["items-center gap-3", index === 0 ? "flex" : "hidden"]}>
+            {screen.keys && (
+              <kbd class="shrink-0 rounded-md border border-emerald-300/30 bg-emerald-300/[0.08] px-2 py-1 font-mono text-[11px] font-semibold text-emerald-200 shadow-[inset_0_-2px_0_rgba(16,185,129,0.25)]">{screen.keys}</kbd>
+            )}
+            <span>{screen.caption}</span>
+          </span>
+        ))}
+      </p>
+      <div class="flex shrink-0 items-center gap-3">
+        <div class="flex gap-1.5" role="tablist" aria-label="Steps">
+          {screens.map((_, index) => (
+            <button
+              type="button"
+              role="tab"
+              data-demo-dot={index}
+              aria-label={`Step ${index + 1}`}
+              aria-selected={index === 0 ? "true" : "false"}
+              class:list={["h-1.5 rounded-full transition-all duration-300", index === 0 ? "w-6 bg-emerald-400" : "w-1.5 bg-white/20 hover:bg-white/40"]}
+            ></button>
+          ))}
+        </div>
+        <span class="h-4 w-px bg-white/10" aria-hidden="true"></span>
+        <button type="button" data-demo-prev class="demo-control" aria-label="Previous step">
+          <svg viewBox="0 0 16 16" fill="currentColor" class="size-3.5"><path d="M10.5 3.5 5.5 8l5 4.5z" /></svg>
+        </button>
+        <button type="button" data-demo-toggle class="demo-control" aria-label="Pause demo">
+          <svg data-icon-pause viewBox="0 0 16 16" fill="currentColor" class="size-3.5"><path d="M4.5 3h2.5v10H4.5zM9 3h2.5v10H9z" /></svg>
+          <svg data-icon-play viewBox="0 0 16 16" fill="currentColor" class="hidden size-3.5"><path d="M5 3l8 5-8 5z" /></svg>
+        </button>
+        <button type="button" data-demo-next class="demo-control" aria-label="Next step">
+          <svg viewBox="0 0 16 16" fill="currentColor" class="size-3.5"><path d="M5.5 3.5 10.5 8l-5 4.5z" /></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+  <figcaption class="mt-3 px-1 font-mono text-[10px] uppercase tracking-[0.14em] text-slate-600">Real frames from Gitview, played in order</figcaption>
+</figure>
+
+<style>
+  .demo-control {
+    display: grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgb(255 255 255 / 0.1);
+    color: rgb(203 213 225);
+    transition: border-color 150ms, color 150ms, background-color 150ms;
+  }
+  .demo-control:hover,
+  .demo-control:focus-visible {
+    border-color: rgb(110 231 183 / 0.4);
+    color: rgb(167 243 208);
+    background-color: rgb(110 231 183 / 0.06);
+  }
+  .terminal-demo[data-playing="true"] .demo-live {
+    animation: demo-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes demo-pulse {
+    50% {
+      opacity: 0.25;
+    }
+  }
+</style>
+
+<script>
+  const STEP_MS = 3200;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  document.querySelectorAll<HTMLElement>("[data-demo]").forEach((demo) => {
+    const frames = Array.from(demo.querySelectorAll<HTMLElement>("[data-demo-frame]"));
+    const captions = Array.from(demo.querySelectorAll<HTMLElement>("[data-demo-caption]"));
+    const dots = Array.from(demo.querySelectorAll<HTMLButtonElement>("[data-demo-dot]"));
+    const step = demo.querySelector<HTMLElement>("[data-demo-step]");
+    const toggle = demo.querySelector<HTMLButtonElement>("[data-demo-toggle]");
+    let current = 0;
+    let timer: number | undefined;
+    // Playing unless the user paused it or prefers less motion; it only
+    // advances while on screen.
+    let wanted = !reduceMotion;
+    let visible = false;
+
+    function go(index: number) {
+      current = (index + frames.length) % frames.length;
+      frames.forEach((frame, i) => {
+        frame.classList.toggle("opacity-100", i === current);
+        frame.classList.toggle("opacity-0", i !== current);
+        frame.setAttribute("aria-hidden", String(i !== current));
+      });
+      captions.forEach((caption, i) => {
+        caption.classList.toggle("flex", i === current);
+        caption.classList.toggle("hidden", i !== current);
+      });
+      dots.forEach((dot, i) => {
+        const active = i === current;
+        dot.setAttribute("aria-selected", String(active));
+        dot.classList.toggle("w-6", active);
+        dot.classList.toggle("bg-emerald-400", active);
+        dot.classList.toggle("w-1.5", !active);
+        dot.classList.toggle("bg-white/20", !active);
+      });
+      if (step) step.textContent = `${current + 1} / ${frames.length}`;
+    }
+
+    function schedule() {
+      window.clearInterval(timer);
+      const playing = wanted && visible;
+      demo.dataset.playing = String(playing);
+      if (playing) timer = window.setInterval(() => go(current + 1), STEP_MS);
+      if (toggle) {
+        toggle.setAttribute("aria-label", wanted ? "Pause demo" : "Play demo");
+        toggle.querySelector("[data-icon-pause]")?.classList.toggle("hidden", !wanted);
+        toggle.querySelector("[data-icon-play]")?.classList.toggle("hidden", wanted);
+      }
+    }
+
+    const manual = (index: number) => {
+      go(index);
+      schedule(); // restart the interval so the chosen step gets its full time
+    };
+    demo.querySelector("[data-demo-prev]")?.addEventListener("click", () => manual(current - 1));
+    demo.querySelector("[data-demo-next]")?.addEventListener("click", () => manual(current + 1));
+    dots.forEach((dot, i) => dot.addEventListener("click", () => manual(i)));
+    toggle?.addEventListener("click", () => {
+      wanted = !wanted;
+      schedule();
+    });
+    demo.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight") manual(current + 1);
+      if (event.key === "ArrowLeft") manual(current - 1);
+    });
+
+    // Hovering or focusing holds the current step; leaving resumes.
+    let held = false;
+    const hold = (value: boolean) => {
+      if (held === value) return;
+      held = value;
+      window.clearInterval(timer);
+      if (!held) schedule();
+      else demo.dataset.playing = "false";
+    };
+    demo.addEventListener("pointerenter", () => hold(true));
+    demo.addEventListener("pointerleave", () => hold(false));
+    demo.addEventListener("focusin", () => hold(true));
+    demo.addEventListener("focusout", (event) => {
+      if (!demo.contains(event.relatedTarget as Node)) hold(false);
+    });
+
+    new IntersectionObserver(
+      ([entry]) => {
+        visible = entry.isIntersecting;
+        if (!held) schedule();
+      },
+      { threshold: 0.4 },
+    ).observe(demo);
+  });
+</script>

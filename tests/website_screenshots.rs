@@ -230,6 +230,38 @@ fn capture(
     std::fs::write(file, svg(&buffer, label)).unwrap();
 }
 
+/// Runs `steps`, which capture into the given slots in order, and writes one
+/// SVG per frame to `website/src/assets/demo` (or `m/demo` for phones).
+fn capture_frames(
+    repository: &Repo,
+    agent: Option<&[&str]>,
+    (width, height): (u16, u16),
+    phone: bool,
+    frames: &[(&str, &str)],
+    steps: impl FnOnce(Vec<Slot>) -> Vec<Step>,
+) {
+    let slots: Vec<Slot> = frames.iter().map(|_| Slot::default()).collect();
+    replay_with_agent(
+        &repository.path(),
+        agent,
+        width,
+        height,
+        steps(slots.clone()),
+    );
+    let folder = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("website/src/assets")
+        .join(if phone { "m/demo" } else { "demo" });
+    std::fs::create_dir_all(&folder).unwrap();
+    for ((name, label), slot) in frames.iter().zip(slots) {
+        let buffer = slot
+            .lock()
+            .unwrap()
+            .take()
+            .expect("the script captured every frame");
+        std::fs::write(folder.join(format!("{name}.svg")), svg(&buffer, label)).unwrap();
+    }
+}
+
 fn asset(name: &str, phone: bool) -> std::path::PathBuf {
     let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("website/src/assets");
     if phone {
@@ -337,6 +369,116 @@ fn capture_the_website_screenshots() {
                     Key(Enter),
                     WaitFor("Draft the release notes"),
                     Capture(slot),
+                ]
+            },
+        );
+
+        // Demo: the agent opens a file's diff on the user's screen.
+        let repository = Repo::with_changes_at(Path::new(SAMPLE_PATH));
+        let select = format!(
+            r#"printf '$ gitview mcp  # select_file README.md\n'; sleep 1; printf '%s\n' '{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"select_file","arguments":{{"path":"README.md"}}}}}}' | '{gitview}' mcp | sed 's/.*"text":"\([^"]*\)".*/\1/'; sleep 30"#
+        );
+        capture_frames(
+            &repository,
+            Some(&["sh", "-c", &select]),
+            size,
+            phone,
+            &[
+                (
+                    "agent-1",
+                    "The agent asks Gitview to open README.md through gitview mcp.",
+                ),
+                (
+                    "agent-2",
+                    "Gitview opens the diff on the user's screen, and the agent is told what it will show.",
+                ),
+            ],
+            |slots| {
+                let mut steps = vec![WaitFor("notes.txt")];
+                if phone {
+                    steps.extend([Ctrl('\\'), WaitFor("select_file")]);
+                } else {
+                    steps.push(WaitFor("select_file"));
+                }
+                steps.push(Capture(slots[0].clone()));
+                if phone {
+                    steps.extend([WaitFor("Gitview will open"), Ctrl('\\')]);
+                }
+                steps.extend([
+                    WaitFor("more"),
+                    Pause(std::time::Duration::from_millis(200)),
+                    Capture(slots[1].clone()),
+                ]);
+                steps
+            },
+        );
+
+        // Demo: review an agent session and merge it.
+        let repository = Repo::with_history_at(Path::new(SAMPLE_PATH));
+        let session = gitview::sessions::create(&repository.path()).unwrap();
+        std::fs::write(
+            session.path.join("NOTES.md"),
+            "# Release notes\n\n- Agent sessions\n",
+        )
+        .unwrap();
+        for args in [
+            &["add", "NOTES.md"][..],
+            &[
+                "-c",
+                "user.name=Agent",
+                "-c",
+                "user.email=agent@example.com",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "-qm",
+                "Draft the release notes",
+            ],
+        ] {
+            assert!(
+                std::process::Command::new("git")
+                    .current_dir(&session.path)
+                    .args(args)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        }
+        let name: &'static str = session.name.clone().leak();
+        capture_frames(
+            &repository,
+            None,
+            size,
+            phone,
+            &[
+                (
+                    "sessions-1",
+                    "Press A: the Sessions page lists the agent's session, one commit ahead of main.",
+                ),
+                (
+                    "sessions-2",
+                    "Enter reviews it: the commit and the diff it would bring into main.",
+                ),
+                (
+                    "sessions-3",
+                    "m asks to merge it with a merge commit, and says when Gitview would refuse.",
+                ),
+                ("sessions-4", "y merges it into main."),
+            ],
+            |slots| {
+                vec![
+                    Char('A'),
+                    WaitFor(name),
+                    Capture(slots[0].clone()),
+                    Key(Enter),
+                    WaitFor("Draft the release notes"),
+                    Capture(slots[1].clone()),
+                    Char('m'),
+                    WaitFor("CONFIRM MERGE"),
+                    Capture(slots[2].clone()),
+                    Char('y'),
+                    WaitFor("Merged"),
+                    Capture(slots[3].clone()),
                 ]
             },
         );
