@@ -313,3 +313,16 @@ loading list no longer overwrites the saved offset.
 Verification: full serial suite passed (512 passed, 0 failed,
 16 ignored), Clippy passed, optimized binary rebuilt. Motions in the other
 lists and in diffs remain open.
+
+### Milestone 2: shared parser, commit files, and diffs (awaiting user testing)
+
+Counts, `gg`, `zz`, and page-key parsing now live in `src/motion.rs`
+(committed as a no-behavior refactor). The commit-details file list accepts
+every motion; diffs accept counts, `gg`, and the page keys. Diff `G`/`zz`
+need the rendered line count and remain open; detail/diff page sizes are an
+estimate from the Gitview area. Remaining: branches, search results,
+sessions, profiles, comparison, objects, and tags (typed-input modes keep
+their characters).
+
+Verification: full serial suite passed (518 passed, 0 failed, 16 ignored),
+Clippy passed, optimized binary rebuilt.

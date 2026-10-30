@@ -365,3 +365,63 @@ fn zz_scrolls_the_selected_commit_to_the_middle() {
     assert!(history_selects(&screen, "Commit 20"), "{screen}");
     assert_eq!(first_visible_commit(&screen), Some("Commit 26"), "{screen}");
 }
+
+/// One commit touching `notes-01.txt` through `notes-30.txt`.
+fn wide_commit() -> Repo {
+    let repository = Repo::with_history();
+    for number in 1..=30 {
+        repository.write(&format!("notes-{number:02}.txt"), "note\n");
+    }
+    repository.commit_all("Add notes");
+    repository
+}
+
+/// The changed file the commit details mark as selected.
+fn selected_file(screen: &str) -> Option<&str> {
+    let line = screen
+        .lines()
+        .find(|line| line.contains("› ") && line.contains("notes-"))?;
+    let start = line.find("notes-")?;
+    line.get(start..start + 8)
+}
+
+#[test]
+fn commit_file_list_accepts_motions() {
+    let repository = wide_commit();
+    let cases = [
+        (vec![Char('G')], "notes-30"),
+        (vec![Char('G'), Char('g'), Char('g')], "notes-01"),
+        (vec![Char('5'), Char('j')], "notes-06"),
+        (vec![Char('G'), Char('3'), Char('k')], "notes-27"),
+    ];
+    for (keys, file) in cases {
+        let mut steps = vec![
+            WaitFor("Add notes"),
+            Key(Tab),
+            Key(Enter),
+            WaitFor("CHANGED FILES"),
+        ];
+        steps.extend(keys);
+        let screen = replay_sized(&repository.path(), 140, 24, steps);
+        assert_eq!(selected_file(&screen), Some(file), "{screen}");
+    }
+}
+
+#[test]
+fn diff_scrolls_by_counts_pages_and_gg() {
+    let repository = Repo::with_history();
+    let mut steps = diff_steps();
+    steps.extend([
+        Char('5'),
+        Char('j'),
+        WaitForGone("first changed"),
+        Char('g'),
+        Char('g'),
+        WaitFor("first changed"),
+        Ctrl('d'),
+        WaitForGone("first changed"),
+        Ctrl('u'),
+        WaitFor("first changed"),
+    ]);
+    replay_sized(&repository.path(), 140, 16, steps);
+}
