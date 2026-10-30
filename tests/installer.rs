@@ -210,3 +210,42 @@ fn without_a_checksum_tool_the_installer_stops() {
     assert!(error.contains("sha256sum or shasum"), "{error}");
     assert!(!target.join("gitview").exists());
 }
+
+/// Without a tag the installer asks the release API for the latest one. A
+/// response larger than a pipe's buffer used to make the install fail.
+#[test]
+fn the_latest_release_is_found_in_a_large_api_response() {
+    let release = release();
+    let api = release.root.join("latest.json");
+    let padding = format!("\"body\": \"{}\",\n", "x".repeat(200_000));
+    fs::write(
+        &api,
+        format!("{{\n  \"url\": \"https://example\",\n  \"tag_name\": \"{TAG}\",\n  {padding}  \"assets\": []\n}}\n"),
+    )
+    .unwrap();
+    let target = release.root.join("bin-latest");
+
+    let output = Command::new("bash")
+        .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/install.sh"))
+        .arg("--prebuilt")
+        .env("GITVIEW_INSTALL_DIR", &target)
+        .env(
+            "GITVIEW_TEST_RELEASE_URL",
+            format!("file://{}", release.root.display()),
+        )
+        .env(
+            "GITVIEW_TEST_RELEASE_API",
+            format!("file://{}", api.display()),
+        )
+        .env("GITVIEW_TEST_PLATFORM", "Linux:x86_64")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(installed(&target), "linux-x86_64 gitview");
+}
