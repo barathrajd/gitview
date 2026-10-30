@@ -185,3 +185,63 @@ fn fullscreen_mode_can_show_the_agent_and_return_to_gitview() {
     assert!(restored.contains("WORKTREE"));
     assert!(restored.contains("AGENT"));
 }
+
+#[test]
+fn agent_can_toggle_its_own_fullscreen_and_restore_the_workspace() {
+    let repository = Repo::with_changes();
+    let render = |restore| {
+        let mut steps = vec![WaitFor("agent-ready"), Ctrl('\\'), Ctrl('w'), Char('o')];
+        if restore {
+            steps.extend([Ctrl('w'), Char('o')]);
+        }
+        replay::replay_with_agent(
+            &repository.path(),
+            Some(&["sh", "-c", "echo agent-ready; sleep 30"]),
+            140,
+            30,
+            steps,
+        )
+    };
+    let full = render(false);
+    assert!(full.contains("AGENT"));
+    assert!(!full.contains("WORKTREE"));
+    let restored = render(true);
+    assert!(restored.contains("WORKTREE"));
+    assert!(restored.contains("AGENT"));
+}
+
+#[test]
+fn other_ctrl_w_sequences_still_reach_the_agent() {
+    let repository = Repo::with_changes();
+    replay::replay_with_agent(
+        &repository.path(),
+        Some(&[
+            "sh",
+            "-c",
+            "stty raw -echo; printf raw-ready; od -An -tx1 -N2 | tr -s ' '; sleep 30",
+        ]),
+        140,
+        30,
+        [
+            WaitFor("raw-ready"),
+            Ctrl('\\'),
+            Ctrl('w'),
+            Char('z'),
+            WaitFor("17 7a"),
+        ],
+    );
+}
+
+#[test]
+fn agent_fullscreen_also_works_when_control_is_held_for_both_keys() {
+    let repository = Repo::with_changes();
+    let screen = replay::replay_with_agent(
+        &repository.path(),
+        Some(&["sh", "-c", "echo agent-ready; sleep 30"]),
+        140,
+        30,
+        [WaitFor("agent-ready"), Ctrl('\\'), Ctrl('w'), Ctrl('o')],
+    );
+    assert!(screen.contains("AGENT"));
+    assert!(!screen.contains("WORKTREE"));
+}

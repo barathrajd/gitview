@@ -399,6 +399,9 @@ pub fn run_app_with_agent<H: Host>(
                 continue;
             }
             Route::Agent => {
+                if agent::workspace_key(&mut app, &event) {
+                    continue;
+                }
                 agent::forward(&mut app, &event);
                 continue;
             }

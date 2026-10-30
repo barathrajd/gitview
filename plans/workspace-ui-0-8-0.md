@@ -189,3 +189,16 @@ Verification: the full serial suite passed (481 passed, 15 ignored), Clippy
 passed, and an additional real-app replay confirmed full-width agent focus and
 layout restoration. Milestone 1 remains in progress: direct keyboard agent
 hide/restore and resize controls still need a route that preserves agent input.
+
+### Direct agent full-width toggle
+
+The user requested the same full-width shortcut in the agent. Ctrl-w o now
+toggles directly while the agent has focus, retaining focus and restoring the
+workspace on a second invocation. Other Ctrl-w sequences are forwarded once
+the next key is known; Ctrl-backslash still switches focus. Agent hide and
+resize chords remain separate unfinished work.
+
+Both Ctrl-w o and Ctrl-w Ctrl-o are supported. Verification: 28 agent and
+workspace replay tests passed, the optimized build passed, and the user
+confirmed shell full-width toggling works. Earlier control-channel tests and
+Clippy also passed for this slice.
