@@ -7,6 +7,9 @@ on:
       - "website/**"
       - ".github/workflows/deploy-website.yml"
   workflow_dispatch:
+  # Called by the release workflow after each release, so the site shows the
+  # new version even when the release commit doesn't touch website/.
+  workflow_call:
 
 permissions:
   contents: read
