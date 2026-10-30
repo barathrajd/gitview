@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing release tag to build or publish, such as v0.4.1
+        description: Existing release tag to build or publish, such as v0.4.1 (ignored by dry-run-linux-x86_64, which builds the chosen branch)
         required: true
         type: string
       task:
@@ -16,6 +16,8 @@ on:
         type: choice
         options:
           - build-macos-arm64
+          - build-linux-x86_64
+          - dry-run-linux-x86_64
           - publish-crate
 
 permissions:
@@ -88,6 +90,54 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.release_tag }}
+        run: gh release upload "$TAG_NAME" "$ARCHIVE" "$ARCHIVE.sha256" --clobber
+
+  build-linux-x86_64:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && (inputs.task == 'build-linux-x86_64' || inputs.task == 'dry-run-linux-x86_64')) }}
+    runs-on: ubuntu-latest
+    env:
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.task == 'dry-run-linux-x86_64' }}
+      TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A dry run builds the branch it was started on.
+          ref: ${{ (github.event_name == 'workflow_dispatch' && inputs.task == 'dry-run-linux-x86_64') && github.sha || needs.release-please.outputs.tag_name || inputs.release_tag }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+      - name: Build and package release
+        run: |
+          test "$(uname -m)" = "x86_64"
+          version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
+          if [ "$DRY_RUN" = "true" ]; then
+            label="dry-run"
+          else
+            test "$TAG_NAME" = "v$version"
+            label="$TAG_NAME"
+          fi
+          cargo build --release --locked --target x86_64-unknown-linux-musl
+          binary=target/x86_64-unknown-linux-musl/release/gitview
+          scripts/smoke-linux-release.sh "$binary" "$version"
+          archive="gitview-${label}-linux-x86_64.tar.gz"
+          staging_dir="$(mktemp -d)"
+          cp "$binary" "$staging_dir/"
+          tar -czf "$archive" -C "$staging_dir" gitview
+          sha256sum "$archive" > "$archive.sha256"
+          echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
+      - name: Keep the dry-run archive
+        if: ${{ env.DRY_RUN == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitview-dry-run-linux-x86_64
+          path: |
+            ${{ env.ARCHIVE }}
+            ${{ env.ARCHIVE }}.sha256
+      - name: Upload release assets
+        if: ${{ env.DRY_RUN != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "$TAG_NAME" "$ARCHIVE" "$ARCHIVE.sha256" --clobber
 
   publish-crate:
