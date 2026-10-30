@@ -18,6 +18,21 @@ pub(in crate::app) fn handle<H: Host>(
 ) -> io::Result<Flow> {
     let Env { root, .. } = env;
     if app.searching {
+        // Typed characters edit the query, so only page keys and Ctrl
+        // letters move the results; other Ctrl or Alt letters are ignored.
+        if matches!(key.code, KeyCode::PageUp | KeyCode::PageDown)
+            || plain_code(key) == KeyCode::Null
+        {
+            let page = screen_page_rows(app.gitview_area, SEARCH_CHROME);
+            list_motion(
+                &mut app.page_motions,
+                key,
+                &mut app.search_selection,
+                app.search_results.len(),
+                page,
+            );
+            return Ok(Flow::Handled);
+        }
         match key.code {
             KeyCode::Esc => {
                 app.searching = false;

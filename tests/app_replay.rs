@@ -5,7 +5,7 @@
 #[path = "support/replay.rs"]
 mod replay;
 
-use crossterm::event::KeyCode::{Backspace, Enter, Esc, PageDown, PageUp, Tab};
+use crossterm::event::KeyCode::{Backspace, Down, Enter, Esc, PageDown, PageUp, Tab};
 use replay::{Repo, Step::*, replay, replay_sized};
 
 /// True when the history list marks the row for `subject` as selected.
@@ -424,4 +424,38 @@ fn diff_scrolls_by_counts_pages_and_gg() {
         WaitFor("first changed"),
     ]);
     replay_sized(&repository.path(), 140, 16, steps);
+}
+
+#[test]
+fn search_results_page_without_typing_into_the_query() {
+    let repository = long_history();
+    let open = || {
+        vec![
+            WaitFor("Commit 40"),
+            Key(Tab),
+            Char('/'),
+            Text("Commit"),
+            Pause(std::time::Duration::from_millis(300)),
+        ]
+    };
+    let cases = [
+        // 20 rows leave 17 for results: half a page is 8, a page 17.
+        (vec![Ctrl('d')], "Commit 32"),
+        (vec![Ctrl('d'), Ctrl('u')], "Commit 40"),
+        (vec![Key(PageDown)], "Commit 23"),
+        (vec![Ctrl('f'), Ctrl('b')], "Commit 40"),
+        // Other Ctrl letters neither move nor type.
+        (vec![Ctrl('x'), Key(Down)], "Commit 39"),
+    ];
+    for (keys, subject) in cases {
+        let mut steps = open();
+        steps.extend(keys);
+        let screen = replay_sized(&repository.path(), 140, 20, steps);
+        assert!(screen.contains("SEARCH  Commit_"), "{screen}");
+        let selected = screen.lines().find(|line| line.contains('›'));
+        assert!(
+            selected.is_some_and(|line| line.contains(subject)),
+            "{subject}\n{screen}"
+        );
+    }
 }

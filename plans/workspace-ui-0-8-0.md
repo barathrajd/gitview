@@ -344,3 +344,10 @@ y/n prompts (discard, untrack, remove, move, amend, branch actions) or reach
 the sessions, tag, comparison, and object pages as plain letters. Ctrl+Alt is
 kept for AltGr characters in text inputs. Before this, Ctrl-y confirmed a
 discard or branch switch. Full serial suite: 523 passed, 0 failed, 16 ignored.
+
+### Milestone 2: search results (committed)
+
+Typed characters keep editing the query. Ctrl-d/Ctrl-u and Ctrl-f/Ctrl-b and
+Page Down/Up move the results by their exact visible rows; other Ctrl or Alt
+letters are ignored instead of typed (Ctrl-d used to add `d`). AltGr
+characters still type. Full serial suite: 524 passed, 0 failed, 16 ignored.

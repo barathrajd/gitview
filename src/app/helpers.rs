@@ -195,6 +195,8 @@ pub(super) fn screen_page_rows(area: Option<ratatui::layout::Rect>, chrome: u16)
 
 /// Chrome for the branch list: its border and the two hint rows.
 pub(super) const BRANCH_CHROME: u16 = 4;
+/// Chrome for search results: their border and one hint row.
+pub(super) const SEARCH_CHROME: u16 = 3;
 /// Chrome estimate for the diff, commit details, and profiles; their headers
 /// differ slightly.
 pub(super) const PAGE_CHROME: u16 = 6;
