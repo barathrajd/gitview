@@ -18,6 +18,9 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
     if let Some(page) = &mut app.tag_page {
         app.needs_redraw |= page.tick();
     }
+    if let Some(page) = &mut app.sessions_page {
+        app.needs_redraw |= page.tick();
+    }
     while let Ok(entries) = app.status_watch_receiver.try_recv() {
         app.needs_redraw = true;
         if app.mutation_pending {

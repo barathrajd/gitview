@@ -20,6 +20,7 @@ pub const HELP: &str = concat!(
     "W                   Open working tree outside prompts\n",
     "?                   Help outside prompts               b                   Browse local branches\n",
     "o                   Inspect a local Git object\n",
+    "A                   Agent sessions: review, merge, or discard\n",
     "f                   Filter history by a literal path; empty clears\n",
     "/                   Search commit history               s                   Stage selected file\n",
     "u                   Unstage selected file               r                   Refresh worktree\n",

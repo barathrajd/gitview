@@ -105,6 +105,12 @@ pub(in crate::app) fn handle<H: Host>(
         }
         return Ok(Flow::Handled);
     }
+    if let Some(page) = &mut app.sessions_page {
+        if !page.key(root, key.code) {
+            app.sessions_page = None;
+        }
+        return Ok(Flow::Handled);
+    }
     if app.profiles_view {
         match key.code {
             KeyCode::Esc | KeyCode::Char('h') => app.profiles_view = false,

@@ -151,6 +151,36 @@ the repository. Git itself can undo a change to the staging area when another
 command, such as `git reset <file>`, runs at the same moment. Gitview can't stop
 that, but it notices, asks you to try again, and shows the real state.
 
+### Give the agent its own worktree
+
+Add `--session` to run the agent in a new worktree on its own branch, so its
+changes stay apart from yours until you choose to merge them:
+
+```sh
+gitview --session --claude
+```
+
+Gitview creates the branch `gitview/session-<date>-<time>` from the branch
+you're on, checks it out under `.git/gitview/sessions/`, and runs both the
+agent and Gitview there. The session stays after you quit. Gitview needs a
+checked-out branch to start one, since that's where the work merges back.
+
+Press **A** for the Sessions page. Each session shows how many commits it has
+on top of its base branch and whether it has uncommitted work.
+
+- **Enter** reviews the session's commits and diff.
+- **m** then **y** merges it into the base branch with a merge commit, in your
+  main worktree. Gitview refuses if either branch moved since the review, if
+  the main worktree or the session has uncommitted changes, or if the base
+  branch isn't checked out. A conflict stops the merge and changes nothing.
+- **d** shows the commits and files that would be lost, then **y** deletes the
+  worktree and its branch. You can't discard the session Gitview is running
+  in.
+
+Sessions are recorded in `.git/gitview/sessions/manifest.json`. If a crash
+leaves a session's folder or branch missing, or a worktree the manifest never
+recorded, the page says so and **d** cleans it up.
+
 ### Let the agent read and steer Gitview
 
 An agent started from Gitview can read the repository through Gitview and ask

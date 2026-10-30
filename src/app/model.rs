@@ -56,6 +56,7 @@ pub(super) struct App {
     pub(super) object_page: Option<crate::object_page::ObjectPage>,
     pub(super) comparison_page: Option<crate::comparison_page::ComparisonPage>,
     pub(super) tag_page: Option<crate::tag_page::TagPage>,
+    pub(super) sessions_page: Option<crate::sessions_page::SessionsPage>,
     pub(super) profiles_view: bool,
     pub(super) profile_selection: ListState,
     pub(super) profile_feedback: String,

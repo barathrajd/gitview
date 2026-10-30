@@ -105,6 +105,9 @@ pub(in crate::app) fn handle<H: Host>(
                     .select((!app.search_results.is_empty()).then_some(result_selection));
                 app.search_debounce = app.history.is_none().then_some(Instant::now());
             }
+            AppAction::OpenSessions => {
+                app.sessions_page = Some(crate::sessions_page::SessionsPage::open(root));
+            }
             AppAction::OpenBranches => {
                 app.branch_view = true;
                 app.branches = None;

@@ -44,6 +44,7 @@ pub enum Screen<'a> {
         path: &'a str,
     },
     Tags(&'a crate::tag_page::TagPage),
+    Sessions(&'a crate::sessions_page::SessionsPage),
     Cockpit(Cockpit<'a>),
     Help,
     BranchInput(&'a str),

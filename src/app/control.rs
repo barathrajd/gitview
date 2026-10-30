@@ -124,6 +124,7 @@ fn close_views(app: &mut App) {
     app.object_page = None;
     app.comparison_page = None;
     app.tag_page = None;
+    app.sessions_page = None;
     app.details = None;
     app.diff = None;
     app.prepared_diff = None;
