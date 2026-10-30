@@ -6,7 +6,7 @@ use crate::app::{
     model::App,
     run::{Env, Flow, Host},
 };
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 pub(in crate::app) fn handle<H: Host>(
     app: &mut App,
@@ -19,6 +19,14 @@ pub(in crate::app) fn handle<H: Host>(
         profiles,
         ..
     } = env;
+    // Letter shortcuts are plain keys; Ctrl or Alt never runs them.
+    if matches!(key.code, KeyCode::Char(_))
+        && key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+    {
+        return Ok(Flow::Handled);
+    }
     if key.code == KeyCode::Char('H') && !app.help && !app.mutation_pending {
         let _ = app.app_state.handle_key(KeyCode::Char('H'), false);
         app.searching = false;

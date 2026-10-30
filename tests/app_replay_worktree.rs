@@ -158,3 +158,25 @@ fn narrow_terminals_show_one_pane_and_tab_switches_it() {
     );
     assert!(!history.contains("STAGED CHANGES"), "{history}");
 }
+
+#[test]
+fn control_u_and_control_d_do_not_run_the_plain_git_keys() {
+    let repository = Repo::with_changes();
+
+    let screen = replay(
+        &repository.path(),
+        [
+            WaitFor(START),
+            Ctrl('u'),
+            Ctrl('d'),
+            Char('?'),
+            WaitFor("HELP"),
+        ],
+    );
+
+    assert!(!screen.contains("DISCARD"), "{screen}");
+    // A misread Ctrl-u unstages on a worker thread; give it time to land.
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    let status = repository.output(&["status", "--porcelain"]);
+    assert!(status.contains("A  staged.txt"), "{status}");
+}
