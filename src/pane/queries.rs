@@ -1,9 +1,9 @@
 //! Spots the questions a program asks its terminal.
 //!
 //! Terminals answer queries such as "where is the cursor?" by writing a reply
-//! to the program's input. The emulator behind the pane doesn't, so a program
-//! that waits for an answer may stall or fall back to a plainer mode. Counting
-//! the queries shows which answers would matter.
+//! to the program's input. The pane answers cursor position and device
+//! attributes; for the rest a program that waits may stall or fall back to a
+//! plainer mode, so they are counted to show which answers would matter.
 
 use std::collections::BTreeMap;
 
@@ -31,6 +31,21 @@ const FIXED: &[(&[u8], &str)] = &[
     (b"\x1b[18t", "text area size (CSI 18 t)"),
 ];
 
+/// A query the pane answers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Answerable {
+    CursorPosition,
+    DeviceAttributes,
+}
+
+fn answerable(pattern: &[u8]) -> Option<Answerable> {
+    match pattern {
+        b"\x1b[6n" => Some(Answerable::CursorPosition),
+        b"\x1b[c" | b"\x1b[0c" => Some(Answerable::DeviceAttributes),
+        _ => None,
+    }
+}
+
 #[derive(Default)]
 pub(super) struct QueryScanner {
     carry: Vec<u8>,
@@ -38,7 +53,10 @@ pub(super) struct QueryScanner {
 }
 
 impl QueryScanner {
-    pub(super) fn scan(&mut self, chunk: &[u8]) {
+    /// Counts the unanswered queries in `chunk`, and returns the answerable
+    /// ones with the offset in `chunk` just after each, in order.
+    pub(super) fn scan(&mut self, chunk: &[u8]) -> Vec<(usize, Answerable)> {
+        let mut answers = Vec::new();
         let already_seen = self.carry.len();
         let mut buffer = std::mem::take(&mut self.carry);
         buffer.extend_from_slice(chunk);
@@ -51,18 +69,22 @@ impl QueryScanner {
             let found = FIXED
                 .iter()
                 .find(|(pattern, _)| rest.starts_with(pattern))
-                .map(|(pattern, name)| (pattern.len(), *name))
-                .or_else(|| mode_status_length(rest).map(|length| (length, MODE_STATUS)));
-            // A query that ended before this chunk was counted when it arrived.
-            if let Some((length, name)) = found
+                .map(|(pattern, name)| (pattern.len(), *name, answerable(pattern)))
+                .or_else(|| mode_status_length(rest).map(|length| (length, MODE_STATUS, None)));
+            // A query that ended before this chunk was handled when it arrived.
+            if let Some((length, name, answer)) = found
                 && start + length > already_seen
             {
-                *self.counts.entry(name).or_default() += 1;
+                match answer {
+                    Some(answer) => answers.push((start + length - already_seen, answer)),
+                    None => *self.counts.entry(name).or_default() += 1,
+                }
             }
         }
 
         let keep = buffer.len().min(CARRY);
         self.carry = buffer[buffer.len() - keep..].to_vec();
+        answers
     }
 
     pub(super) fn counts(&self) -> Vec<(String, u32)> {
