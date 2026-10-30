@@ -152,32 +152,46 @@ fn an_oversized_request_closes_the_connection() {
     );
 }
 
+fn git_in(root: &Path, args: &[&str]) -> String {
+    let output = Command::new("git")
+        .current_dir(root)
+        .args(["-c", "user.name=T", "-c", "user.email=t@e"])
+        .args(["-c", "commit.gpgsign=false"])
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "git {args:?}");
+    String::from_utf8(output.stdout).unwrap().trim().to_owned()
+}
+
+/// A server over a repository with one commit adding `a b.txt` and
+/// `other.txt`, then a staged edit to `a b.txt`.
+fn start_with_history() -> (
+    ControlServer,
+    std::sync::mpsc::Receiver<ControlCommand>,
+    PathBuf,
+) {
+    let (server, commands, root) = start();
+    fs::write(root.join("a b.txt"), "one\n").unwrap();
+    fs::write(root.join("other.txt"), "x\n").unwrap();
+    git_in(&root, &["add", "a b.txt", "other.txt"]);
+    git_in(&root, &["commit", "-q", "-m", "Add two files"]);
+    fs::write(root.join("a b.txt"), "two\n").unwrap();
+    git_in(&root, &["add", "a b.txt"]);
+    (server, commands, root)
+}
+
 #[test]
 fn selection_tools_reach_gitview() {
-    let (server, commands, root) = start();
-    let git = |args: &[&str]| {
-        let output = Command::new("git")
-            .current_dir(&root)
-            .args([
-                "-c",
-                "user.name=T",
-                "-c",
-                "user.email=t@e",
-                "-c",
-                "commit.gpgsign=false",
-            ])
-            .args(args)
-            .output()
-            .unwrap();
-        assert!(output.status.success());
-        String::from_utf8(output.stdout).unwrap().trim().to_owned()
-    };
-    git(&["commit", "-q", "--allow-empty", "-m", "one"]);
-    let id = git(&["rev-parse", "HEAD"]);
+    let (server, commands, root) = start_with_history();
+    let id = git_in(&root, &["rev-parse", "HEAD"]);
     let mut client = Client::connect(server.path());
 
     let replies = [
         client.send(json!({"tool": "select_commit", "args": {"revision": "HEAD"}})),
+        client.send(
+            json!({"tool": "select_commit", "args": {"revision": "HEAD", "path": "other.txt"}}),
+        ),
         client.send(json!({"tool": "select_file", "args": {"path": "a b.txt", "staged": true}})),
         client.send(json!({"tool": "focus_pane", "args": {"pane": "agent"}})),
     ];
@@ -189,7 +203,14 @@ fn selection_tools_reach_gitview() {
     assert_eq!(
         received,
         [
-            ControlCommand::SelectCommit(id),
+            ControlCommand::SelectCommit {
+                id: id.clone(),
+                path: None
+            },
+            ControlCommand::SelectCommit {
+                id,
+                path: Some("other.txt".into())
+            },
             ControlCommand::SelectFile {
                 path: "a b.txt".into(),
                 staged: true
@@ -197,6 +218,77 @@ fn selection_tools_reach_gitview() {
             ControlCommand::FocusAgent,
         ]
     );
+}
+
+#[test]
+fn selection_replies_say_what_gitview_will_show() {
+    let (server, _commands, root) = start_with_history();
+    let short = git_in(&root, &["rev-parse", "--short", "HEAD"]);
+    let mut client = Client::connect(server.path());
+    let text = |reply: Value| reply["text"].as_str().unwrap().to_owned();
+
+    let commit = text(client.send(json!({"tool": "select_commit", "args": {"revision": "HEAD"}})));
+    let file_in_commit =
+        text(client.send(
+            json!({"tool": "select_commit", "args": {"revision": "HEAD", "path": "other.txt"}}),
+        ));
+    let staged = text(
+        client.send(json!({"tool": "select_file", "args": {"path": "a b.txt", "staged": true}})),
+    );
+    let focus = text(client.send(json!({"tool": "focus_pane", "args": {"pane": "gitview"}})));
+
+    assert_eq!(
+        commit,
+        format!("Gitview will open commit {short} (Add two files).")
+    );
+    assert_eq!(
+        file_in_commit,
+        format!("Gitview will open the diff of other.txt in commit {short} (Add two files).")
+    );
+    assert_eq!(staged, "Gitview will open the staged diff of a b.txt.");
+    assert_eq!(focus, "Gitview will take keyboard focus.");
+}
+
+#[test]
+fn a_selection_says_when_it_waits_for_the_users_prompt() {
+    let (server, _commands, _root) = start_with_history();
+    server.set_busy(true);
+    let mut client = Client::connect(server.path());
+
+    let reply = client.send(json!({"tool": "select_commit", "args": {"revision": "HEAD"}}));
+
+    let text = reply["text"].as_str().unwrap();
+    assert!(
+        text.ends_with("once the user closes the prompt they have open."),
+        "{text}"
+    );
+}
+
+#[test]
+fn selecting_something_gitview_cant_show_is_an_error() {
+    let (server, commands, _root) = start_with_history();
+    let mut client = Client::connect(server.path());
+
+    for (request, expected) in [
+        (
+            json!({"tool": "select_commit", "args": {"revision": "HEAD", "path": "missing.txt"}}),
+            "missing.txt didn't change in commit",
+        ),
+        (
+            json!({"tool": "select_file", "args": {"path": "other.txt"}}),
+            "other.txt has no unstaged changes",
+        ),
+        (
+            json!({"tool": "select_file", "args": {"path": "a b.txt"}}),
+            "a b.txt has no unstaged changes",
+        ),
+    ] {
+        let reply = client.send(request.clone());
+        assert_eq!(reply["ok"], false, "{request}");
+        let error = reply["error"].as_str().unwrap();
+        assert!(error.contains(expected), "{error}");
+    }
+    assert_eq!(commands.try_iter().count(), 0);
 }
 
 #[test]
@@ -208,6 +300,7 @@ fn selection_arguments_are_checked() {
         json!({"tool": "select_commit", "args": {"revision": "--all"}}),
         json!({"tool": "select_commit", "args": {"revision": "no-such-commit"}}),
         json!({"tool": "select_file", "args": {"path": "../x"}}),
+        json!({"tool": "select_commit", "args": {"revision": "HEAD", "path": "../x"}}),
         json!({"tool": "focus_pane", "args": {"pane": "elsewhere"}}),
     ] {
         assert_eq!(client.send(request.clone())["ok"], false, "{request}");

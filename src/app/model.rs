@@ -133,5 +133,7 @@ pub(super) struct App {
     )>,
     /// A request waiting for the user to finish a prompt, or for its target
     /// to load, until the deadline.
+    /// The file to select when the agent's commit details arrive.
+    pub(super) details_file: Option<String>,
     pub(super) pending_control: Option<(crate::control::server::ControlCommand, Instant)>,
 }

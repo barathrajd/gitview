@@ -364,6 +364,7 @@ pub fn run_app_with_agent<H: Host>(
         pane,
         control,
         pending_control: None,
+        details_file: None,
     };
     let mut env = Env {
         terminal,

@@ -28,8 +28,11 @@ pub const MAX_REQUEST: usize = 64 * 1024;
 /// What the agent asked Gitview to show.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ControlCommand {
-    /// A full commit ID.
-    SelectCommit(String),
+    /// A commit by its full ID, and optionally one of its files to open.
+    SelectCommit {
+        id: String,
+        path: Option<String>,
+    },
     SelectFile {
         path: String,
         staged: bool,
@@ -41,6 +44,7 @@ pub enum ControlCommand {
 pub struct ControlServer {
     path: PathBuf,
     stop: Arc<AtomicBool>,
+    busy: Arc<AtomicBool>,
     accept: Option<JoinHandle<()>>,
 }
 
@@ -72,15 +76,18 @@ impl ControlServer {
             .map_err(|error| format!("Could not protect the control socket: {error}"))?;
         let (sender, commands) = mpsc::channel();
         let stop = Arc::new(AtomicBool::new(false));
+        let busy = Arc::new(AtomicBool::new(false));
         let accept = {
             let stop = Arc::clone(&stop);
+            let busy = Arc::clone(&busy);
             let root = root.to_owned();
-            std::thread::spawn(move || accept_loop(listener, root, sender, stop))
+            std::thread::spawn(move || accept_loop(listener, root, sender, stop, busy))
         };
         Ok((
             Self {
                 path,
                 stop,
+                busy,
                 accept: Some(accept),
             },
             commands,
@@ -89,6 +96,12 @@ impl ControlServer {
 
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// Tell agents that a selection will wait, because the user has a prompt
+    /// or dialog open.
+    pub fn set_busy(&self, busy: bool) {
+        self.busy.store(busy, Ordering::Relaxed);
     }
 }
 
@@ -136,6 +149,7 @@ fn accept_loop(
     root: PathBuf,
     sender: Sender<ControlCommand>,
     stop: Arc<AtomicBool>,
+    busy: Arc<AtomicBool>,
 ) {
     for stream in listener.incoming() {
         if stop.load(Ordering::SeqCst) {
@@ -147,8 +161,9 @@ fn accept_loop(
         }
         let root = root.clone();
         let sender = sender.clone();
+        let busy = Arc::clone(&busy);
         std::thread::spawn(move || {
-            let _ = serve(stream, &root, &sender);
+            let _ = serve(stream, &root, &sender, &busy);
         });
     }
 }
@@ -176,7 +191,12 @@ fn peer_uid(stream: &UnixStream) -> Option<libc::uid_t> {
     (result == 0).then_some(uid)
 }
 
-fn serve(stream: UnixStream, root: &Path, sender: &Sender<ControlCommand>) -> io::Result<()> {
+fn serve(
+    stream: UnixStream,
+    root: &Path,
+    sender: &Sender<ControlCommand>,
+    busy: &AtomicBool,
+) -> io::Result<()> {
     let mut writer = stream.try_clone()?;
     let mut reader = BufReader::new(stream);
     let mut line = Vec::new();
@@ -192,12 +212,12 @@ fn serve(stream: UnixStream, root: &Path, sender: &Sender<ControlCommand>) -> io
             let reply = failure(&Value::Null, "Request is larger than 64 KiB");
             return writeln!(writer, "{reply}");
         }
-        let reply = respond(&line, root, sender);
+        let reply = respond(&line, root, sender, busy);
         writeln!(writer, "{reply}")?;
     }
 }
 
-fn respond(line: &[u8], root: &Path, sender: &Sender<ControlCommand>) -> Value {
+fn respond(line: &[u8], root: &Path, sender: &Sender<ControlCommand>, busy: &AtomicBool) -> Value {
     let request: Map<String, Value> = match serde_json::from_slice(line) {
         Ok(request) => request,
         Err(error) => return failure(&Value::Null, &format!("Invalid request: {error}")),
@@ -208,12 +228,18 @@ fn respond(line: &[u8], root: &Path, sender: &Sender<ControlCommand>) -> Value {
     };
     let args = request.get("args").cloned().unwrap_or_else(|| json!({}));
     let result = match selection(root, tool, &args) {
-        Some(command) => command.and_then(|command| {
+        Some(selected) => selected.and_then(|(command, mut text)| {
+            if busy.load(Ordering::Relaxed) {
+                text = format!(
+                    "{}, once the user closes the prompt they have open.",
+                    text.trim_end_matches('.')
+                );
+            }
             sender
                 .send(command)
                 .map_err(|_| "Gitview is closing".to_owned())
                 .map(|()| tools::ToolOutput {
-                    text: "Requested".into(),
+                    text,
                     truncated: false,
                 })
         }),
@@ -230,8 +256,13 @@ fn respond(line: &[u8], root: &Path, sender: &Sender<ControlCommand>) -> Value {
     }
 }
 
-/// Parse a tool that changes what Gitview shows, or `None` for other tools.
-fn selection(root: &Path, tool: &str, args: &Value) -> Option<Result<ControlCommand, String>> {
+/// Parse a tool that changes what Gitview shows, with a reply saying what it
+/// will show, or `None` for other tools.
+fn selection(
+    root: &Path,
+    tool: &str,
+    args: &Value,
+) -> Option<Result<(ControlCommand, String), String>> {
     let text = |key: &str| {
         args.get(key)
             .and_then(Value::as_str)
@@ -239,20 +270,59 @@ fn selection(root: &Path, tool: &str, args: &Value) -> Option<Result<ControlComm
             .ok_or(format!("{key} must be a string"))
     };
     Some(match tool {
-        "select_commit" => text("revision")
-            .and_then(|revision| tools::resolve_commit(root, &revision))
-            .map(ControlCommand::SelectCommit),
-        "select_file" => text("path").and_then(|path| {
+        "select_commit" => (|| {
+            let id = tools::resolve_commit(root, &text("revision")?)?;
+            let commit = crate::details::load_commit(root, &id)?;
+            let label = format!("commit {} ({})", &id[..7.min(id.len())], commit.subject);
+            match args.get("path") {
+                None => Ok((
+                    ControlCommand::SelectCommit { id, path: None },
+                    format!("Gitview will open {label}."),
+                )),
+                Some(_) => {
+                    let path = text("path")?;
+                    tools::check_relative(&path)?;
+                    if !commit.files.iter().any(|file| *file == *path) {
+                        return Err(format!("{path} didn't change in {label}"));
+                    }
+                    let reply = format!("Gitview will open the diff of {path} in {label}.");
+                    Ok((
+                        ControlCommand::SelectCommit {
+                            id,
+                            path: Some(path),
+                        },
+                        reply,
+                    ))
+                }
+            }
+        })(),
+        "select_file" => (|| {
+            let path = text("path")?;
             tools::check_relative(&path)?;
             let staged = match args.get("staged") {
                 None => false,
                 Some(value) => value.as_bool().ok_or("staged must be true or false")?,
             };
-            Ok(ControlCommand::SelectFile { path, staged })
-        }),
+            let kind = if staged { "staged" } else { "unstaged" };
+            let changed = crate::worktree::load_status(root)?.iter().any(|entry| {
+                entry.path == path.as_str()
+                    && (entry.section == crate::worktree::Section::Staged) == staged
+            });
+            if !changed {
+                return Err(format!("{path} has no {kind} changes"));
+            }
+            let reply = format!("Gitview will open the {kind} diff of {path}.");
+            Ok((ControlCommand::SelectFile { path, staged }, reply))
+        })(),
         "focus_pane" => text("pane").and_then(|pane| match pane.as_str() {
-            "agent" => Ok(ControlCommand::FocusAgent),
-            "gitview" => Ok(ControlCommand::FocusGitview),
+            "agent" => Ok((
+                ControlCommand::FocusAgent,
+                "Gitview will give keyboard focus to the agent.".to_owned(),
+            )),
+            "gitview" => Ok((
+                ControlCommand::FocusGitview,
+                "Gitview will take keyboard focus.".to_owned(),
+            )),
             _ => Err("pane must be \"agent\" or \"gitview\"".into()),
         }),
         _ => return None,

@@ -17,6 +17,9 @@ use crate::{
 const PATIENCE: Duration = Duration::from_secs(3);
 
 pub(super) fn step(app: &mut App, root: &Path) {
+    if let Some((server, _)) = &app.control {
+        server.set_busy(in_prompt(app));
+    }
     if app.pending_control.is_none()
         && let Some(command) = app
             .control
@@ -44,7 +47,7 @@ fn apply(app: &mut App, root: &Path, command: &ControlCommand) -> bool {
         ControlCommand::FocusAgent if app.pane.is_some() => app.focus = Focus::Agent,
         ControlCommand::FocusAgent => {}
         ControlCommand::FocusGitview => app.focus = Focus::Gitview,
-        ControlCommand::SelectCommit(id) => {
+        ControlCommand::SelectCommit { id, path } => {
             let Some(Ok(rows)) = &app.history else {
                 return false;
             };
@@ -58,6 +61,22 @@ fn apply(app: &mut App, root: &Path, command: &ControlCommand) -> bool {
             app.app_state.show(View::History);
             app.selection.select(Some(index));
             open_commit_details(app, root, id.clone());
+            app.details_file = path.clone();
+            if let Some(path) = path {
+                app.request_id += 1;
+                let current = app.request_id;
+                app.diff = Some((current, None));
+                app.diff_scroll = 0;
+                app.selected_hunk = 0;
+                app.ordinary_diff_worker
+                    .request(crate::diff_loader::Request {
+                        id: current,
+                        source: crate::diff_loader::Source::Commit {
+                            revision: id.clone(),
+                            file: path.into(),
+                        },
+                    });
+            }
         }
         ControlCommand::SelectFile { path, staged } => {
             let Some(Ok(entries)) = &app.status else {

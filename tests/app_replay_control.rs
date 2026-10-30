@@ -4,6 +4,7 @@
 #[path = "support/replay.rs"]
 mod replay;
 
+use crossterm::event::KeyCode::Esc;
 use replay::{Repo, Step::*, replay_with_agent};
 
 const WIDE: (u16, u16) = (160, 40);
@@ -86,6 +87,30 @@ fn the_agent_moves_focus_to_gitview() {
             Ctrl('\\'),
             WaitFor("\"isError\":false"),
             WaitFor("Ctrl+\\ focuses the agent"),
+        ],
+    );
+}
+
+#[test]
+fn the_agent_opens_a_file_diff_inside_a_commit() {
+    let repository = Repo::with_history();
+    // Two files, so the one asked for isn't the first and selected anyway.
+    repository.write("README.md", "# Demo\nagain\n");
+    repository.write("src/lib.rs", "first rewritten\n");
+    repository.commit_all("Change both");
+
+    run(
+        &repository,
+        &agent_calling(
+            "select_commit",
+            r#"{"revision":"HEAD","path":"src/lib.rs"}"#,
+        ),
+        [
+            WaitFor("first rewritten"),
+            Key(Esc),
+            // Back on the commit, with that file selected.
+            WaitFor("› src/lib.rs"),
+            WaitFor("  README.md"),
         ],
     );
 }

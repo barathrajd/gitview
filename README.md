@@ -158,14 +158,20 @@ that talks to that socket. Its tools are:
 | `get_log` | Lists recent commits, 50 by default and at most 200. |
 | `get_diff` | Shows one file's unstaged diff, or its staged diff. |
 | `get_show` | Shows a commit's message, file summary, and patch. |
-| `select_commit` | Opens a commit's details in Gitview's history. |
+| `select_commit` | Opens a commit in Gitview, or one of its file diffs with `path`. |
 | `select_file` | Opens a changed file's diff in Gitview's working tree. |
 | `focus_pane` | Moves focus to Gitview or to the agent. |
+
+The `get_` tools only return text to the agent; the `select_` tools and
+`focus_pane` change what you see. So ask the agent to "open" or "select"
+something in Gitview when you want it on screen. A selection's reply says what
+Gitview will show, such as `Gitview will open commit e2d1429 (…)`, and a file
+that hasn't changed is refused rather than silently ignored.
 
 None of them stage, commit, or change files. Each reply stops at 64 KiB and
 says when it was cut. Paths must be inside the repository, and a revision
 can't be a Git option. If you're typing in a prompt or answering a dialog, a
-selection waits until you finish.
+selection waits until you finish, and its reply says so.
 
 `--claude` registers the server for you. For Codex, add it to
 `~/.codex/config.toml`. Codex doesn't pass environment variables to MCP

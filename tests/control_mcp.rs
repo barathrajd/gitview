@@ -86,6 +86,35 @@ fn initializes_and_lists_the_read_only_tools() {
 }
 
 #[test]
+fn descriptions_say_which_tools_change_gitviews_screen() {
+    let replies = session(
+        None,
+        &[json!({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})],
+    );
+    for tool in replies[0]["result"]["tools"].as_array().unwrap() {
+        let name = tool["name"].as_str().unwrap();
+        let description = tool["description"].as_str().unwrap();
+        if name.starts_with("get_") {
+            assert!(
+                description.contains("doesn't change Gitview's screen"),
+                "{name}: {description}"
+            );
+        } else {
+            assert!(
+                description.contains("the user wants to see"),
+                "{name}: {description}"
+            );
+        }
+    }
+    let commit = &replies[0]["result"]["tools"][4];
+    assert_eq!(commit["name"], "select_commit");
+    assert_eq!(
+        commit["inputSchema"]["properties"]["path"]["type"],
+        "string"
+    );
+}
+
+#[test]
 fn tool_calls_are_forwarded_to_gitview() {
     let root = repository("forward");
     let folder = PathBuf::from(format!("/tmp/gv-mcp-sock-{}", std::process::id()));

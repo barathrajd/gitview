@@ -98,8 +98,14 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
         if let Some((active, value)) = &mut app.details
             && *active == id
         {
-            if result.as_ref().is_ok_and(|commit| !commit.files.is_empty()) {
-                app.file_selection.select(Some(0));
+            if let Ok(commit) = &result
+                && !commit.files.is_empty()
+            {
+                let wanted = app.details_file.take();
+                let index = wanted
+                    .and_then(|path| commit.files.iter().position(|file| *file == *path))
+                    .unwrap_or(0);
+                app.file_selection.select(Some(index));
             }
             *value = Some(result);
         }
