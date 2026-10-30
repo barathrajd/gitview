@@ -338,3 +338,9 @@ profiles render as a paragraph, so `zz` there has nothing to scroll.
 Verification: full serial suite passed (520 passed, 0 failed, 16 ignored),
 Clippy passed, optimized binary rebuilt. Remaining: search results, sessions,
 comparison, objects, tags, and diff `G`/`zz`.
+
+Fix (committed): Ctrl- or Alt-modified letters no longer answer
+y/n prompts (discard, untrack, remove, move, amend, branch actions) or reach
+the sessions, tag, comparison, and object pages as plain letters. Ctrl+Alt is
+kept for AltGr characters in text inputs. Before this, Ctrl-y confirmed a
+discard or branch switch. Full serial suite: 523 passed, 0 failed, 16 ignored.

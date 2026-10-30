@@ -233,10 +233,42 @@ pub(super) fn list_motion(
     }
 }
 
+/// The key code with Ctrl- or Alt-modified characters replaced by
+/// `KeyCode::Null`, so `Ctrl-y` never answers a prompt or runs a page's plain
+/// `y`. Ctrl+Alt together is kept: AltGr characters such as `@` arrive that
+/// way on some layouts and must still reach text inputs.
+pub(super) fn plain_code(key: KeyEvent) -> KeyCode {
+    use crossterm::event::KeyModifiers;
+    let control = key.modifiers.contains(KeyModifiers::CONTROL);
+    let alt = key.modifiers.contains(KeyModifiers::ALT);
+    match key.code {
+        KeyCode::Char(_) if control != alt => KeyCode::Null,
+        code => code,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crossterm::event::KeyModifiers;
+
+    #[test]
+    fn plain_code_drops_control_or_alt_characters_but_keeps_altgr() {
+        use crossterm::event::KeyModifiers;
+        let key = |modifiers| KeyEvent::new(KeyCode::Char('y'), modifiers);
+        assert_eq!(plain_code(key(KeyModifiers::NONE)), KeyCode::Char('y'));
+        assert_eq!(plain_code(key(KeyModifiers::SHIFT)), KeyCode::Char('y'));
+        assert_eq!(plain_code(key(KeyModifiers::CONTROL)), KeyCode::Null);
+        assert_eq!(plain_code(key(KeyModifiers::ALT)), KeyCode::Null);
+        assert_eq!(
+            plain_code(key(KeyModifiers::CONTROL | KeyModifiers::ALT)),
+            KeyCode::Char('y')
+        );
+        assert_eq!(
+            plain_code(KeyEvent::new(KeyCode::Enter, KeyModifiers::CONTROL)),
+            KeyCode::Enter
+        );
+    }
 
     #[test]
     fn keybinding_library_maps_vim_navigation_without_capturing_modifiers() {

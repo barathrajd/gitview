@@ -57,7 +57,7 @@ pub(in crate::app) fn handle<H: Host>(
             return Ok(Flow::Handled);
         }
         if let Some(action) = &app.branch_confirm {
-            match key.code {
+            match plain_code(key) {
                 KeyCode::Char('?') => app.help = true,
                 KeyCode::Char('y') => {
                     app.mutation_pending = true;

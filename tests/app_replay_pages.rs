@@ -270,3 +270,20 @@ fn control_letters_do_not_run_branch_actions() {
     assert!(!screen.contains("Delete local branch"), "{screen}");
     assert!(!screen.contains("New local branch name:"), "{screen}");
 }
+
+#[test]
+fn control_y_does_not_confirm_a_branch_switch() {
+    let repository = repository();
+    let mut steps = branch_steps();
+    steps.extend([
+        Key(Enter),
+        WaitFor("Switch to local branch \"feature\"?"),
+        Ctrl('y'),
+        Char('?'),
+        WaitFor("HELP"),
+    ]);
+    replay(&repository.path(), steps);
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    assert_eq!(current_branch(&repository), "main");
+}

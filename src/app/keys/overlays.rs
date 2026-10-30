@@ -48,13 +48,13 @@ pub(in crate::app) fn handle<H: Host>(
         return Ok(Flow::Handled);
     }
     if let Some(page) = &mut app.object_page {
-        if !page.key(root, key.code) {
+        if !page.key(root, plain_code(key)) {
             app.object_page = None;
         }
         return Ok(Flow::Handled);
     }
     if let Some(page) = &mut app.comparison_page {
-        if !page.key(root, key.code) {
+        if !page.key(root, plain_code(key)) {
             app.comparison_page = None;
         }
         return Ok(Flow::Handled);
@@ -88,7 +88,7 @@ pub(in crate::app) fn handle<H: Host>(
         return Ok(Flow::Handled);
     }
     if let Some(page) = &mut app.tag_page {
-        if !page.key(root, key.code) {
+        if !page.key(root, plain_code(key)) {
             app.tag_page = None;
             app.history_request += 1;
             let id = app.history_request;
@@ -106,7 +106,7 @@ pub(in crate::app) fn handle<H: Host>(
         return Ok(Flow::Handled);
     }
     if let Some(page) = &mut app.sessions_page {
-        if !page.key(root, key.code) {
+        if !page.key(root, plain_code(key)) {
             app.sessions_page = None;
         }
         return Ok(Flow::Handled);

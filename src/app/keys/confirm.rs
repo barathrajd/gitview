@@ -3,6 +3,7 @@ use std::io;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::app::{
+    helpers::plain_code,
     model::App,
     run::{Env, Flow, Host},
 };
@@ -17,7 +18,7 @@ pub(in crate::app) fn handle<H: Host>(
         if app.mutation_pending {
             return Ok(Flow::Handled);
         }
-        match key.code {
+        match plain_code(key) {
             KeyCode::Char('?') => app.help = true,
             KeyCode::Char('y') => {
                 app.mutation_pending = true;
@@ -39,7 +40,7 @@ pub(in crate::app) fn handle<H: Host>(
         if app.mutation_pending {
             return Ok(Flow::Handled);
         }
-        match key.code {
+        match plain_code(key) {
             KeyCode::Char('?') => app.help = true,
             KeyCode::Char('y') => {
                 app.mutation_pending = true;
@@ -61,7 +62,7 @@ pub(in crate::app) fn handle<H: Host>(
         if app.mutation_pending {
             return Ok(Flow::Handled);
         }
-        match key.code {
+        match plain_code(key) {
             KeyCode::Char('?') => app.help = true,
             KeyCode::Char('y') => {
                 app.mutation_pending = true;
@@ -83,7 +84,7 @@ pub(in crate::app) fn handle<H: Host>(
         if app.mutation_pending {
             return Ok(Flow::Handled);
         }
-        match key.code {
+        match plain_code(key) {
             KeyCode::Char('?') => app.help = true,
             KeyCode::Char('y') => {
                 app.mutation_pending = true;
