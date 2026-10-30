@@ -145,11 +145,24 @@ The formula uses `on_macos` and `on_linux` blocks with `on_arm` and
    macOS and in Debian (`rust:latest`). On Alpine (with `bash` and `curl`),
    the installer verified with `sha256sum` and installed the real static
    binary. On this Mac it still installs the published v0.6.0.
-3. **Formula template and renderer.** Add the template and the render script,
+3. **Formula template and renderer.** *Done. Verified by dry run
+   41039081153.* On Linux, `brew install` and `brew test` passed with the
+   dry-run archive. On `macos-15-intel`, Homebrew refused with "The arm64
+   architecture is required for this software." On this Mac, the published
+   v0.6.0 archive installed from a local tap and passed `brew test`. Found on
+   the way: `url` must sit at the top level or inside `on_arm`/`on_intel`, and
+   every machine needs a URL before Homebrew checks the architecture. So the
+   macOS archive is the default URL, overridden for x86_64 Linux. Homebrew
+   reads a `file://` archive's version as "86.64" (the CI copy states it);
+   the real release URLs parse as the release version. Add the template and the render script,
    with tests that render a formula from sample checksums, run `brew style`
    on it, and install it from a local tap on macOS. On a Linux runner with
    Homebrew, run `brew install` and `brew test` against the dry-run archive.
-4. **Tap repository and push job.** With the user's confirmation, create
+4. **Tap repository and push job.** *Done. The shared tap
+   `barathrajd/homebrew-tap` was created on 2026-10-30, and the user added
+   `HOMEBREW_TAP_TOKEN`. In the dry run, `update-homebrew-tap` rendered the
+   formula and GitHub accepted a dry-run push; the tap still has only its
+   README commit.* With the user's confirmation, create
    `barathrajd/homebrew-tap` (public, with a README) and have the user add
    `HOMEBREW_TAP_TOKEN`. Add the `update-homebrew-tap` job. A dry run renders
    and checks the formula but doesn't push.
