@@ -4,6 +4,7 @@ pub mod commit;
 pub mod comparison;
 pub mod comparison_page;
 pub mod config;
+pub mod control;
 pub mod details;
 pub mod diff;
 pub mod diff_loader;
