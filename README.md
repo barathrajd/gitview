@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="website/public/logo.svg" width="96" height="96"
+    alt="Gitview logo: a Git branch with a terminal chevron" />
+</p>
+
 # Gitview
 
 Gitview is a keyboard-first terminal interface for reviewing Git history and
