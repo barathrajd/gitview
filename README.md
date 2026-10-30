@@ -6,44 +6,46 @@ history.
 
 ## Install Gitview
 
-Run the installer locally to choose between the prebuilt macOS Apple Silicon
-binary and a source build through Cargo. The prebuilt option verifies the
-release SHA-256 checksum and installs `gitview` into `~/.local/bin`; it doesn't
-require GAH or Homebrew `findutils`.
+Gitview runs on macOS with Apple Silicon and on Linux x86_64. Each release
+ships a prebuilt binary for both, and the Linux one is statically linked, so it
+runs on any distribution, Alpine included.
+
+### Homebrew
 
 ```sh
-bash ./install.sh
+brew install barathrajd/tap/gitview
 ```
 
-Choose **1** for the prebuilt release or **2** to build and install the latest
-crate from crates.io with Cargo. The Cargo option requires Rust and builds the
-executable from source, so it can take longer than downloading the prebuilt
-binary.
+This uses the [barathrajd/tap](https://github.com/barathrajd/homebrew-tap) tap,
+which each release updates. Upgrade with `brew upgrade gitview`. If an older
+`gitview` from the installer below (`~/.local/bin`) or from Cargo
+(`~/.cargo/bin`) comes first on your `PATH`, remove it so the Homebrew one
+runs.
 
-To install the latest release, omit the tag:
-
-```sh
-bash ./install.sh
-```
-
-After the installer is published on `main`, you can run it directly with
-`curl`:
+### Installer script
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/barathrajd/gitview/main/install.sh \
   | bash
 ```
 
-To install directly with Cargo:
+The installer picks the archive for your platform, verifies its SHA-256
+checksum, and installs `gitview` into `~/.local/bin`. Set
+`GITVIEW_INSTALL_DIR` to install somewhere else. It needs Bash and `curl`;
+Alpine doesn't include Bash by default (`apk add bash curl`). Run it from a
+clone with `bash ./install.sh` to choose between the prebuilt binary and
+Cargo, or pass a tag such as `bash ./install.sh v0.7.0 --prebuilt`.
+
+### Cargo
 
 ```sh
 cargo install gitview --locked
 ```
 
-Set `GITVIEW_INSTALL_DIR` to install somewhere other than `~/.local/bin`. The
-prebuilt release currently supports macOS Apple Silicon. Linux release
-packaging remains deferred. You can also download the archive from the
-[GitHub releases](https://github.com/barathrajd/gitview/releases).
+This builds Gitview from crates.io and works wherever Rust does. You can also
+download the archives yourself from the
+[GitHub releases](https://github.com/barathrajd/gitview/releases); each comes
+with a `.sha256` checksum. Windows isn't supported.
 
 ## What's new in 0.6.0
 
@@ -428,8 +430,9 @@ either style. Commit rename changes are displayed as separate deletion and
 addition entries. Unmerged working-tree entries are not supported; resolve
 conflicts using Git. Branch creation requires a first commit. Git checkout
 hooks run normally and can report failure after a switch has already occurred;
-Gitview refreshes the branch state and displays the error. Linux builds and
-tests were verified for 0.2.1; Linux release packaging is not provided.
+Gitview refreshes the branch state and displays the error. Releases ship
+prebuilt binaries for macOS Apple Silicon and Linux x86_64 only; other systems
+can build with Cargo, and Windows isn't supported.
 
 ## License
 
