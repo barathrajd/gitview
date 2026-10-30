@@ -4,7 +4,7 @@
 #[path = "support/replay.rs"]
 mod replay;
 
-use crossterm::event::KeyCode::Esc;
+use crossterm::event::KeyCode::{self, Esc};
 use replay::{Repo, Step::*, replay_with_agent};
 
 const WIDE: (u16, u16) = (160, 40);
@@ -80,12 +80,20 @@ fn the_agent_opens_a_commit_in_gitview() {
 fn the_agent_moves_focus_to_gitview() {
     let repository = Repo::with_history();
 
+    // The agent waits for a line typed into it, so the call can't land before
+    // the agent has focus.
+    let script = format!(
+        "read line; {}",
+        agent_calling("focus_pane", r#"{"pane":"gitview"}"#)
+    );
     run(
         &repository,
-        &agent_calling("focus_pane", r#"{"pane":"gitview"}"#),
+        &script,
         [
             Ctrl('\\'),
-            WaitFor("\"isError\":false"),
+            WaitFor("Ctrl+\\ returns to Gitview"),
+            Text("go"),
+            Key(KeyCode::Enter),
             WaitFor("Ctrl+\\ focuses the agent"),
         ],
     );
