@@ -77,7 +77,7 @@ fn get_log(root: &Path, args: &Map<String, Value>) -> Result<ToolOutput, String>
         .arg("--format=%H%x1f%an%x1f%aI%x1f%s")
         .output()
         .map_err(|error| format!("Could not run Git: {error}"))?;
-    if !output.status.success() {
+    if !output.status.success() && has_commits(root) {
         return Err(git_error("Could not read history", &output.stderr));
     }
     let commits = output
@@ -157,7 +157,7 @@ fn get_show(root: &Path, args: &Map<String, Value>) -> Result<ToolOutput, String
 }
 
 /// Refuse anything but a plain path inside the repository.
-fn check_relative(path: &str) -> Result<(), String> {
+pub(crate) fn check_relative(path: &str) -> Result<(), String> {
     let path = Path::new(path);
     if path.as_os_str().is_empty()
         || path
@@ -197,4 +197,12 @@ fn capped_text(mut text: String, mut truncated: bool) -> ToolOutput {
 
 fn git_error(context: &str, stderr: &[u8]) -> String {
     format!("{context}: {}", String::from_utf8_lossy(stderr).trim())
+}
+
+fn has_commits(root: &Path) -> bool {
+    process::git_command()
+        .current_dir(root)
+        .args(["rev-parse", "--verify", "--quiet", "HEAD"])
+        .output()
+        .is_ok_and(|output| output.status.success())
 }

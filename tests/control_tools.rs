@@ -165,3 +165,9 @@ fn bad_arguments_and_unknown_tools_are_errors() {
     assert!(call(&root, "get_log", &json!({"limit": "ten"})).is_err());
     assert!(call(&root, "get_log", &json!([])).is_err());
 }
+
+#[test]
+fn get_log_in_an_empty_repository_is_empty() {
+    let root = fixture();
+    assert_eq!(json_of(&root, "get_log", json!({}))["commits"], json!([]));
+}
