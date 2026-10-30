@@ -120,14 +120,26 @@ The formula uses `on_macos` and `on_linux` blocks with `on_arm` and
 
 ## Milestones
 
-1. **Linux archive in the release.** Add the `build-linux-x86_64` job with
+1. **Linux archive in the release.** *Built; x86_64 dry run pending: the
+   first one stopped in `pre-release-checks` on session tests that need a Git
+   identity, fixed separately on `fix/session-test-identity`.* Add the `build-linux-x86_64` job with
    its smoke test, plus a dry-run dispatch that skips the upload. Verify with
    a dry run on this branch on GitHub's x86_64 runner: the archive builds,
-   `file` says static, and the Alpine run passes.
-2. **Installer selects Linux.** Teach `install.sh` the Linux archive and the
+   `file` says static, and the Alpine run passes. Locally (arm64 Linux), the
+   smoke script rejects a dynamically linked build and passes the static one,
+   and its Alpine stage fails on a binary that can't run there.
+2. **Installer selects Linux.** *Done.* Teach `install.sh` the Linux archive and the
    `sha256sum` fallback. Test it in Alpine (with `bash` and `curl` added),
    Debian and macOS against archives served from a local folder. Add an
    environment override for the download URL, used only by tests.
+   *Result:* `tests/installer.rs` runs the real `install.sh` against a local
+   release folder. Linux x86_64 (and `amd64`) gets the Linux archive, macOS
+   Apple Silicon still gets the macOS one, and other platforms are refused
+   with the supported list. A bad checksum installs nothing, either checksum
+   tool works, and the installer stops without one. The tests passed on
+   macOS and in Debian (`rust:latest`). On Alpine (with `bash` and `curl`),
+   the installer verified with `sha256sum` and installed the real static
+   binary. On this Mac it still installs the published v0.6.0.
 3. **Formula template and renderer.** Add the template and the render script,
    with tests that render a formula from sample checksums, run `brew style`
    on it, and install it from a local tap on macOS. On a Linux runner with
