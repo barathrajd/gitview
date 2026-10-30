@@ -53,6 +53,16 @@ pub enum AppAction {
     MoveTop,
     /// `G`.
     MoveBottom,
+    /// Ctrl-d.
+    HalfPageDown,
+    /// Ctrl-u.
+    HalfPageUp,
+    /// Ctrl-f or Page Down.
+    PageDown,
+    /// Ctrl-b or Page Up.
+    PageUp,
+    /// `zz`.
+    CenterSelection,
 }
 
 #[derive(Clone)]
@@ -77,6 +87,8 @@ pub struct AppState {
     count: Option<usize>,
     /// The first `g` of `gg`.
     pending_g: bool,
+    /// The first `z` of `zz`.
+    pending_z: bool,
 }
 
 impl AppState {
@@ -107,11 +119,30 @@ impl AppState {
         }
     }
 
+    /// Translate a Ctrl-modified letter into a page motion. Other Ctrl
+    /// letters do nothing, so they never run a plain-key shortcut.
+    pub fn handle_control(&mut self, letter: char, blocked: bool) -> Option<AppAction> {
+        self.count = None;
+        self.pending_g = false;
+        self.pending_z = false;
+        if blocked {
+            return None;
+        }
+        match letter {
+            'd' => Some(AppAction::HalfPageDown),
+            'u' => Some(AppAction::HalfPageUp),
+            'f' => Some(AppAction::PageDown),
+            'b' => Some(AppAction::PageUp),
+            _ => None,
+        }
+    }
+
     /// Translate a key in the active workspace into an app action.
     pub fn handle_key(&mut self, key: KeyCode, blocked: bool) -> Option<AppAction> {
         // Pending motion input applies only to the key right after it.
         let count = self.count.take();
         let pending_g = std::mem::take(&mut self.pending_g);
+        let pending_z = std::mem::take(&mut self.pending_z);
         if key == KeyCode::Tab {
             return self.handle_tab(blocked);
         }
@@ -129,7 +160,14 @@ impl AppState {
                 self.count = Some(count.unwrap_or(0).saturating_mul(10).saturating_add(digit));
                 return None;
             }
+            KeyCode::Char('z') if pending_z => return Some(AppAction::CenterSelection),
+            KeyCode::Char('z') => {
+                self.pending_z = true;
+                return None;
+            }
             KeyCode::Char('G') => return Some(AppAction::MoveBottom),
+            KeyCode::PageDown => return Some(AppAction::PageDown),
+            KeyCode::PageUp => return Some(AppAction::PageUp),
             KeyCode::Up if count.is_some() => return count.map(AppAction::MoveUpBy),
             KeyCode::Down if count.is_some() => return count.map(AppAction::MoveDownBy),
             _ => {}

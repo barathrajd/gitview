@@ -20,11 +20,17 @@ pub(in crate::app) fn handle<H: Host>(
         ..
     } = env;
     // Letter shortcuts are plain keys; Ctrl or Alt never runs them.
-    if matches!(key.code, KeyCode::Char(_))
+    if let KeyCode::Char(letter) = key.code
         && key
             .modifiers
             .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
     {
+        let blocked =
+            app.help || app.mutation_pending || app.details.is_some() || app.diff.is_some();
+        let control = key.modifiers == KeyModifiers::CONTROL;
+        if let Some(action) = app.app_state.handle_control(letter, blocked || !control) {
+            move_by_page(app, action);
+        }
         return Ok(Flow::Handled);
     }
     if key.code == KeyCode::Char('H') && !app.help && !app.mutation_pending {
@@ -268,6 +274,18 @@ pub(in crate::app) fn handle<H: Host>(
             }),
             AppAction::MoveTop => move_selection(app, |_, len| (len > 0).then_some(0)),
             AppAction::MoveBottom => move_selection(app, |_, len| len.checked_sub(1)),
+            AppAction::HalfPageDown
+            | AppAction::HalfPageUp
+            | AppAction::PageDown
+            | AppAction::PageUp => move_by_page(app, action),
+            AppAction::CenterSelection => {
+                let rows = page_rows(app);
+                if app.app_state.view() == View::History
+                    && let Some(selected) = app.selection.selected()
+                {
+                    *app.selection.offset_mut() = selected.saturating_sub(rows / 2);
+                }
+            }
         }
         return Ok(Flow::Handled);
     }
@@ -516,4 +534,47 @@ fn move_selection(app: &mut App, motion: impl FnOnce(Option<usize>, usize) -> Op
             }
         }
     }
+}
+
+/// Apply a page motion: half or all of the focused list's visible rows.
+fn move_by_page(app: &mut App, action: AppAction) {
+    let rows = page_rows(app);
+    let half = (rows / 2).max(1);
+    match action {
+        AppAction::HalfPageDown => move_selection(app, |selected, len| {
+            crate::app::move_down_by(selected, len, half)
+        }),
+        AppAction::HalfPageUp => {
+            move_selection(app, |selected, _| crate::app::move_up_by(selected, half))
+        }
+        AppAction::PageDown => move_selection(app, |selected, len| {
+            crate::app::move_down_by(selected, len, rows)
+        }),
+        AppAction::PageUp => {
+            move_selection(app, |selected, _| crate::app::move_up_by(selected, rows))
+        }
+        _ => {}
+    }
+}
+
+/// The rows the focused list showed in the last frame, from the same layout
+/// the cockpit renderer uses: a three-row header and two status rows around
+/// the panels, each with a border above and below its rows.
+fn page_rows(app: &App) -> usize {
+    let Some(area) = app.gitview_area else {
+        return 1;
+    };
+    let panels = ratatui::layout::Rect {
+        y: area.y.saturating_add(3),
+        height: area.height.saturating_sub(4),
+        ..area
+    };
+    let layout = app.workspace.gitview_layout(panels);
+    let panel = match app.app_state.view() {
+        View::History => layout.center,
+        View::WorkingTree => layout.sidebar,
+    };
+    panel.map_or(1, |panel| {
+        usize::from(panel.height.saturating_sub(2)).max(1)
+    })
 }

@@ -251,3 +251,57 @@ fn counted_moves_clamp_to_the_list() {
     assert_eq!(gitview::app::move_up_by(Some(2), 10), Some(0));
     assert_eq!(gitview::app::move_up_by(None, 10), None);
 }
+
+#[test]
+fn control_page_keys_map_to_half_and_full_page_motions() {
+    let mut app = AppState::default();
+
+    assert_eq!(
+        app.handle_control('d', false),
+        Some(AppAction::HalfPageDown)
+    );
+    assert_eq!(app.handle_control('u', false), Some(AppAction::HalfPageUp));
+    assert_eq!(app.handle_control('f', false), Some(AppAction::PageDown));
+    assert_eq!(app.handle_control('b', false), Some(AppAction::PageUp));
+    assert_eq!(app.handle_control('s', false), None);
+    assert_eq!(app.handle_control('d', true), None);
+    assert_eq!(
+        app.handle_key(KeyCode::PageDown, false),
+        Some(AppAction::PageDown)
+    );
+    assert_eq!(
+        app.handle_key(KeyCode::PageUp, false),
+        Some(AppAction::PageUp)
+    );
+}
+
+#[test]
+fn a_page_key_drops_a_pending_count() {
+    let mut app = AppState::default();
+
+    assert_eq!(app.handle_key(KeyCode::Char('3'), false), None);
+    assert_eq!(
+        app.handle_control('d', false),
+        Some(AppAction::HalfPageDown)
+    );
+    assert_eq!(
+        app.handle_key(KeyCode::Down, false),
+        Some(AppAction::MoveDown)
+    );
+}
+
+#[test]
+fn zz_centers_the_selection_and_a_lone_z_keeps_other_keys() {
+    let mut app = AppState::default();
+
+    assert_eq!(app.handle_key(KeyCode::Char('z'), false), None);
+    assert_eq!(
+        app.handle_key(KeyCode::Char('z'), false),
+        Some(AppAction::CenterSelection)
+    );
+    assert_eq!(app.handle_key(KeyCode::Char('z'), false), None);
+    assert_eq!(
+        app.handle_key(KeyCode::Char('s'), false),
+        Some(AppAction::StageSelected)
+    );
+}

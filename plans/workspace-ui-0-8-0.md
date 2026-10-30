@@ -288,3 +288,16 @@ Agent input, prompts, and Ctrl-w chords are handled before the parser.
 Verification: full serial suite passed (505 passed, 0 failed, 16 ignored),
 Clippy passed, optimized binary rebuilt. Page and half-page keys, `zz`, and
 motions in other lists and diffs remain open.
+
+Fix (committed): Ctrl- and Alt-modified letters no longer run plain view
+shortcuts; Ctrl-u had unstaged and Ctrl-d opened the discard preview.
+
+### Milestone 2: page keys and zz (awaiting user testing)
+
+Ctrl-d/Ctrl-u move half the focused list's visible rows; Ctrl-f/Ctrl-b and
+Page Down/Up move a full page. Rows come from the workspace layout of the last
+drawn frame. `zz` scrolls History so the selection is centered; the Worktree
+list keeps no scroll offset between frames, so `zz` there is still open.
+
+Verification: full serial suite passed (511 passed, 0 failed, 16 ignored),
+Clippy passed, optimized binary rebuilt.
