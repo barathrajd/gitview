@@ -153,3 +153,29 @@ fn a_session_left_half_gone_by_a_crash_is_reported() {
     assert_eq!(listed[0].health, Health::MissingWorktree);
     assert_eq!(listed[1].health, Health::MissingBranch);
 }
+
+#[test]
+fn sessions_created_at_the_same_time_are_all_recorded() {
+    let root = repository();
+    let threads: Vec<_> = (0..8)
+        .map(|_| {
+            let root = root.clone();
+            std::thread::spawn(move || sessions::create(&root).unwrap())
+        })
+        .collect();
+    let created: Vec<_> = threads
+        .into_iter()
+        .map(|thread| thread.join().unwrap())
+        .collect();
+
+    let listed = sessions::list(&root).unwrap();
+
+    assert_eq!(listed.len(), 8);
+    for session in &created {
+        let status = listed
+            .iter()
+            .find(|s| s.session.name == session.name)
+            .unwrap();
+        assert_eq!(status.health, Health::Ready, "{}", session.name);
+    }
+}
