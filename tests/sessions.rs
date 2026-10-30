@@ -21,6 +21,10 @@ fn repository() -> PathBuf {
     let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     git(&root, &["init", "-q", "-b", "main"]);
+    // In the repository's config, not only on the test's own commands:
+    // Gitview's merge commits too, and CI has no global identity.
+    git(&root, &["config", "user.name", "T"]);
+    git(&root, &["config", "user.email", "t@e"]);
     fs::write(root.join("a.txt"), "one\n").unwrap();
     git(&root, &["add", "a.txt"]);
     git(&root, &["commit", "-qm", "base"]);
