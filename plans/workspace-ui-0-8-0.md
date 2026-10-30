@@ -17,7 +17,9 @@ This plan rebuilds the interface around that for 0.8.0.
   right when an agent runs, and a bottom bar (status, mode, and the
   command/search line). Each panel can be focused, hidden, and resized from
   the keyboard. Below 119 columns, panels stack and the focused one fills the
-  screen, as the agent layout does today.
+  screen, as the agent layout does today. When the agent is visible, show only
+  the focused Gitview pane beside it, with Tab switching Worktree and History
+  (user correction, October 31, 2026).
 - **Every current action still works** with its current key in the panel where
   it applies. The replay and live tests for staging, committing, branches,
   tags, profiles, sessions, and the agent pass after porting.
@@ -54,7 +56,8 @@ This plan rebuilds the interface around that for 0.8.0.
 
 - Agent-defined UI (A2UI-style cards or layouts).
 - Vim marks, jump lists, and configurable keymap modes.
-- Mouse resizing and drag, and searching diff contents (`-S`/`-G`).
+- Mouse resizing and dragging workspace borders, and searching diff contents
+  (`-S`/`-G`). Agent mouse forwarding was added to scope at the user’s request.
 - New Git features (rebase, stash, remotes, conflicts).
 
 ## Approach
@@ -91,10 +94,10 @@ every panel already handles.
 
 ## Milestones
 
-1. **Workspace shell (in progress).** The panel model, focus, hide, and resize. Move the
+1. **Workspace shell (complete).** The panel model, focus, hide, and resize. Move the
    working tree, history, and agent pane into it with their current
    rendering; all replay and live tests pass.
-2. **Vim motions.** `gg`, `G`, the page keys, counts, `zz`, with `Tab` for panel focus
+2. **Vim motions (in progress).** `gg`, `G`, the page keys, counts, `zz`, with `Tab` for panel focus
    across all panels, with replay tests for each.
 3. **Search.** Fuzzy ranking over loaded commits, then the Git-side filters
    and `n`/`N`, with cancellation and tests for each filter.
@@ -214,3 +217,56 @@ controls. The user requested manual test steps before committing this slice.
 Verification: full serial suite passed (487 passed, 0 failed,
 15 ignored), Clippy passed, and the optimized binary was rebuilt.
 The user confirmed resize, hide/restore, and full-width behavior works.
+
+### Combined layout and agent terminal fidelity (awaiting user testing)
+
+User correction: when a shell or agent is visible, show only the focused
+Gitview pane beside it, even on a wide terminal. Tab switches Worktree and
+History. Hiding the agent lets Gitview show its ordinary multi-pane layout.
+This replaces the earlier proposal to show both beside the agent. Hiding both
+Gitview panels leaves the agent full width; the focus key reopens Gitview.
+
+At the user's request, agent mouse forwarding is included in this slice.
+Capture follows agent focus and is disabled on focus return, external editors,
+and terminal cleanup. Mouse reports use
+pane-relative coordinates and the requested legacy, UTF-8, or SGR encoding.
+The agent widget resets cells before painting to avoid inheriting stale
+symbols or inverse/background styles. This is covered by a regression test;
+the exact AGY screenshot still needs user validation.
+
+No changes are committed before the user tests them.
+
+Verification: the full serial suite passed before the layout-policy correction
+(496 passed, 15 ignored). After that correction, all 95 affected tests passed,
+including real-terminal mouse capture and cleanup. Clippy and the optimized
+build passed. The user still needs to validate AGY rendering and mouse behavior.
+
+### AGY scrolling and background detection (awaiting user testing)
+
+The installed AGY probe remains running with mouse reporting disabled, uses
+normal screen mode at startup, and asks OSC 11 for the terminal background.
+Previously the outer terminal could turn wheel movement into arrows reaching
+AGY's input, and the background query went unanswered.
+
+The focused agent now captures wheel input even without a child mouse mode.
+Ordinary output browses local scrollback; typing restores the live screen.
+Alternate-screen programs get Page Up/Down for viewport scrolling. Native mouse
+protocol forwarding remains available when the child enables it. The embedded
+pane paints a known dark default background and reports the same RGB through
+OSC 11, so theme detection has a consistent answer. AGY must restart to pick
+up its theme again. Its post-fix probe no longer lists OSC 11 as unanswered.
+
+Real-terminal tests verify wheel fallback and cleanup, while a pane regression
+checks scrolling and returning to live output. Exact AGY output colors and
+conversation scrolling remain subject to the user's manual test.
+
+Verification after the AGY fixes: full serial suite passed (500 passed,
+0 failed, 16 ignored); Clippy and the optimized build passed. The
+installed AGY probe stayed running and no longer reported an unanswered
+background-color query. User confirmation is still required before committing.
+
+The user reviewed the latest AGY rendering screenshot and authorized committing
+the terminal fixes. Compatibility differences are recorded in
+`docs/agent-terminal-compatibility.md`. Milestone 1 is complete with the user's
+single-Gitview-pane layout correction. Milestone 2 starts with cockpit list
+motions; agent input and workspace chords keep their current behavior.

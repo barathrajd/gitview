@@ -217,3 +217,46 @@ fn resizing_the_terminal_moves_between_side_by_side_and_narrow_layouts() {
     session.assert_terminal_restored();
     session.finish();
 }
+
+#[test]
+fn mouse_reports_reach_the_agent_and_capture_stops_on_focus_return() {
+    let mut session = Session::start(&[
+        "sh",
+        "-c",
+        r"stty raw -echo; printf '\033[?1000h\033[?1006hmouse-ready'; od -An -tx1 -N9 | tr -s ' '; sleep 30",
+    ]);
+    session.wait_for("mouse-ready");
+    session.send(b"\x1c");
+    session.wait_for("returns to Gitview");
+    assert!(session.text().contains("\x1b[?1006h"));
+    session.send(b"\x1b[<0;74;4M");
+    session.wait_for("1b 5b 3c 30 3b 33 3b 33 4d");
+    session.send(b"\x1c");
+    session.wait_for("focuses the agent");
+    assert!(session.text().contains("\x1b[?1006l"));
+    session.send(b"q");
+    assert!(session.wait_for_exit());
+    session.assert_terminal_restored();
+    session.finish();
+}
+
+#[test]
+fn wheel_capture_uses_page_keys_when_the_child_has_no_mouse_mode() {
+    let mut session = Session::start(&[
+        "sh",
+        "-c",
+        r"stty raw -echo; printf '\033[?1049hwheel-ready'; od -An -tx1 -N4 | tr -s ' '; sleep 30",
+    ]);
+    session.wait_for("wheel-ready");
+    session.send(b"\x1c");
+    session.wait_for("returns to Gitview");
+    assert!(session.text().contains("\x1b[?1006h"));
+    session.send(b"\x1b[<64;74;4M");
+    session.wait_for("1b 5b 35 7e");
+    session.send(b"\x1c");
+    session.wait_for("focuses the agent");
+    session.send(b"q");
+    assert!(session.wait_for_exit());
+    session.assert_terminal_restored();
+    session.finish();
+}

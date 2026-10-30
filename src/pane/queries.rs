@@ -2,7 +2,7 @@
 //!
 //! Terminals answer queries such as "where is the cursor?" by writing a reply
 //! to the program's input. The pane answers cursor position and device
-//! attributes; for the rest a program that waits may stall or fall back to a
+//! attributes and its default background color; for the rest a program that waits may stall or fall back to a
 //! plainer mode, so they are counted to show which answers would matter.
 
 use std::collections::BTreeMap;
@@ -25,7 +25,8 @@ const FIXED: &[(&[u8], &str)] = &[
     (b"\x1b[>q", "terminal version (CSI > q)"),
     (b"\x1b[>0q", "terminal version (CSI > q)"),
     (b"\x1b]10;?", "foreground color (OSC 10)"),
-    (b"\x1b]11;?", "background color (OSC 11)"),
+    (b"\x1b]11;?\x07", "background color (OSC 11)"),
+    (b"\x1b]11;?\x1b\\", "background color (OSC 11)"),
     (b"\x1b[14t", "text area size in pixels (CSI 14 t)"),
     (b"\x1b[16t", "cell size in pixels (CSI 16 t)"),
     (b"\x1b[18t", "text area size (CSI 18 t)"),
@@ -35,12 +36,14 @@ const FIXED: &[(&[u8], &str)] = &[
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Answerable {
     CursorPosition,
+    BackgroundColor,
     DeviceAttributes,
 }
 
 fn answerable(pattern: &[u8]) -> Option<Answerable> {
     match pattern {
         b"\x1b[6n" => Some(Answerable::CursorPosition),
+        b"\x1b]11;?\x07" | b"\x1b]11;?\x1b\\" => Some(Answerable::BackgroundColor),
         b"\x1b[c" | b"\x1b[0c" => Some(Answerable::DeviceAttributes),
         _ => None,
     }

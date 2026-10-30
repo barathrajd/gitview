@@ -41,12 +41,25 @@ fn cell_style(cell: &vt100::Cell) -> Style {
     }
     Style::default()
         .fg(map_color(cell.fgcolor()))
-        .bg(map_color(cell.bgcolor()))
+        .bg(match cell.bgcolor() {
+            vt100::Color::Default => {
+                let (r, g, b) = crate::pane::DEFAULT_BACKGROUND;
+                Color::Rgb(r, g, b)
+            }
+            color => map_color(color),
+        })
         .add_modifier(modifier)
 }
 
 impl Widget for PaneScreen<'_> {
     fn render(self, area: Rect, buffer: &mut Buffer) {
+        // Own every cell, including blank cells, rather than inheriting old
+        // symbols or additive modifiers from the surrounding widgets.
+        for y in area.y..area.bottom() {
+            for x in area.x..area.right() {
+                buffer[(x, y)].reset();
+            }
+        }
         let (rows, columns) = self.0.size();
         let (rows, columns) = (rows.get(), columns.get());
         for row in 0..rows.min(area.height) {
@@ -142,7 +155,7 @@ pub fn render_agent_pane(
     viewport.render_widget(PaneScreen(pane.screen()), inner);
 
     let screen = pane.screen();
-    if focused && !screen.hide_cursor() {
+    if focused && !screen.hide_cursor() && screen.scrollback() == 0 {
         let (row, column) = screen.cursor_position();
         if row < inner.height && column < inner.width {
             viewport.set_cursor_position(Position::new(inner.x + column, inner.y + row));
@@ -202,6 +215,9 @@ pub fn plan_workspace_agent_layout(
     workspace: &crate::workspace::Workspace,
     agent_focused: bool,
 ) -> AgentLayout {
+    if !workspace.has_gitview_panels() && workspace.agent_width().is_some() {
+        return AgentLayout::AgentFull(total);
+    }
     if workspace.is_fullscreen() {
         return if agent_focused && workspace.agent_width().is_some() {
             AgentLayout::AgentFull(total)

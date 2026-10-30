@@ -230,3 +230,50 @@ fn probe_claude() {
 fn probe_codex() {
     probe_interactive("codex", &["codex"]);
 }
+
+#[test]
+#[ignore = "starts installed agy without sending a prompt"]
+fn probe_agy_terminal_modes() {
+    if !executable_on_path("agy") {
+        return;
+    }
+    let folder = std::env::current_dir().unwrap();
+    let mut pane = AgentPane::spawn(&["agy".to_owned()], folder.as_path(), ROWS, COLUMNS).unwrap();
+    time_to_first_content(&mut pane, Duration::from_secs(25));
+    settle(&mut pane, Duration::from_secs(3), Duration::from_secs(15));
+    println!(
+        "AGY state={:?} mouse={:?}/{:?} alternate={} scrollback={} queries={:?} unhandled={:?}",
+        pane.state(),
+        pane.screen().mouse_protocol_mode(),
+        pane.screen().mouse_protocol_encoding(),
+        pane.screen().alternate_screen(),
+        pane.screen().scrollback_len(),
+        pane.unanswered_queries(),
+        pane.unhandled_sequences()
+    );
+    println!(
+        "AGY bracketed_paste={} application_cursor={} hidden_cursor={} startup_prompts={:?}",
+        pane.screen().bracketed_paste(),
+        pane.screen().application_cursor(),
+        pane.screen().hide_cursor(),
+        pane.screen_text()
+            .lines()
+            .filter(|line| {
+                let lower = line.to_lowercase();
+                ["trust", "permission", "welcome", "continue", "error"]
+                    .iter()
+                    .any(|word| lower.contains(word))
+                    && !line.contains("http")
+                    && !line.contains('@')
+            })
+            .collect::<Vec<_>>()
+    );
+    send_key(
+        &mut pane,
+        KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL),
+    );
+    send_key(
+        &mut pane,
+        KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL),
+    );
+}

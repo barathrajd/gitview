@@ -43,6 +43,10 @@ impl Workspace {
     }
 
     /// The visible agent's requested width, before terminal bounds are applied.
+    pub fn has_gitview_panels(&self) -> bool {
+        self.sidebar || self.center
+    }
+
     pub fn agent_width(&self) -> Option<u16> {
         self.agent.then_some(self.agent_width)
     }
@@ -58,7 +62,7 @@ impl Workspace {
                 Panel::Sidebar
             };
         }
-        gitview.layout(area)
+        gitview.layout_for_width(area, !self.agent && area.width >= 119)
     }
 
     pub fn restore_panels(&mut self) {
@@ -143,6 +147,10 @@ impl Workspace {
     }
 
     pub fn layout(&self, area: Rect) -> WorkspaceLayout {
+        self.layout_for_width(area, area.width >= 119)
+    }
+
+    fn layout_for_width(&self, area: Rect, wide_terminal: bool) -> WorkspaceLayout {
         let bar_height = area.height.min(1);
         let content = Rect {
             height: area.height - bar_height,
@@ -154,7 +162,7 @@ impl Workspace {
             agent: None,
             bar: Rect::new(area.x, content.bottom(), area.width, bar_height),
         };
-        if area.width < 119 || self.fullscreen {
+        if !wide_terminal || self.fullscreen {
             match self.focused {
                 Panel::Sidebar => layout.sidebar = Some(content),
                 Panel::Center => layout.center = Some(content),

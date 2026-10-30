@@ -33,6 +33,9 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
             ui::AgentLayout::AgentFull(area) => Some(area),
             _ => None,
         };
+        app.agent_mouse_area = pane_area.map(ui::agent_pane_inner);
+        let mouse_enabled = app.focus == Focus::Agent && app.agent_mouse_area.is_some();
+        env.host.set_mouse_capture(mouse_enabled)?;
         if let (Some(area), Some(pane)) = (pane_area, app.pane.as_mut()) {
             let inner = ui::agent_pane_inner(area);
             let (rows, columns) = (inner.height.max(1), inner.width.max(1));

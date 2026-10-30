@@ -31,7 +31,15 @@ pub(super) fn poll(app: &mut App) {
 pub(super) fn toggle_focus(app: &mut App) {
     app.workspace_prefix = false;
     app.focus = match app.focus {
-        Focus::Agent => Focus::Gitview,
+        Focus::Agent => {
+            let panel = match app.app_state.view() {
+                View::WorkingTree => Panel::Sidebar,
+                View::History => Panel::Center,
+            };
+            app.workspace.show(panel);
+            app.workspace.focus(panel);
+            Focus::Gitview
+        }
         Focus::Gitview => {
             app.workspace.show(Panel::Agent);
             app.workspace.focus(Panel::Agent);
@@ -99,9 +107,51 @@ pub(super) fn forward(app: &mut App, event: &Event) {
     if pane.state() != PaneState::Running {
         return;
     }
+    if matches!(event, Event::Key(_) | Event::Paste(_)) {
+        pane.scroll_to_live();
+    }
     let bytes = match event {
         Event::Key(key) => encode_key(*key, pane.screen().application_cursor()),
         Event::Paste(text) => Some(encode_paste(text, pane.screen().bracketed_paste())),
+        Event::Mouse(mouse) => {
+            let Some(area) = app.agent_mouse_area else {
+                return;
+            };
+            if !area.contains(ratatui::layout::Position::new(mouse.column, mouse.row)) {
+                return;
+            }
+            if pane.screen().mouse_protocol_mode() == vt100::MouseProtocolMode::None {
+                use crossterm::event::MouseEventKind;
+                let up = match mouse.kind {
+                    MouseEventKind::ScrollUp => true,
+                    MouseEventKind::ScrollDown => false,
+                    _ => return,
+                };
+                if pane.screen().alternate_screen() {
+                    encode_key(
+                        KeyEvent::new(
+                            if up {
+                                KeyCode::PageUp
+                            } else {
+                                KeyCode::PageDown
+                            },
+                            KeyModifiers::NONE,
+                        ),
+                        pane.screen().application_cursor(),
+                    )
+                } else {
+                    pane.scroll_by(if up { 3 } else { -3 });
+                    None
+                }
+            } else {
+                crate::pane::encode_mouse(
+                    *mouse,
+                    area,
+                    pane.screen().mouse_protocol_mode(),
+                    pane.screen().mouse_protocol_encoding(),
+                )
+            }
+        }
         _ => None,
     };
     if let Some(bytes) = bytes {

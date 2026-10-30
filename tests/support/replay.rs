@@ -17,6 +17,7 @@ use gitview::app::run::{Host, Navigation, run_app_with_agent};
 use ratatui::{Terminal, backend::TestBackend};
 
 pub enum Step {
+    Mouse(crossterm::event::MouseEvent),
     Key(KeyCode),
     Char(char),
     Ctrl(char),
@@ -74,6 +75,11 @@ impl Host for ScriptedHost {
         let screen = &self.last_screen;
         let waiting = match self.steps.front() {
             None => return Err(RecvTimeoutError::Disconnected),
+            Some(Step::Mouse(mouse)) => {
+                let event = Event::Mouse(*mouse);
+                self.steps.pop_front();
+                return Ok(event);
+            }
             Some(Step::Key(code)) => {
                 let event = key(*code, KeyModifiers::NONE);
                 self.steps.pop_front();

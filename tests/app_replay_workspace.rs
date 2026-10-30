@@ -309,3 +309,118 @@ fn agent_can_hide_and_restore_without_ending_the_shell() {
     assert!(restored.contains("WORKTREE") || restored.contains("HISTORY"));
     assert!(restored.contains("running"));
 }
+
+#[test]
+fn agent_workspace_shows_only_the_selected_gitview_pane() {
+    let repository = Repo::with_changes();
+    for width in [119, 140, 300] {
+        let screen = replay::replay_with_agent(
+            &repository.path(),
+            Some(&["sh", "-c", "echo agent-ready; sleep 30"]),
+            width,
+            30,
+            [WaitFor("agent-ready"), WaitFor("notes.txt")],
+        );
+        assert!(screen.contains("WORKTREE"), "{width}: {screen}");
+        assert!(!screen.contains("HISTORY"), "{width}: {screen}");
+        assert!(screen.contains("AGENT"), "{width}: {screen}");
+        let history = replay::replay_with_agent(
+            &repository.path(),
+            Some(&["sh", "-c", "echo agent-ready; sleep 30"]),
+            width,
+            30,
+            [WaitFor("agent-ready"), Key(Tab)],
+        );
+        assert!(history.contains("HISTORY"), "{width}: {history}");
+        assert!(!history.contains("WORKTREE"), "{width}: {history}");
+    }
+}
+
+#[test]
+fn compact_agent_workspace_keeps_common_filenames_readable() {
+    let repository = Repo::with_changes();
+    repository.write("made-by-agent.txt", "new\n");
+    let screen = replay::replay_with_agent(
+        &repository.path(),
+        Some(&["sh", "-c", "echo agent-ready; sleep 30"]),
+        140,
+        30,
+        [WaitFor("agent-ready"), WaitFor("made-by-agent.txt")],
+    );
+    assert!(!screen.contains("HISTORY"));
+}
+
+#[test]
+fn agent_receives_mouse_coordinates_inside_its_terminal() {
+    use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    let repository = Repo::with_changes();
+    replay::replay_with_agent(
+        &repository.path(),
+        Some(&[
+            "sh",
+            "-c",
+            r"stty raw -echo; printf '\033[?1000h\033[?1006hmouse-ready'; od -An -tx1 -N9 | tr -s ' '; sleep 30",
+        ]),
+        140,
+        30,
+        [
+            WaitFor("mouse-ready"),
+            Ctrl('\\'),
+            Mouse(MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column: 73,
+                row: 3,
+                modifiers: KeyModifiers::NONE,
+            }),
+            WaitFor("1b 5b 3c 30 3b 33 3b 33 4d"),
+        ],
+    );
+}
+
+#[test]
+fn hiding_both_gitview_panels_leaves_the_agent_full_width() {
+    let repository = Repo::with_changes();
+    let screen = replay::replay_with_agent(
+        &repository.path(),
+        Some(&["sh", "-c", "echo agent-ready; sleep 30"]),
+        140,
+        30,
+        [
+            WaitFor("agent-ready"),
+            Ctrl('w'),
+            Char('x'),
+            Ctrl('w'),
+            Char('x'),
+        ],
+    );
+    assert!(screen.contains("AGENT"));
+    assert!(!screen.contains("WORKTREE"));
+    assert!(!screen.contains("HISTORY"));
+}
+
+#[test]
+fn wheel_scrolls_an_alternate_screen_without_moving_its_input_cursor() {
+    use crossterm::event::{KeyModifiers, MouseEvent, MouseEventKind};
+    let repository = Repo::with_changes();
+    replay::replay_with_agent(
+        &repository.path(),
+        Some(&[
+            "sh",
+            "-c",
+            r"stty raw -echo; printf '\033[?1049hwheel-ready'; od -An -tx1 -N4 | tr -s ' '; sleep 30",
+        ]),
+        140,
+        30,
+        [
+            WaitFor("wheel-ready"),
+            Ctrl('\\'),
+            Mouse(MouseEvent {
+                kind: MouseEventKind::ScrollUp,
+                column: 73,
+                row: 3,
+                modifiers: KeyModifiers::NONE,
+            }),
+            WaitFor("1b 5b 35 7e"),
+        ],
+    );
+}
