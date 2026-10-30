@@ -140,6 +140,64 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "$TAG_NAME" "$ARCHIVE" "$ARCHIVE.sha256" --clobber
 
+  check-homebrew-formula:
+    # Dry runs only: installs the rendered formula from a local tap against the
+    # dry-run archive on Linux, and checks that an Intel Mac is refused.
+    needs: build-linux-x86_64
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.task == 'dry-run-linux-x86_64' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            expect: install
+          - runner: macos-15-intel
+            expect: refuse
+    runs-on: ${{ matrix.runner }}
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_ENV_HINTS: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: gitview-dry-run-linux-x86_64
+          path: dry-run
+      - name: Render the formula for the dry-run archive
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)"
+          tag="v$version"
+          archive="gitview-$tag-linux-x86_64.tar.gz"
+          mv dry-run/gitview-dry-run-linux-x86_64.tar.gz "dry-run/$archive"
+          (cd dry-run && shasum -a 256 "$archive" > "$archive.sha256")
+          printf '%064d  gitview-%s-macos-arm64.tar.gz\n' 0 "$tag" > dry-run/macos.sha256
+          scripts/render-homebrew-formula.sh "$tag" dry-run/macos.sha256 "dry-run/$archive.sha256" > gitview.rb
+          # Point the Linux URL at the local archive instead of the release.
+          sed -i.bak "s#https://github.com/barathrajd/gitview/releases/download/$tag/$archive#file://$PWD/dry-run/$archive#" gitview.rb
+          grep -q "file://" gitview.rb
+          eval "$(brew shellenv)" 2>/dev/null || eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"
+          brew tap-new --no-git gitview-ci/check
+          cp gitview.rb "$(brew --repository gitview-ci/check)/Formula/gitview.rb"
+          brew trust gitview-ci/check
+          brew style gitview-ci/check/gitview
+      - name: Install and test on Linux
+        if: ${{ matrix.expect == 'install' }}
+        run: |
+          brew install gitview-ci/check/gitview
+          brew test gitview-ci/check/gitview
+          "$(brew --prefix)/bin/gitview" --version
+      - name: Refuse an Intel Mac
+        if: ${{ matrix.expect == 'refuse' }}
+        run: |
+          if brew install gitview-ci/check/gitview > install.log 2>&1; then
+            cat install.log
+            echo "Homebrew installed gitview on an Intel Mac" >&2
+            exit 1
+          fi
+          cat install.log
+          grep -i "arm64" install.log
+
   publish-crate:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.task == 'publish-crate') }}

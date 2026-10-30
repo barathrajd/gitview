@@ -1,0 +1,37 @@
+# Rendered by scripts/render-homebrew-formula.sh for each release and pushed
+# to github.com/barathrajd/homebrew-gitview. Edit this template, not the tap.
+class Gitview < Formula
+  desc "Keyboard-first terminal interface for reviewing Git history and changes"
+  homepage "https://github.com/barathrajd/gitview"
+  license "MIT"
+
+  depends_on "git"
+
+  # Releases ship Apple Silicon and x86_64 Linux binaries only; the arch
+  # dependencies make Homebrew refuse other machines with a clear message.
+  on_macos do
+    depends_on arch: :arm64
+
+    on_arm do
+      url "https://github.com/barathrajd/gitview/releases/download/@TAG@/gitview-@TAG@-macos-arm64.tar.gz"
+      sha256 "@MACOS_SHA256@"
+    end
+  end
+
+  on_linux do
+    depends_on arch: :x86_64
+
+    on_intel do
+      url "https://github.com/barathrajd/gitview/releases/download/@TAG@/gitview-@TAG@-linux-x86_64.tar.gz"
+      sha256 "@LINUX_SHA256@"
+    end
+  end
+
+  def install
+    bin.install "gitview"
+  end
+
+  test do
+    assert_match "gitview #{version}", shell_output("#{bin}/gitview --version")
+  end
+end
