@@ -32,6 +32,10 @@ pub enum Health {
     MissingWorktree,
     /// The session's branch is gone.
     MissingBranch,
+    /// A worktree in the sessions folder that the manifest doesn't record,
+    /// left by a crash while the session was being created. It can only be
+    /// discarded.
+    Unrecorded,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -98,11 +102,59 @@ pub fn create(root: &Path) -> Result<Session, String> {
 /// Every recorded session, oldest first, with its current state.
 pub fn list(root: &Path) -> Result<Vec<SessionStatus>, String> {
     let folder = sessions_dir(root)?;
-    Ok(read_manifest(&folder)?
-        .sessions
-        .into_iter()
+    let recorded = read_manifest(&folder)?.sessions;
+    let mut listed: Vec<_> = recorded
+        .iter()
+        .cloned()
         .map(|session| status(root, session))
-        .collect())
+        .collect();
+    for session in unrecorded(root, &folder, &recorded)? {
+        let mut found = status(root, session);
+        found.health = Health::Unrecorded;
+        listed.push(found);
+    }
+    Ok(listed)
+}
+
+/// Worktrees Git knows in the sessions folder that the manifest doesn't.
+fn unrecorded(root: &Path, folder: &Path, recorded: &[Session]) -> Result<Vec<Session>, String> {
+    let Ok(folder) = fs::canonicalize(folder) else {
+        return Ok(Vec::new());
+    };
+    let listing = git(root, &["worktree", "list", "--porcelain", "-z"])?;
+    let mut found = Vec::new();
+    for entry in listing.split("\0\0") {
+        let mut path = None;
+        let mut branch = None;
+        for field in entry.split('\0') {
+            if let Some(value) = field.strip_prefix("worktree ") {
+                path = Some(PathBuf::from(value));
+            } else if let Some(value) = field.strip_prefix("branch refs/heads/") {
+                branch = Some(value.to_owned());
+            }
+        }
+        let (Some(path), Some(branch)) = (path, branch) else {
+            continue;
+        };
+        let resolved = fs::canonicalize(&path).unwrap_or(path);
+        if resolved.parent() != Some(folder.as_path())
+            || recorded.iter().any(|session| session.path == resolved)
+        {
+            continue;
+        }
+        let name = resolved
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        found.push(Session {
+            name,
+            branch,
+            base_branch: String::new(),
+            base_commit: String::new(),
+            path: resolved,
+        });
+    }
+    Ok(found)
 }
 
 fn status(root: &Path, session: Session) -> SessionStatus {
@@ -153,6 +205,12 @@ pub struct Review {
 }
 
 pub fn review(root: &Path, session: &Session) -> Result<Review, String> {
+    if session.base_branch.is_empty() {
+        return Err(format!(
+            "{} wasn't fully recorded, so its base branch is unknown; it can only be discarded",
+            session.name
+        ));
+    }
     let base_tip = branch_tip(root, &session.base_branch)?;
     let session_tip = branch_tip(root, &session.branch)?;
     let range = format!("{}..{session_tip}", session.base_commit);
@@ -248,6 +306,104 @@ pub fn merge(root: &Path, review: &Review) -> Result<(), String> {
             String::from_utf8_lossy(&merged.stderr).trim()
         ))
     }
+}
+
+/// What discarding a session would lose, as of when it was previewed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DiscardPreview {
+    pub session: Session,
+    /// Commits only the session's branch has, newest first.
+    pub unmerged: Vec<String>,
+    /// The worktree's uncommitted files, as `git status --porcelain` lines.
+    pub uncommitted: Vec<String>,
+    tip: Option<String>,
+}
+
+pub fn preview_discard(root: &Path, session: &Session) -> Result<DiscardPreview, String> {
+    let tip = branch_tip(root, &session.branch).ok();
+    let unmerged = match &tip {
+        Some(tip) => git(
+            root,
+            &[
+                "log",
+                "--format=%h %s",
+                tip,
+                "--not",
+                // `--exclude` before `--branches` takes the name without refs/heads/.
+                &format!("--exclude={}", session.branch),
+                "--branches",
+            ],
+        )?
+        .lines()
+        .map(str::to_owned)
+        .collect(),
+        None => Vec::new(),
+    };
+    let uncommitted = if session.path.is_dir() {
+        git(
+            &session.path,
+            &["status", "--porcelain", "--untracked-files=all"],
+        )?
+        .lines()
+        .map(str::to_owned)
+        .collect()
+    } else {
+        Vec::new()
+    };
+    Ok(DiscardPreview {
+        session: session.clone(),
+        unmerged,
+        uncommitted,
+        tip,
+    })
+}
+
+/// Remove a session's worktree, branch, and manifest entry, refusing if it
+/// changed since the preview. Parts a crash already removed are skipped.
+pub fn discard(root: &Path, preview: &DiscardPreview) -> Result<(), String> {
+    let session = &preview.session;
+    let now = preview_discard(root, session)?;
+    if now.tip != preview.tip || now.uncommitted != preview.uncommitted {
+        return Err(format!(
+            "{} changed since the preview; look again before discarding",
+            session.name
+        ));
+    }
+    let folder = sessions_dir(root)?;
+    if session.path.exists() {
+        let path = session
+            .path
+            .to_str()
+            .ok_or("The session path isn't valid UTF-8")?;
+        if git(root, &["worktree", "remove", "--force", path]).is_err() {
+            // Not a registered worktree any more; remove the folder only
+            // when it really is inside the sessions folder.
+            let inside = fs::canonicalize(&folder)
+                .ok()
+                .is_some_and(|folder| session.path.parent() == Some(folder.as_path()));
+            if !inside {
+                return Err(format!(
+                    "Refusing to delete {}: it isn't in the sessions folder",
+                    path
+                ));
+            }
+            fs::remove_dir_all(&session.path)
+                .map_err(|error| format!("Could not remove {path}: {error}"))?;
+        }
+    }
+    git(root, &["worktree", "prune"])?;
+    if preview.tip.is_some() {
+        git(root, &["branch", "-D", &session.branch])?;
+    }
+    let mut manifest = read_manifest(&folder)?;
+    let before = manifest.sessions.len();
+    manifest
+        .sessions
+        .retain(|recorded| recorded.name != session.name);
+    if manifest.sessions.len() != before {
+        write_manifest(&folder, &manifest)?;
+    }
+    Ok(())
 }
 
 fn branch_tip(root: &Path, branch: &str) -> Result<String, String> {
@@ -351,7 +507,10 @@ fn git(root: &Path, args: &[&str]) -> Result<String, String> {
         .output()
         .map_err(|error| format!("Could not run Git: {error}"))?;
     if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+        // Only the end: `status --porcelain` lines can start with a space.
+        Ok(String::from_utf8_lossy(&output.stdout)
+            .trim_end()
+            .to_owned())
     } else {
         Err(format!(
             "Git {} failed: {}",
