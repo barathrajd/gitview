@@ -715,3 +715,59 @@ fn renders_branch_and_commit_details() {
     assert!(commit.contains("Enter/l"));
     assert!(commit.contains("diff"));
 }
+
+/// Whether the cells under `text` in the first row containing it are underlined.
+fn underlined(buffer: &ratatui::buffer::Buffer, text: &str) -> Vec<bool> {
+    let width = usize::from(buffer.area.width);
+    let cells = buffer.content();
+    let rows: Vec<String> = cells
+        .chunks(width)
+        .map(|row| row.iter().map(|cell| cell.symbol()).collect())
+        .collect();
+    let (y, row) = rows
+        .iter()
+        .enumerate()
+        .find(|(_, row)| row.contains(text))
+        .unwrap_or_else(|| panic!("{text} not drawn"));
+    let x = row[..row.find(text).unwrap()].chars().count();
+    (0..text.chars().count())
+        .map(|offset| {
+            cells[y * width + x + offset]
+                .modifier
+                .contains(ratatui::style::Modifier::UNDERLINED)
+        })
+        .collect()
+}
+
+#[test]
+fn search_page_underlines_the_matched_characters() {
+    let history = Ok(vec![
+        "* 1234567 Fix search results - Sam\u{1f}1234567".to_owned(),
+    ]);
+    let matches = vec![0];
+    let mut selection = ListState::default();
+    selection.select(Some(0));
+    let mut terminal = Terminal::new(TestBackend::new(120, 24)).unwrap();
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                Screen::Search {
+                    history: Some(&history),
+                    matches: &matches,
+                    query: "search",
+                    pending: false,
+                    selection: &mut selection,
+                },
+                ratatui::symbols::border::PLAIN,
+            )
+        })
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    assert_eq!(
+        underlined(buffer, "Fix search"),
+        [
+            false, false, false, false, true, true, true, true, true, true
+        ]
+    );
+}

@@ -198,7 +198,10 @@ pub(super) fn render_search(
         Some(Ok(rows)) => matches
             .iter()
             .filter_map(|index| rows.get(*index))
-            .map(|row| ListItem::new(history::display_row(row)))
+            .map({
+                let mut finder = history::MatchFinder::new(query);
+                move |row| ListItem::new(crate::ui::highlighted_history_row(row, &mut finder))
+            })
             .collect(),
     };
     let title = if pending {

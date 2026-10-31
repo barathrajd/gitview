@@ -50,6 +50,7 @@ pub fn render_workspace_cockpit(
         history_selection,
         working_tree_selection,
     } = cockpit;
+    let highlight = search_prompt.as_ref().map_or("", |prompt| prompt.query);
     let mut hints = match focused {
         View::History => vec![
             ("Tab", "pane"),
@@ -97,7 +98,15 @@ pub fn render_workspace_cockpit(
     let side_by_side = workspace_layout.sidebar.zip(workspace_layout.center);
     if side_by_side.is_none() {
         if let Some(area) = workspace_layout.center {
-            render_history_panel(frame, area, history, history_selection, true, border);
+            render_history_panel(
+                frame,
+                area,
+                history,
+                history_selection,
+                true,
+                highlight,
+                border,
+            );
         }
         if let Some(area) = workspace_layout.sidebar {
             render_worktree_panel(
@@ -127,6 +136,7 @@ pub fn render_workspace_cockpit(
             history,
             history_selection,
             focused == View::History,
+            highlight,
             border,
         );
     } else if let Some((sidebar, center)) = side_by_side {
@@ -149,6 +159,7 @@ pub fn render_workspace_cockpit(
             history,
             history_selection,
             focused == View::History,
+            highlight,
             border,
         );
         render_inspector(
@@ -166,8 +177,8 @@ pub fn render_workspace_cockpit(
     }
 
     let (staged, unstaged, untracked) = status_counts(status);
-    let status_line = if let Some(prompt) = search_prompt {
-        Line::styled(format!(" {prompt}"), Style::default().fg(ACCENT))
+    let status_line = if let Some(prompt) = &search_prompt {
+        Line::styled(format!(" {}", prompt.line), Style::default().fg(ACCENT))
     } else if feedback.is_empty() {
         Line::from(vec![
             Span::styled(" STAGED ", Style::default().fg(Color::Rgb(94, 234, 212))),
@@ -289,6 +300,7 @@ pub(super) fn render_history_panel(
     history: Option<&Result<Vec<String>, String>>,
     selection: &mut ListState,
     focused: bool,
+    highlight: &str,
     border: ratatui::symbols::border::Set<'static>,
 ) {
     let items = match history {
@@ -297,7 +309,10 @@ pub(super) fn render_history_panel(
         Some(Ok(rows)) if rows.is_empty() => vec![ListItem::new("No commits yet")],
         Some(Ok(rows)) => rows
             .iter()
-            .map(|row| ListItem::new(history::display_row(row)))
+            .map({
+                let mut finder = history::MatchFinder::new(highlight);
+                move |row| ListItem::new(crate::ui::highlighted_history_row(row, &mut finder))
+            })
             .collect(),
     };
     render_panel_list(

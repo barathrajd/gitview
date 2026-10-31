@@ -10,6 +10,13 @@ use std::path::Path;
 
 use super::prepared::PreparedDiff;
 
+/// The inline search: the status-line text and the query whose matches are
+/// underlined in History.
+pub struct SearchPrompt<'a> {
+    pub line: String,
+    pub query: &'a str,
+}
+
 pub struct Cockpit<'a> {
     pub repository: &'a Path,
     pub profile: &'a str,
@@ -18,7 +25,7 @@ pub struct Cockpit<'a> {
     pub status: Option<&'a Result<Vec<Entry>, String>>,
     pub feedback: &'a str,
     /// The inline `/` prompt, drawn on the status line in place of the counts.
-    pub search_prompt: Option<String>,
+    pub search_prompt: Option<SearchPrompt<'a>>,
     pub focused: View,
     pub history_selection: &'a mut ListState,
     pub working_tree_selection: &'a mut ListState,

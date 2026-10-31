@@ -151,6 +151,47 @@ pub fn next_match(
     .copied()
 }
 
+/// Byte offsets in `row` of the characters that match the query, in order.
+/// Empty without a query or a match.
+pub fn match_positions(row: &str, query: &str) -> Vec<usize> {
+    MatchFinder::new(query).positions(row)
+}
+
+/// Finds match positions for one query across many rows, building the
+/// matcher once.
+pub struct MatchFinder {
+    matcher: Option<frizbee::Matcher>,
+}
+
+impl MatchFinder {
+    pub fn new(query: &str) -> Self {
+        let config = frizbee::Config::default().casing(frizbee::CaseMatching::Ignore);
+        Self {
+            matcher: (!query.trim().is_empty())
+                .then(|| frizbee::Matcher::from_query(query, &config)),
+        }
+    }
+
+    /// Byte offsets in `row` of the matching characters, in order.
+    pub fn positions(&mut self, row: &str) -> Vec<usize> {
+        let Some(matcher) = &mut self.matcher else {
+            return Vec::new();
+        };
+        let mut positions: Vec<usize> = matcher
+            .match_one_indices(row, 0)
+            .map(|found| {
+                found
+                    .indices
+                    .into_iter()
+                    .map(|index| index as usize)
+                    .collect()
+            })
+            .unwrap_or_default();
+        positions.sort_unstable();
+        positions
+    }
+}
+
 /// Hide the full object ID used for searching from the visible graph row.
 pub fn display_row(row: &str) -> &str {
     row.rsplit_once('\u{1f}')

@@ -49,3 +49,43 @@ pub(crate) fn selection_style() -> Style {
         .fg(Color::Rgb(241, 245, 249))
         .bold()
 }
+
+/// A history row as drawn, with the characters the finder matches in the accent
+/// colour and underlined. The underline survives the selection colours.
+pub(crate) fn highlighted_history_row(
+    row: &str,
+    finder: &mut crate::history::MatchFinder,
+) -> Line<'static> {
+    let visible = crate::history::display_row(row);
+    let positions = finder.positions(row);
+    if positions.is_empty() {
+        return Line::raw(visible.to_owned());
+    }
+    let matched = Style::default()
+        .fg(ACCENT)
+        .add_modifier(ratatui::style::Modifier::UNDERLINED);
+    let mut spans: Vec<ratatui::text::Span<'static>> = Vec::new();
+    let mut run = String::new();
+    let mut run_matched = false;
+    for (index, character) in visible.char_indices() {
+        let is_match = positions.binary_search(&index).is_ok();
+        if is_match != run_matched && !run.is_empty() {
+            let text = std::mem::take(&mut run);
+            spans.push(if run_matched {
+                ratatui::text::Span::styled(text, matched)
+            } else {
+                ratatui::text::Span::raw(text)
+            });
+        }
+        run_matched = is_match;
+        run.push(character);
+    }
+    if !run.is_empty() {
+        spans.push(if run_matched {
+            ratatui::text::Span::styled(run, matched)
+        } else {
+            ratatui::text::Span::raw(run)
+        });
+    }
+    Line::from(spans)
+}

@@ -191,3 +191,71 @@ fn replacing_the_cockpit_with_commit_details_clears_old_panes() {
     assert!(!visible.contains("cockpit-only-marker"));
     assert!(!visible.contains("WORKTREE SUMMARY"));
 }
+
+#[test]
+fn inline_search_underlines_matches_in_history() {
+    let mut terminal = Terminal::new(TestBackend::new(140, 24)).unwrap();
+    let history = Ok(vec![
+        "* abcdef0 Ship the cockpit".to_owned(),
+        "* 1234567 Fix the parser".to_owned(),
+    ]);
+    let status = Ok(Vec::new());
+    let mut history_selection = ListState::default();
+    history_selection.select(Some(1));
+    let mut working_tree_selection = ListState::default();
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                Screen::Cockpit(Cockpit {
+                    repository: Path::new("/work/gitview"),
+                    profile: "office",
+                    branches: None,
+                    history: Some(&history),
+                    status: Some(&status),
+                    feedback: "",
+                    search_prompt: Some(gitview::ui::SearchPrompt {
+                        line: "/parser_   match 1 of 1".to_owned(),
+                        query: "parser",
+                    }),
+                    focused: View::History,
+                    history_selection: &mut history_selection,
+                    working_tree_selection: &mut working_tree_selection,
+                }),
+                ratatui::symbols::border::PLAIN,
+            );
+        })
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    let width = usize::from(buffer.area.width);
+    let rows: Vec<String> = buffer
+        .content()
+        .chunks(width)
+        .map(|row| row.iter().map(|cell| cell.symbol()).collect())
+        .collect();
+    let underlined_text = |needle: &str| -> String {
+        let (y, row) = rows
+            .iter()
+            .enumerate()
+            .find(|(_, row)| row.contains(needle))
+            .unwrap();
+        let x = row[..row.find(needle).unwrap()].chars().count();
+        needle
+            .chars()
+            .enumerate()
+            .filter(|(offset, _)| {
+                buffer.content()[y * width + x + offset]
+                    .modifier
+                    .contains(ratatui::style::Modifier::UNDERLINED)
+            })
+            .map(|(_, c)| c)
+            .collect()
+    };
+    // The selected row keeps its underline under the selection colours.
+    assert_eq!(underlined_text("Fix the parser"), "parser");
+    assert_eq!(underlined_text("Ship the cockpit"), "");
+    assert!(
+        rows.iter()
+            .any(|row| row.contains("/parser_   match 1 of 1"))
+    );
+}

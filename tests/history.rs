@@ -319,3 +319,21 @@ fn displays_short_hashes_but_searches_the_full_hash() {
     );
     fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn match_positions_mark_each_matched_byte() {
+    let row = "* a2 Fix search debounce - Bob\u{1f}a2ffff";
+    let marked = |query: &str| -> String {
+        let positions = gitview::history::match_positions(row, query);
+        row.char_indices()
+            .map(|(index, _)| if positions.contains(&index) { '^' } else { ' ' })
+            .collect::<String>()
+            .trim_end()
+            .to_owned()
+    };
+    assert_eq!(marked("debounce fix"), "     ^^^        ^^^^^^^^");
+    assert_eq!(marked("BOB"), "                           ^^^");
+    assert_eq!(marked("fxsrch"), "     ^ ^ ^  ^^^");
+    assert_eq!(marked(""), "");
+    assert_eq!(marked("zzz"), "");
+}

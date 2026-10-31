@@ -257,7 +257,10 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                             } else {
                                 "no match".to_owned()
                             };
-                            format!("/{}_   {status}", app.query)
+                            ui::SearchPrompt {
+                                line: format!("/{}_   {status}", app.query),
+                                query: &app.query,
+                            }
                         }),
                         focused: app.app_state.view(),
                         history_selection: &mut app.selection,
