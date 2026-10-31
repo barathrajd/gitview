@@ -115,6 +115,16 @@ pub struct PreparedDiff {
     prepared: PreparedComparisonFile,
     pub(super) hunk_count: usize,
     layouts: RefCell<Vec<OrdinaryLayout>>,
+    /// The last drawn layout's rows, the rows on screen, and the width.
+    view: std::cell::Cell<Option<DiffView>>,
+}
+
+/// How a prepared diff was last drawn, for scroll motions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DiffView {
+    pub rows: usize,
+    pub visible: usize,
+    pub width: u16,
 }
 
 impl PreparedDiff {
@@ -127,6 +137,7 @@ impl PreparedDiff {
             prepared,
             hunk_count,
             layouts: RefCell::new(Vec::new()),
+            view: std::cell::Cell::new(None),
         }
     }
     pub fn text(&self) -> &str {
@@ -192,6 +203,12 @@ impl PreparedDiff {
             layouts.iter().map(|layout| layout.bytes).sum(),
             layouts.last().map_or(0, |layout| layout.bytes),
         )
+    }
+    pub fn view(&self) -> Option<DiffView> {
+        self.view.get()
+    }
+    pub(super) fn set_view(&self, view: DiffView) {
+        self.view.set(Some(view));
     }
     pub fn hunk_positions(&self, width: u16, raw: bool, split: bool) -> Vec<usize> {
         self.layout(width, raw, split).positions.clone()

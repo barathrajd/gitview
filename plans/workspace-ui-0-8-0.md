@@ -97,7 +97,7 @@ every panel already handles.
 1. **Workspace shell (complete).** The panel model, focus, hide, and resize. Move the
    working tree, history, and agent pane into it with their current
    rendering; all replay and live tests pass.
-2. **Vim motions (in progress).** `gg`, `G`, the page keys, counts, `zz`, with `Tab` for panel focus
+2. **Vim motions (complete).** `gg`, `G`, the page keys, counts, `zz`, with `Tab` for panel focus
    across all panels, with replay tests for each.
 3. **Search.** Fuzzy ranking over loaded commits, then the Git-side filters
    and `n`/`N`, with cancellation and tests for each filter.
@@ -351,3 +351,18 @@ Typed characters keep editing the query. Ctrl-d/Ctrl-u and Ctrl-f/Ctrl-b and
 Page Down/Up move the results by their exact visible rows; other Ctrl or Alt
 letters are ignored instead of typed (Ctrl-d used to add `d`). AltGr
 characters still type. Full serial suite: 524 passed, 0 failed, 16 ignored.
+
+### Milestone 2: pages and diff ends (committed, complete)
+
+Sessions, comparison review, object description, and tag pages accept the
+motions; their text inputs and y/n confirmations keep plain keys. Scrolled
+views now stop at the end: object and tag text estimate wrapped rows, while
+the comparison review and diffs use the rows they last drew. The diff accepts
+`G`, and `zz` centers the selected hunk in a working-tree diff; commit diffs
+have no selected hunk, so `zz` keeps their scroll. The playground gained
+agent sessions and 30 release tags for manual tests.
+
+Verification: full serial suite passed (531 passed, 0 failed, 16 ignored),
+Clippy passed, optimized binary rebuilt. Each page was tested by hand in the
+playground; working-tree `zz` and `j` after a comparison `]` jump are covered
+only by replay tests. Milestone 2 is complete. Next is milestone 3, Search.

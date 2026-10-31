@@ -586,9 +586,34 @@ fn page_rows(app: &App) -> usize {
     })
 }
 
-/// Scroll the open diff. Its length is not known here, so `G` and `zz` do
-/// nothing and downward motions may scroll past the end, as `j` always has.
+/// Scroll the open diff. Once its prepared layout has been drawn, motions
+/// stop at the end and, in a working-tree diff, `zz` centers the selected
+/// hunk. Before that, `G` and
+/// `zz` do nothing and downward motions may scroll past the end.
 fn scroll_diff(app: &mut App, motion: Motion) {
+    if let Some(prepared) = &app.prepared_diff
+        && let Some(view) = prepared.view()
+    {
+        let max = view.rows.saturating_sub(view.visible);
+        let scroll = usize::from(app.diff_scroll);
+        // Only working-tree diffs select hunks, as `[` and `]` do.
+        let selects_hunks = app
+            .diff_entry
+            .as_ref()
+            .is_some_and(|entry| entry.section != crate::worktree::Section::Untracked);
+        let scroll = match motion {
+            Motion::Center if !selects_hunks => scroll,
+            Motion::Center => prepared
+                .hunk_positions(view.width, app.diff_raw_view, app.diff_side_by_side)
+                .get(app.selected_hunk)
+                .map_or(scroll, |hunk| hunk.saturating_sub(view.visible / 2))
+                .min(max.max(scroll)),
+            // A hunk jump may have scrolled past the usual end; stay there.
+            motion => motion.scroll(scroll, max.max(scroll), view.visible),
+        };
+        app.diff_scroll = u16::try_from(scroll).unwrap_or(u16::MAX);
+        return;
+    }
     let rows = screen_page_rows(app.gitview_area, PAGE_CHROME);
     let half = (rows / 2).max(1);
     let scroll = usize::from(app.diff_scroll);

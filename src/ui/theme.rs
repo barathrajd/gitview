@@ -33,6 +33,16 @@ pub(crate) fn page_block(
         .title(title.into().style(Style::default().fg(ACCENT).bold()))
 }
 
+/// Rows `text` takes when wrapped to `width` columns. Counts by display
+/// width, so word wrapping can take a row more on long lines.
+pub(crate) fn wrapped_rows(text: &ratatui::text::Text<'_>, width: u16) -> usize {
+    let width = usize::from(width).max(1);
+    text.lines
+        .iter()
+        .map(|line| line.width().div_ceil(width).max(1))
+        .sum()
+}
+
 pub(crate) fn selection_style() -> Style {
     Style::default()
         .bg(Color::Rgb(25, 43, 52))

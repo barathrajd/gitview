@@ -420,10 +420,16 @@ fn diff_scrolls_by_counts_pages_and_gg() {
         WaitFor("first changed"),
         Ctrl('d'),
         WaitForGone("first changed"),
+        // A commit diff has no selected hunk, so `zz` keeps the scroll.
+        Text("zz"),
+        Pause(std::time::Duration::from_millis(200)),
+        WaitForGone("first changed"),
         Ctrl('u'),
         WaitFor("first changed"),
     ]);
-    replay_sized(&repository.path(), 140, 16, steps);
+    // Short enough that the collapsed diff doesn't fit; scrolling stops at
+    // its end.
+    replay_sized(&repository.path(), 140, 8, steps);
 }
 
 #[test]
@@ -458,4 +464,40 @@ fn search_results_page_without_typing_into_the_query() {
             "{subject}\n{screen}"
         );
     }
+}
+
+#[test]
+fn diff_g_reaches_the_end_and_zz_centers_the_selected_hunk() {
+    let repository = Repo::with_history();
+    let mut text = "first edited\n".to_owned();
+    for number in 2..60 {
+        text.push_str(&format!("line {number}\n"));
+    }
+    text.push_str("last edited\n");
+    repository.write("src/lib.rs", &text);
+
+    replay_sized(
+        &repository.path(),
+        140,
+        9,
+        [
+            WaitFor("src/lib.rs"),
+            Key(Enter),
+            WaitFor("HUNK 1/2"),
+            WaitFor("first edited"),
+            Char('G'),
+            WaitFor("last edited"),
+            WaitForGone("first edited"),
+            Text("gg"),
+            WaitFor("first edited"),
+            // `]` puts the second hunk at the top; `zz` brings the first
+            // hunk's last context line back into view above it.
+            Char(']'),
+            WaitFor("HUNK 2/2"),
+            WaitForGone("line 4 "),
+            Text("zz"),
+            WaitFor("line 4 "),
+            WaitFor("HUNK 2/2"),
+        ],
+    );
 }

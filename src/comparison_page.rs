@@ -51,6 +51,8 @@ pub struct ComparisonPage {
     collapsed: Vec<bool>,
     selected: usize,
     scroll: Cell<usize>,
+    /// The last scroll offset and the visible rows, from the last render.
+    view: Cell<(usize, usize)>,
     jump: Cell<bool>,
     raw: bool,
     side_by_side: bool,
@@ -99,6 +101,7 @@ impl ComparisonPage {
             collapsed: vec![],
             selected: 0,
             scroll: Cell::new(0),
+            view: Cell::new((0, 1)),
             jump: Cell::new(false),
             raw: false,
             side_by_side: true,
@@ -144,6 +147,21 @@ impl ComparisonPage {
             self.fields[self.field].push_str(text);
         }
     }
+    /// True while reviewing, so vim motions apply. The form keeps every
+    /// typed character.
+    pub fn takes_motions(&self) -> bool {
+        !self.pending && self.mode == Mode::Review
+    }
+
+    /// Scroll the review by a motion, using the last rendered size.
+    pub fn motion(&mut self, motion: crate::motion::Motion) {
+        let (max, page) = self.view.get();
+        // `]` may have scrolled past the usual end; don't snap back from there.
+        let offset = self.scroll.get();
+        self.scroll
+            .set(motion.scroll(offset, max.max(offset), page));
+    }
+
     pub fn key(&mut self, root: &Path, key: KeyCode) -> bool {
         if self.pending {
             return key != KeyCode::Esc;
@@ -460,6 +478,8 @@ impl ComparisonPage {
         // Allow the final file header to remain at the top when jumping to it.
         self.scroll
             .set(self.scroll.get().min(total.saturating_sub(1)));
+        let page = usize::from(inner.height).max(1);
+        self.view.set((total.saturating_sub(page), page));
         let rows = (0..result.files.len()).flat_map(|index| {
             std::iter::once((index, None))
                 .chain((0..height(index)).map(move |line| (index, Some(line))))

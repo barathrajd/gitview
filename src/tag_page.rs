@@ -42,6 +42,9 @@ pub struct TagPage {
     read_worker: crate::read_worker::LatestRead<ReadRequest, ReadResult>,
     verification: Option<String>,
     scroll: u16,
+    /// The verification's scroll limit and visible rows, and the list's
+    /// visible rows, from the last render.
+    view: std::cell::Cell<(usize, usize, usize)>,
     sender: mpsc::Sender<Reply>,
     receiver: mpsc::Receiver<Reply>,
 }
@@ -68,6 +71,7 @@ impl TagPage {
             read_worker,
             verification: None,
             scroll: 0,
+            view: std::cell::Cell::new((0, 1, 1)),
             sender,
             receiver,
         };
@@ -153,6 +157,28 @@ impl TagPage {
             input.push_str(text);
         }
     }
+    /// True on the tag list or a verification, so vim motions apply. The
+    /// name prompt and confirmations keep plain keys.
+    pub fn takes_motions(&self) -> bool {
+        self.pending_read.is_none()
+            && !self.pending
+            && self.input.is_none()
+            && self.confirm.is_none()
+    }
+
+    /// Scroll the verification or move the list selection by a motion.
+    pub fn motion(&mut self, motion: crate::motion::Motion) {
+        let (max, page, list_page) = self.view.get();
+        if self.verification.is_some() {
+            let offset = motion.scroll(usize::from(self.scroll).min(max), max, page);
+            self.scroll = u16::try_from(offset).unwrap_or(u16::MAX);
+        } else if let Some(selected) =
+            motion.select(Some(self.selected), self.entries.len(), list_page)
+        {
+            self.selected = selected;
+        }
+    }
+
     /// Return false when the user leaves the tag page.
     pub fn key(&mut self, root: &Path, key: KeyCode) -> bool {
         if self.pending_read.is_some() {
@@ -308,6 +334,8 @@ impl TagPage {
                 lines.push(Line::styled("No local tags.", Style::default().fg(MUTED)));
             }
             let visible = usize::from(areas[0].height.saturating_sub(6)).max(1);
+            let (max, page, _) = self.view.get();
+            self.view.set((max, page, visible));
             let start = self.selected.saturating_sub(visible.saturating_sub(1));
             for (index, tag) in self.entries.iter().enumerate().skip(start).take(visible) {
                 let selected = index == self.selected;
@@ -340,6 +368,17 @@ impl TagPage {
             }));
             ("LOCAL TAGS", Text::from(lines))
         };
+        let block = page_block(title, border);
+        if self.verification.is_some() {
+            let inner = block.inner(areas[0]);
+            let page = usize::from(inner.height).max(1);
+            let (_, _, list_page) = self.view.get();
+            self.view.set((
+                crate::ui::wrapped_rows(&body, inner.width).saturating_sub(page),
+                page,
+                list_page,
+            ));
+        }
         frame.render_widget(
             Paragraph::new(body)
                 .wrap(Wrap { trim: false })
@@ -351,7 +390,7 @@ impl TagPage {
                     },
                     0,
                 ))
-                .block(page_block(title, border)),
+                .block(block),
             areas[0],
         );
         render_key_hints(frame, areas[1], hints);

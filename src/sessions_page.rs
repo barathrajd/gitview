@@ -1,6 +1,7 @@
 //! The Sessions page: list agent sessions, review one, and merge or discard
 //! it after a confirmation. Git work runs off the render loop.
 
+use crate::motion::Motion;
 use crate::sessions::{self, DiscardPreview, Health, Review, Session, SessionStatus};
 use crate::ui::Viewport;
 use crossterm::event::KeyCode;
@@ -121,6 +122,30 @@ impl SessionsPage {
             Err(error) => self.feedback = error,
         }
         self.selected = self.selected.min(self.entries.len().saturating_sub(1));
+    }
+
+    /// True when the page browses a list or a review, so vim motions apply.
+    /// Confirmations and a running Git job take plain keys only.
+    pub fn takes_motions(&self) -> bool {
+        !self.pending && matches!(self.mode, Mode::List | Mode::Review { .. })
+    }
+
+    /// Move the list selection or scroll the review, `page` rows at a time.
+    pub fn motion(&mut self, motion: Motion, page: usize) {
+        match &mut self.mode {
+            Mode::List => {
+                if let Some(selected) = motion.select(Some(self.selected), self.entries.len(), page)
+                {
+                    self.selected = selected;
+                }
+            }
+            Mode::Review { review, scroll } => {
+                let max = review_lines(review).saturating_sub(page);
+                let offset = motion.scroll(usize::from(*scroll), max, page);
+                *scroll = u16::try_from(offset).unwrap_or(u16::MAX);
+            }
+            Mode::ConfirmMerge(_) | Mode::ConfirmDiscard(_) => {}
+        }
     }
 
     /// Return false when the user leaves the page.
@@ -326,6 +351,11 @@ impl SessionsPage {
         );
         render_key_hints(frame, areas[1], hints);
     }
+}
+
+/// Unwrapped rows of the review: the header, commits, and diff.
+fn review_lines(review: &Review) -> usize {
+    3 + review.commits.len().max(1) + review.diff.lines().count()
 }
 
 fn describe(entry: &SessionStatus) -> String {
