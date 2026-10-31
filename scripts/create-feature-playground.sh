@@ -104,6 +104,26 @@ cat > "$repo/untracked playground.txt" <<'EOF'
 This untracked file is ready for staging or discard confirmation.
 EOF
 
+# Agent sessions for the Sessions page (A): worktrees on gitview/<name>
+# branches plus the manifest Gitview reads (see src/sessions.rs). The first
+# session's long commit exercises review scrolling.
+sessions="$repo/.git/gitview/sessions"
+mkdir -p "$sessions"
+# Git reports resolved paths, as on macOS where /tmp is /private/tmp.
+sessions=$(cd "$sessions" && pwd -P)
+base_commit=$(git -C "$repo" rev-parse HEAD)
+manifest=''
+for number in 1 2 3; do
+  name="session-playground-$number"
+  git -C "$repo" worktree add -q -b "gitview/$name" "$sessions/$name" "$base_commit"
+  manifest="$manifest${manifest:+,}
+    {\"name\": \"$name\", \"branch\": \"gitview/$name\", \"base_branch\": \"main\", \"base_commit\": \"$base_commit\", \"path\": \"$sessions/$name\"}"
+done
+seq -f 'Agent line %03g' 1 120 > "$sessions/session-playground-1/agent-long.txt"
+git -C "$sessions/session-playground-1" add -- agent-long.txt
+git -C "$sessions/session-playground-1" commit -qm 'feat: agent adds a long file'
+printf '{"sessions": [%s\n]}\n' "$manifest" > "$sessions/manifest.json"
+
 # Optional: many untracked files for Worktree scrolling.
 if [ -n "${GITVIEW_PLAYGROUND_LARGE:-}" ]; then
   for number in $(seq -w 1 40); do
