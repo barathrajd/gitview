@@ -287,3 +287,37 @@ fn control_y_does_not_confirm_a_branch_switch() {
 
     assert_eq!(current_branch(&repository), "main");
 }
+
+#[test]
+fn comparison_review_motions_scroll_to_the_end_and_back() {
+    let repository = Repo::with_history();
+    let body: String = (1..=120)
+        .map(|line| format!("long line {line:03}\n"))
+        .collect();
+    repository.write("long.txt", &body);
+    repository.commit_all("Add a long file");
+
+    replay(
+        &repository.path(),
+        [
+            WaitFor("Add a long file"),
+            Key(Tab),
+            Char('D'),
+            WaitFor("COMPARE COMMIT SNAPSHOTS"),
+            Key(Enter),
+            WaitFor("▾ long.txt"),
+            Char('G'),
+            WaitFor("long line 120"),
+            WaitForGone("▾ long.txt"),
+            Text("gg"),
+            WaitFor("▾ long.txt"),
+            Ctrl('d'),
+            WaitForGone("▾ long.txt"),
+            Ctrl('u'),
+            WaitFor("▾ long.txt"),
+            Text("50j"),
+            WaitFor("long line 051"),
+            WaitForGone("long line 049"),
+        ],
+    );
+}
