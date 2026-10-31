@@ -18,6 +18,7 @@ pub mod preview;
 pub mod process;
 pub mod read_worker;
 pub mod repository;
+pub mod search_query;
 pub mod sessions;
 pub mod sessions_page;
 pub mod tag_page;
