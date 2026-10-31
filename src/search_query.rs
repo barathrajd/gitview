@@ -34,7 +34,7 @@ impl SearchQuery {
         let mut args: Vec<OsString> = [
             "--literal-pathspecs",
             "log",
-            "--format=%h %d %s - %an%x1f%H",
+            "--format=* %h %d %s - %an%x1f%H",
             "--decorate=short",
             "--color=never",
             "--regexp-ignore-case",
@@ -103,4 +103,39 @@ pub fn parse_query(query: &str) -> SearchQuery {
     }
     parsed.text = text.join(" ");
     parsed
+}
+
+/// Commits found by a filtered search, in the History row format.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Filtered {
+    pub rows: Vec<String>,
+    /// More than the requested limit matched; only the first ones are kept.
+    pub truncated: bool,
+}
+
+/// Runs the query's filters through `git log`, keeping at most `limit`
+/// commits. Blocking: call it off the render loop.
+pub fn run_filtered(
+    root: &std::path::Path,
+    query: &SearchQuery,
+    limit: usize,
+) -> Result<Filtered, String> {
+    let output = crate::process::git_command()
+        .current_dir(root)
+        .args(query.git_log_args(limit + 1))
+        .output()
+        .map_err(|error| format!("Unable to search history: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "Unable to search history: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let mut rows: Vec<String> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::to_owned)
+        .collect();
+    let truncated = rows.len() > limit;
+    rows.truncate(limit);
+    Ok(Filtered { rows, truncated })
 }

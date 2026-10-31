@@ -66,7 +66,7 @@ fn git_args_search_all_refs_by_default() {
         [
             "--literal-pathspecs",
             "log",
-            "--format=%h %d %s - %an%x1f%H",
+            "--format=* %h %d %s - %an%x1f%H",
             "--decorate=short",
             "--color=never",
             "--regexp-ignore-case",
