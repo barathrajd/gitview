@@ -106,6 +106,19 @@ pub(in crate::app) fn handle<H: Host>(
         return Ok(Flow::Handled);
     }
     if let Some(page) = &mut app.sessions_page {
+        if page.takes_motions() {
+            use crate::motion::Parsed;
+            match app.page_motions.key(key) {
+                Parsed::Pending => return Ok(Flow::Handled),
+                Parsed::Motion(motion) => {
+                    page.motion(motion, screen_page_rows(app.gitview_area, PAGE_CHROME));
+                    return Ok(Flow::Handled);
+                }
+                Parsed::Other => {}
+            }
+        } else {
+            app.page_motions.reset();
+        }
         if !page.key(root, plain_code(key)) {
             app.sessions_page = None;
         }
