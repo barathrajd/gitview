@@ -40,6 +40,7 @@ fn with_cockpit(draw_it: impl FnOnce(Screen<'_>)) {
         history: Some(&history),
         status: Some(&status),
         feedback: "",
+        search_prompt: None,
         focused: View::History,
         history_selection: &mut history_selection,
         working_tree_selection: &mut working_tree_selection,

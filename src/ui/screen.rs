@@ -17,6 +17,8 @@ pub struct Cockpit<'a> {
     pub history: Option<&'a Result<Vec<String>, String>>,
     pub status: Option<&'a Result<Vec<Entry>, String>>,
     pub feedback: &'a str,
+    /// The inline `/` prompt, drawn on the status line in place of the counts.
+    pub search_prompt: Option<String>,
     pub focused: View,
     pub history_selection: &'a mut ListState,
     pub working_tree_selection: &'a mut ListState,

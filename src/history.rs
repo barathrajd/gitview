@@ -115,6 +115,42 @@ pub fn search_matches(rows: &[String], query: &str) -> Vec<usize> {
         .collect()
 }
 
+/// Commit rows matching the query, in history order.
+pub fn matches_in_order(rows: &[String], query: &str) -> Vec<usize> {
+    let mut matches = search_matches(rows, query);
+    matches.sort_unstable();
+    matches
+}
+
+/// The matching commit row after `selected` (before it when `forward` is
+/// false), in history order and wrapping around. None without a query or a
+/// match.
+pub fn next_match(
+    rows: &[String],
+    query: &str,
+    selected: Option<usize>,
+    forward: bool,
+) -> Option<usize> {
+    if query.trim().is_empty() {
+        return None;
+    }
+    let matches = matches_in_order(rows, query);
+    let current = selected.unwrap_or(0);
+    if forward {
+        matches
+            .iter()
+            .find(|&&row| row > current)
+            .or_else(|| matches.first())
+    } else {
+        matches
+            .iter()
+            .rev()
+            .find(|&&row| row < current)
+            .or_else(|| matches.last())
+    }
+    .copied()
+}
+
 /// Hide the full object ID used for searching from the visible graph row.
 pub fn display_row(row: &str) -> &str {
     row.rsplit_once('\u{1f}')

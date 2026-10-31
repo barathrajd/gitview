@@ -17,6 +17,48 @@ pub(in crate::app) fn handle<H: Host>(
     key: KeyEvent,
 ) -> io::Result<Flow> {
     let Env { root, .. } = env;
+    if let Some(search) = &mut app.inline_search {
+        let rows = app.history.as_ref().and_then(|rows| rows.as_ref().ok());
+        match key.code {
+            KeyCode::Esc => {
+                app.selection.select(search.origin);
+                app.inline_search = None;
+            }
+            KeyCode::Enter => {
+                app.last_search.clone_from(&app.query);
+                app.inline_search = None;
+            }
+            // The full page ranks the same query.
+            KeyCode::Tab => {
+                app.selection.select(search.origin);
+                app.inline_search = None;
+                open_search_page(app);
+            }
+            KeyCode::Backspace | KeyCode::Char(_) if plain_code(key) != KeyCode::Null => {
+                if key.code == KeyCode::Backspace {
+                    app.query.pop();
+                } else if let KeyCode::Char(c) = key.code {
+                    app.query.push(c);
+                }
+                search.matches = rows
+                    .filter(|_| !app.query.trim().is_empty())
+                    .map(|rows| crate::history::matches_in_order(rows, &app.query))
+                    .unwrap_or_default();
+                // The first match at or below the start, wrapping around.
+                let start = search.origin.unwrap_or(0);
+                let target = search
+                    .matches
+                    .iter()
+                    .find(|&&row| row >= start)
+                    .or_else(|| search.matches.first())
+                    .copied()
+                    .or(search.origin);
+                app.selection.select(target);
+            }
+            _ => {}
+        }
+        return Ok(Flow::Handled);
+    }
     if app.searching {
         // Typed characters edit the query, so only page keys and Ctrl
         // letters move the results; other Ctrl or Alt letters are ignored.
@@ -45,6 +87,7 @@ pub(in crate::app) fn handle<H: Host>(
                 }
             }
             KeyCode::Enter => {
+                app.last_search.clone_from(&app.query);
                 if app.search_debounce.is_some() {
                     update_search_results(
                         app.history.as_ref(),
@@ -105,4 +148,16 @@ pub(in crate::app) fn handle<H: Host>(
         return Ok(Flow::Handled);
     }
     Ok(Flow::Next)
+}
+
+/// Open the full results page, ranked for the current query.
+fn open_search_page(app: &mut App) {
+    app.searching = true;
+    update_search_results(
+        app.history.as_ref(),
+        &app.query,
+        &mut app.search_results,
+        &mut app.search_selection,
+    );
+    app.search_debounce = app.history.is_none().then_some(Instant::now());
 }

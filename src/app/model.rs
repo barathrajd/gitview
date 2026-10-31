@@ -32,9 +32,13 @@ pub(super) struct App {
     pub(super) border: ratatui::symbols::border::Set<'static>,
     pub(super) help: bool,
     pub(super) searching: bool,
+    /// The `/` prompt on the status line, while History stays on screen.
+    pub(super) inline_search: Option<InlineSearch>,
     pub(super) history_filter: Option<std::path::PathBuf>,
     pub(super) history_path_input: Option<String>,
     pub(super) query: String,
+    /// The query last submitted with Enter, which `n` and `N` repeat.
+    pub(super) last_search: String,
     pub(super) search_results: Vec<usize>,
     pub(super) search_selection: ListState,
     pub(super) search_debounce: Option<Instant>,
@@ -144,4 +148,11 @@ pub(super) struct App {
     /// The file to select when the agent's commit details arrive.
     pub(super) details_file: Option<String>,
     pub(super) pending_control: Option<(crate::control::server::ControlCommand, Instant)>,
+}
+
+/// An inline `/` search: the row to return to on Esc, and the matching rows
+/// in history order.
+pub(super) struct InlineSearch {
+    pub(super) origin: Option<usize>,
+    pub(super) matches: Vec<usize>,
 }

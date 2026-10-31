@@ -26,6 +26,10 @@ pub enum AppAction {
     LoadWorkingTree,
     ReturnToHistory,
     StartSearch,
+    /// `n`: the next commit matching the last search, below the selection.
+    SearchNext,
+    /// `N`: the previous matching commit, above the selection.
+    SearchPrevious,
     StartPathHistory,
     OpenComparison,
     InspectObject,
@@ -161,6 +165,8 @@ impl AppState {
             (View::History, KeyCode::Char('D')) => Some(AppAction::OpenComparison),
             (View::History, KeyCode::Char('f')) => Some(AppAction::StartPathHistory),
             (View::History, KeyCode::Char('/')) => Some(AppAction::StartSearch),
+            (View::History, KeyCode::Char('n')) => Some(AppAction::SearchNext),
+            (View::History, KeyCode::Char('N')) => Some(AppAction::SearchPrevious),
             (View::History, KeyCode::Up) => Some(AppAction::MoveUp),
             (View::History, KeyCode::Down) => Some(AppAction::MoveDown),
             (View::WorkingTree, KeyCode::Char('s')) => Some(AppAction::StageSelected),

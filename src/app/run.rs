@@ -150,9 +150,11 @@ pub fn run_app_with_agent<H: Host>(
     };
     let help = false;
     let searching = false;
+    let inline_search = None;
     let history_filter: Option<std::path::PathBuf> = None;
     let history_path_input: Option<String> = None;
     let query = String::new();
+    let last_search = String::new();
     let search_results = Vec::new();
     let search_selection = ListState::default();
     let search_debounce: Option<Instant> = None;
@@ -277,9 +279,11 @@ pub fn run_app_with_agent<H: Host>(
         border,
         help,
         searching,
+        inline_search,
         history_filter,
         history_path_input,
         query,
+        last_search,
         search_results,
         search_selection,
         search_debounce,

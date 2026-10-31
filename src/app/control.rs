@@ -101,6 +101,7 @@ fn apply(app: &mut App, root: &Path, command: &ControlCommand) -> bool {
 /// agent request must not interrupt.
 fn in_prompt(app: &App) -> bool {
     app.searching
+        || app.inline_search.is_some()
         || app.history_path_input.is_some()
         || app.branch_confirm.is_some()
         || app.branch_input.is_some()

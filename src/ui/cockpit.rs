@@ -46,6 +46,7 @@ pub fn render_workspace_cockpit(
         status,
         focused,
         feedback,
+        search_prompt,
         history_selection,
         working_tree_selection,
     } = cockpit;
@@ -75,6 +76,9 @@ pub fn render_workspace_cockpit(
         ],
     };
     hints.extend([("j/k", "move"), ("?", "help"), ("q", "quit")]);
+    if search_prompt.is_some() {
+        hints = vec![("Enter", "stay"), ("Esc", "back"), ("Tab", "full list")];
+    }
     let sections = Layout::vertical([
         Constraint::Length(3),
         Constraint::Min(6),
@@ -162,7 +166,9 @@ pub fn render_workspace_cockpit(
     }
 
     let (staged, unstaged, untracked) = status_counts(status);
-    let status_line = if feedback.is_empty() {
+    let status_line = if let Some(prompt) = search_prompt {
+        Line::styled(format!(" {prompt}"), Style::default().fg(ACCENT))
+    } else if feedback.is_empty() {
         Line::from(vec![
             Span::styled(" STAGED ", Style::default().fg(Color::Rgb(94, 234, 212))),
             Span::raw(staged.to_string()),
