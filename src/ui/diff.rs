@@ -13,7 +13,7 @@ use super::diff_layout::{
 };
 use super::diff_rows::cached_ide_diff_rows;
 use super::hints::{hint_row_count, render_key_hints};
-use super::prepared::PreparedDiff;
+use super::prepared::{DiffView, PreparedDiff};
 use super::theme::page_block;
 
 pub(super) fn render_diff(
@@ -108,6 +108,11 @@ pub(super) fn render_diff(
                 .max(1);
             let (left, right, empty_hint) = if let Some(prepared) = prepared {
                 let layout = prepared.layout(frame.area().width, raw, true);
+                prepared.set_view(DiffView {
+                    rows: layout.left.len().max(layout.right.len()),
+                    visible: usize::from(panes[0].height.saturating_sub(2)).max(1),
+                    width: frame.area().width,
+                });
                 (
                     layout
                         .left
@@ -189,6 +194,11 @@ pub(super) fn render_diff(
                 .max(1);
             let (lines, title) = if let Some(prepared) = prepared {
                 let layout = prepared.layout(frame.area().width, raw, false);
+                prepared.set_view(DiffView {
+                    rows: layout.left.len(),
+                    visible: usize::from(sections[0].height.saturating_sub(2)).max(1),
+                    width: frame.area().width,
+                });
                 (
                     layout
                         .left

@@ -21,7 +21,7 @@ pub use agent_pane::{
 pub use diff_layout::diff_hunk_line_positions;
 pub use help::{HELP, render_help_overlay, render_help_overlay_in};
 pub(crate) use hints::{hint_row_count, render_key_hints};
-pub use prepared::PreparedDiff;
+pub use prepared::{DiffView, PreparedDiff};
 pub(crate) use prepared::{
     PreparedComparisonFile, comparison_file_lines, prepare_comparison_file, retained_line_bytes,
 };
