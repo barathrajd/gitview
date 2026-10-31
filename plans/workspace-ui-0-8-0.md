@@ -87,10 +87,28 @@ every panel already handles.
 - **Fuzzy matcher:** `frizbee` (MIT, 0.13.0, updated Aug 2026, requires Rust
   1.89). `nucleo-matcher` is MPL-2.0 and last released Feb 2024;
   `fuzzy-matcher` is MIT but unreleased since Oct 2020 (all from crates.io,
-  2026-10-30). `frizbee`'s API and speed are **UNVERIFIED** until milestone 3.
-  *Fallback:* `fuzzy-matcher`.
+  2026-10-30). Verified in milestone 3: `Matcher::from_query` ranks 100,000
+  rows in 2 to 4 ms; match positions are byte offsets.
 - **Git filters:** `git log --all --author --grep -i --since --skip -n -- <path>`
   combine in one call (checked on this repository).
+- **Filter semantics (git 2.56.0, spike 2026-10-31):** repeated `--author`
+  is OR; repeated `--grep` is OR without `--all-match`; `--author` and
+  `--grep` together are AND. An unparseable `--since` is silently ignored
+  (returns everything); an unknown ref exits with `fatal: ambiguous argument`.
+
+**Search decisions (2026-10-31, with the user)**
+
+- Neovim-style inline search on History: `/` prompts on the status line,
+  jumps through loaded commits, Enter keeps, Esc restores, Tab opens the full
+  ranked SEARCH page; `n`/`N` repeat the last search, wrapping.
+- A query containing any filter opens the full SEARCH page automatically;
+  plain queries stay inline.
+- Filters search `--all` refs by default; `ref:<name>` narrows to one ref.
+- At most 1,000 commits are fetched per filter query; when the cap is hit the
+  page says `showing best of first 1000 matches — narrow the query`. Free
+  text is fuzzy-ranked over the fetched commits.
+- Values may be double-quoted (`author:"Alice Smith"`). The same filter
+  repeated is OR (`author:a author:b`); different filters are AND.
 
 ## Milestones
 
@@ -99,8 +117,14 @@ every panel already handles.
    rendering; all replay and live tests pass.
 2. **Vim motions (complete).** `gg`, `G`, the page keys, counts, `zz`, with `Tab` for panel focus
    across all panels, with replay tests for each.
-3. **Search.** Fuzzy ranking over loaded commits, then the Git-side filters
-   and `n`/`N`, with cancellation and tests for each filter.
+3. **Search.** Fuzzy ranking over loaded commits, inline `/` with `n`/`N`,
+   and highlighting (done). Remaining: the Git-side filters run off the
+   render loop, cancelled when the query changes, with one test per filter,
+   a test for quoting, OR-repeats, the 1,000 cap notice, and an unknown-ref
+   error shown on the page.
+3b. **Search beyond History.** Bring `/` to the other lists where it helps
+   (worktree files, commit files, branches, tags, sessions, and others found
+   in an audit). Scoped with the user after milestone 3; not started.
 4. **Structured history.** Parse commits with parents, page them, draw the
    lanes and columns, keep `v` for raw; graph tests with merges, octopus
    merges, and long-lived branches; measure scrolling on 100,000 commits.
@@ -122,6 +146,12 @@ every panel already handles.
   or with an agent's own keys. Today's single-letter actions keep their keys,
   and keys go to the agent only while it has focus. Conflicts are listed in
   milestone 2 and resolved there.
+- **Bad filter values:** `since:garbage` silently matches everything.
+  *Fallback:* accept Git's date formats as-is and show the active filters on
+  the SEARCH page so an ignored one is visible; a bad `ref:` shows Git's
+  error instead of results.
+- **Highlight cost:** about 1 ms per 200 rows (12 ms per 10,000). Milestone 4
+  must highlight only visible rows.
 - **Terminal width:** many panels on a narrow screen. *Fallback:* the stacked
   layout below 119 columns.
 
