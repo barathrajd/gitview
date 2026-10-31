@@ -28,7 +28,7 @@ pub(crate) use prepared::{
 pub use render::{render, render_in};
 pub use screen::{Cockpit, HelpPage, Screen};
 pub use theme::ASCII_BORDER;
-pub(crate) use theme::{ACCENT, MUTED, page_block, selection_style};
+pub(crate) use theme::{ACCENT, MUTED, page_block, selection_style, wrapped_rows};
 pub use viewport::{Viewport, split_side_pane};
 
 pub use cockpit::{render_workspace_cockpit, worktree_display_row};

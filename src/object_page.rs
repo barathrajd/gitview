@@ -18,6 +18,8 @@ pub struct ObjectPage {
     error: String,
     result: Option<ObjectDescription>,
     scroll: u16,
+    /// The last scroll limit and visible rows, from the last render.
+    view: std::cell::Cell<(usize, usize)>,
     sender: mpsc::Sender<Result<ObjectDescription, String>>,
     receiver: mpsc::Receiver<Result<ObjectDescription, String>>,
 }
@@ -31,6 +33,7 @@ impl ObjectPage {
             error: String::new(),
             result: None,
             scroll: 0,
+            view: std::cell::Cell::new((0, 1)),
             sender,
             receiver,
         }
@@ -57,6 +60,19 @@ impl ObjectPage {
             self.input.push_str(text);
         }
     }
+    /// True while showing a result, so vim motions apply. The revision field
+    /// keeps every typed character.
+    pub fn takes_motions(&self) -> bool {
+        !self.pending && !self.editing && self.result.is_some()
+    }
+
+    /// Scroll the description by a motion, using the last rendered size.
+    pub fn motion(&mut self, motion: crate::motion::Motion) {
+        let (max, page) = self.view.get();
+        let offset = motion.scroll(usize::from(self.scroll).min(max), max, page);
+        self.scroll = u16::try_from(offset).unwrap_or(u16::MAX);
+    }
+
     pub fn key(&mut self, root: &Path, key: KeyCode) -> bool {
         if self.pending {
             return key != KeyCode::Esc;
@@ -169,18 +185,26 @@ impl ObjectPage {
                     .map(|line| Line::raw(line.to_owned())),
             );
         }
+        let block = page_block(
+            if self.editing {
+                "INSPECT GIT OBJECT"
+            } else {
+                "OBJECT DESCRIPTION"
+            },
+            border,
+        );
+        let text = Text::from(lines);
+        let inner = block.inner(areas[0]);
+        let page = usize::from(inner.height).max(1);
+        self.view.set((
+            crate::ui::wrapped_rows(&text, inner.width).saturating_sub(page),
+            page,
+        ));
         frame.render_widget(
-            Paragraph::new(Text::from(lines))
+            Paragraph::new(text)
                 .wrap(Wrap { trim: false })
                 .scroll((if self.editing { 0 } else { self.scroll }, 0))
-                .block(page_block(
-                    if self.editing {
-                        "INSPECT GIT OBJECT"
-                    } else {
-                        "OBJECT DESCRIPTION"
-                    },
-                    border,
-                )),
+                .block(block),
             areas[0],
         );
         render_key_hints(frame, areas[1], hints);

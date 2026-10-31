@@ -321,3 +321,69 @@ fn comparison_review_motions_scroll_to_the_end_and_back() {
         ],
     );
 }
+
+#[test]
+fn object_preview_motions_scroll_to_the_end_and_back() {
+    let repository = Repo::with_history();
+    let body: String = (1..=120)
+        .map(|line| format!("long line {line:03}\n"))
+        .collect();
+    repository.write("long.txt", &body);
+    repository.commit_all("Add a long file");
+
+    replay(
+        &repository.path(),
+        [
+            WaitFor("Add a long file"),
+            Key(Tab),
+            Char('o'),
+            WaitFor("INSPECT GIT OBJECT"),
+            // The revision field keeps g and digits as text.
+            Text(":long.txt"),
+            WaitFor(":long.txt_"),
+            Key(Enter),
+            WaitFor("Type: blob"),
+            Char('G'),
+            WaitFor("long line 120"),
+            WaitForGone("Type: blob"),
+            Text("gg"),
+            WaitFor("Type: blob"),
+            Ctrl('d'),
+            WaitForGone("Type: blob"),
+            Ctrl('u'),
+            WaitFor("Type: blob"),
+        ],
+    );
+}
+
+#[test]
+fn tag_list_motions_jump_to_the_last_and_first_tag() {
+    let repository = Repo::with_history();
+    for number in 1..=40 {
+        repository.git(&["tag", &format!("t-{number:02}")]);
+    }
+
+    let screen = replay(
+        &repository.path(),
+        [
+            WaitFor("Change library"),
+            Char('b'),
+            WaitFor("Local branches"),
+            Char('t'),
+            WaitFor("› t-01"),
+            Char('G'),
+            WaitFor("› t-40"),
+            Text("gg"),
+            WaitFor("› t-01"),
+            Text("5j"),
+            WaitFor("› t-06"),
+            Ctrl('d'),
+            WaitForGone("› t-06"),
+            Char('c'),
+            Text("gG5"),
+            WaitFor("gG5"),
+        ],
+    );
+
+    assert!(!screen.contains("Delete local tag"), "{screen}");
+}
