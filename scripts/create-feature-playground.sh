@@ -55,6 +55,10 @@ for number in $(seq -w 1 40); do
   printf 'Entry %s\n' "$number" >> "$repo/log.txt"
   git -C "$repo" add -- log.txt
   git -C "$repo" commit -qm "chore: add log entry $number"
+  # Enough tags to page through the tag list (b, then t).
+  if [ "$number" -le 30 ]; then
+    git -C "$repo" tag "release-$number"
+  fi
 done
 
 cat > "$repo/hunk-playground.txt" <<'EOF'
