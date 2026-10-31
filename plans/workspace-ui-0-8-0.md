@@ -117,11 +117,13 @@ every panel already handles.
    rendering; all replay and live tests pass.
 2. **Vim motions (complete).** `gg`, `G`, the page keys, counts, `zz`, with `Tab` for panel focus
    across all panels, with replay tests for each.
-3. **Search.** Fuzzy ranking over loaded commits, inline `/` with `n`/`N`,
-   and highlighting (done). Remaining: the Git-side filters run off the
-   render loop, cancelled when the query changes, with one test per filter,
-   a test for quoting, OR-repeats, the 1,000 cap notice, and an unknown-ref
-   error shown on the page.
+3. **Search (complete).** Fuzzy ranking over loaded commits, inline `/`
+   with `n`/`N`, highlighting, and the Git-side filters run off the render
+   loop, with one test per filter, quoting, OR-repeats, the 1,000 cap
+   notice, and an unknown-ref error shown on the page. Typing any filter key
+   opens the SEARCH page; long result rows wrap. Known gaps: `n`/`N` after a
+   filtered search match the whole query text, and filtered results do not
+   refresh on repository changes.
 3b. **Search beyond History.** Bring `/` to the other lists where it helps
    (worktree files, commit files, branches, tags, sessions, and others found
    in an audit). Scoped with the user after milestone 3; not started.
@@ -396,3 +398,14 @@ Verification: full serial suite passed (531 passed, 0 failed, 16 ignored),
 Clippy passed, optimized binary rebuilt. Each page was tested by hand in the
 playground; working-tree `zz` and `j` after a comparison `]` jump are covered
 only by replay tests. Milestone 2 is complete. Next is milestone 3, Search.
+
+### Milestone 3: Git-side filters (committed, complete)
+
+`src/search_query.rs` parses filters and runs `git log` (`--all` unless
+`ref:`, `--fixed-strings`, `--regexp-ignore-case`, `--end-of-options` before
+refs, `--literal-pathspecs`). The app runs it on a `LatestRead` worker and
+keeps the rows in `App.filtered`. Tests: `search_query`, `search_filters`,
+`app_replay_search_filters`, and two `ui` tests. Hand-tested by the user on
+the playground: `msg:`, `path:`, wrapping, and an empty filter key. The
+1,000-commit notice is covered only by a UI test. Next is milestone 3b
+(search beyond History), scoped with the user first.
