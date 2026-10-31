@@ -217,7 +217,38 @@ fn displays_merge_lanes_branches_and_tags() {
 }
 
 #[test]
-fn search_matches_returns_filtered_commit_rows_in_history_order() {
+fn search_ranks_fuzzy_matches_best_first() {
+    let rows = vec![
+        "* 1111111 Spread each address record - Haruki\u{1f}1111111".to_owned(),
+        "* 2222222 Fix search debounce - Bob\u{1f}2222222".to_owned(),
+        "| [history truncated]".to_owned(),
+        "* 3333333 Add search results - Cy\u{1f}3333333".to_owned(),
+    ];
+
+    // Letters in order but scattered still match; a contiguous word ranks
+    // first, and equal matches keep history order.
+    assert_eq!(
+        gitview::history::search_matches(&rows, "search"),
+        vec![1, 3, 0]
+    );
+    // Words match in any order, each anywhere in the row.
+    assert_eq!(
+        gitview::history::search_matches(&rows, "debounce fix"),
+        vec![1]
+    );
+    assert_eq!(gitview::history::search_matches(&rows, "fxsrch"), vec![1]);
+    // Non-commit rows never match, and case is ignored as before.
+    assert_eq!(
+        gitview::history::search_matches(&rows, "HISTORY"),
+        Vec::<usize>::new()
+    );
+    assert_eq!(gitview::history::search_matches(&rows, "BOB"), vec![1]);
+    // An empty query lists every commit in history order.
+    assert_eq!(gitview::history::search_matches(&rows, ""), vec![0, 1, 3]);
+}
+
+#[test]
+fn search_matches_filters_commit_rows_ignoring_case() {
     let rows = vec![
         "* abcdef0 Add search results - Alice\u{1f}abcdef0".to_owned(),
         "| [history truncated]".to_owned(),

@@ -101,14 +101,17 @@ pub fn commit_id(row: &str) -> Option<&str> {
     }
 }
 
-/// Return visible commit rows matching the search query, preserving history order.
+/// Commit rows matching the search query, best match first. Each word must
+/// match somewhere in the row, its letters in order; case is ignored, and
+/// equal matches keep history order.
 pub fn search_matches(rows: &[String], query: &str) -> Vec<usize> {
-    let query = query.to_lowercase();
-    rows.iter()
-        .enumerate()
-        .filter_map(|(index, row)| {
-            (commit_id(row).is_some() && row.to_lowercase().contains(&query)).then_some(index)
-        })
+    let config = frizbee::Config::default().casing(frizbee::CaseMatching::Ignore);
+    let mut matcher = frizbee::Matcher::from_query(query, &config);
+    matcher
+        .match_list(rows)
+        .into_iter()
+        .map(|found| found.index as usize)
+        .filter(|&index| commit_id(&rows[index]).is_some())
         .collect()
 }
 
