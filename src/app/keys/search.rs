@@ -40,6 +40,13 @@ pub(in crate::app) fn handle<H: Host>(
                 } else if let KeyCode::Char(c) = key.code {
                     app.query.push(c);
                 }
+                // Filters search all history, which only the full page shows.
+                if crate::search_query::parse_query(&app.query).names_a_filter {
+                    app.selection.select(search.origin);
+                    app.inline_search = None;
+                    open_search_page(app);
+                    return Ok(Flow::Handled);
+                }
                 search.matches = rows
                     .filter(|_| !app.query.trim().is_empty())
                     .map(|rows| crate::history::matches_in_order(rows, &app.query))
@@ -79,6 +86,8 @@ pub(in crate::app) fn handle<H: Host>(
             KeyCode::Esc => {
                 app.searching = false;
                 app.search_debounce = None;
+                app.filtered = None;
+                app.filter_worker.cancel();
             }
             KeyCode::Char('?') => app.help = true,
             KeyCode::Backspace => {
@@ -89,8 +98,9 @@ pub(in crate::app) fn handle<H: Host>(
             KeyCode::Enter => {
                 app.last_search.clone_from(&app.query);
                 if app.search_debounce.is_some() {
+                    sync_filters(app);
                     update_search_results(
-                        app.history.as_ref(),
+                        search_rows(app.history.as_ref(), app.filtered.as_ref()),
                         &app.query,
                         &mut app.search_results,
                         &mut app.search_selection,
@@ -98,11 +108,28 @@ pub(in crate::app) fn handle<H: Host>(
                 }
                 app.search_debounce = None;
                 if let Some((index, id)) = selected_search_commit(
-                    app.history.as_ref(),
+                    search_rows(app.history.as_ref(), app.filtered.as_ref()),
                     &app.search_results,
                     app.search_selection.selected(),
                 ) {
-                    app.selection.select(Some(index));
+                    // A filtered result may not be in loaded history.
+                    let in_history = if app.filtered.is_some() {
+                        app.history
+                            .as_ref()
+                            .and_then(|rows| rows.as_ref().ok())
+                            .and_then(|rows| {
+                                rows.iter().position(|row| {
+                                    crate::history::commit_id(row).is_some_and(|row_id| {
+                                        id.starts_with(row_id) || row_id.starts_with(&id)
+                                    })
+                                })
+                            })
+                    } else {
+                        Some(index)
+                    };
+                    if in_history.is_some() {
+                        app.selection.select(in_history);
+                    }
                     app.request_id += 1;
                     let path = root.to_path_buf();
                     let sender = app.details_sender.clone();
@@ -153,8 +180,9 @@ pub(in crate::app) fn handle<H: Host>(
 /// Open the full results page, ranked for the current query.
 fn open_search_page(app: &mut App) {
     app.searching = true;
+    sync_filters(app);
     update_search_results(
-        app.history.as_ref(),
+        search_rows(app.history.as_ref(), app.filtered.as_ref()),
         &app.query,
         &mut app.search_results,
         &mut app.search_selection,

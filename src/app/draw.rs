@@ -231,10 +231,16 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                     }
                 } else if app.searching {
                     Screen::Search {
-                        history: app.history.as_ref(),
+                        history: search_rows(app.history.as_ref(), app.filtered.as_ref()),
                         matches: &app.search_results,
                         query: &app.query,
-                        pending: app.search_debounce.is_some(),
+                        pending: app.search_debounce.is_some()
+                            || app.filtered.as_ref().is_some_and(|f| f.rows.is_none()),
+                        truncated_at: app
+                            .filtered
+                            .as_ref()
+                            .filter(|f| f.truncated)
+                            .map(|_| FILTER_LIMIT),
                         selection: &mut app.search_selection,
                     }
                 } else {

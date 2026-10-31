@@ -82,13 +82,30 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
             app.search_debounce = Some(Instant::now());
         }
     }
+    if let Some((filters, result)) = app.filter_worker.take_result()
+        && let Some(filtered) = &mut app.filtered
+        && filtered.filters == filters
+    {
+        filtered.truncated = result.as_ref().is_ok_and(|found| found.truncated);
+        filtered.rows = Some(result.map(|found| found.rows));
+        if app.search_debounce.is_none() {
+            update_search_results(
+                search_rows(app.history.as_ref(), app.filtered.as_ref()),
+                &app.query,
+                &mut app.search_results,
+                &mut app.search_selection,
+            );
+        }
+        app.needs_redraw = true;
+    }
     if app.searching
         && app
             .search_debounce
             .is_some_and(|deadline| Instant::now() >= deadline)
     {
+        sync_filters(app);
         update_search_results(
-            app.history.as_ref(),
+            search_rows(app.history.as_ref(), app.filtered.as_ref()),
             &app.query,
             &mut app.search_results,
             &mut app.search_selection,

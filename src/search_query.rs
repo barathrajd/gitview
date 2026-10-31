@@ -16,6 +16,8 @@ pub struct SearchQuery {
     pub since: Option<String>,
     pub until: Option<String>,
     pub refs: Vec<String>,
+    /// A filter key was typed, even one still without a value.
+    pub names_a_filter: bool,
 }
 
 impl SearchQuery {
@@ -88,8 +90,11 @@ pub fn parse_query(query: &str) -> SearchQuery {
                 (*value).to_owned()
             }
         });
+        parsed.names_a_filter |= filter.is_some();
         match (filter, value) {
-            (Some((key, _)), Some(value)) if !value.is_empty() => match key.as_str() {
+            // A key still waiting for its value is left out of the search.
+            (Some(_), Some(value)) if value.is_empty() => {}
+            (Some((key, _)), Some(value)) => match key.as_str() {
                 "author" => parsed.authors.push(value),
                 "path" => parsed.paths.push(value),
                 "msg" => parsed.messages.push(value),

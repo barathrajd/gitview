@@ -154,6 +154,47 @@ pub(super) fn split_commit_message(message: &str) -> (String, String) {
     }
 }
 
+/// Most commits a filtered search fetches.
+pub(crate) const FILTER_LIMIT: usize = 1000;
+
+/// The rows the search page ranks: Git-side results while the query has
+/// filters, otherwise the loaded history.
+pub(super) fn search_rows<'a>(
+    history: Option<&'a Result<Vec<String>, String>>,
+    filtered: Option<&'a super::model::FilteredSearch>,
+) -> Option<&'a Result<Vec<String>, String>> {
+    match filtered {
+        Some(filtered) => filtered.rows.as_ref(),
+        None => history,
+    }
+}
+
+/// Starts a Git-side search when the query's filters changed, and drops the
+/// filtered results when the query has none.
+pub(super) fn sync_filters(app: &mut super::model::App) {
+    let mut filters = crate::search_query::parse_query(&app.query);
+    filters.text.clear();
+    if !filters.is_filtered() {
+        if app.filtered.take().is_some() {
+            app.filter_worker.cancel();
+        }
+        return;
+    }
+    if app
+        .filtered
+        .as_ref()
+        .is_some_and(|current| current.filters == filters)
+    {
+        return;
+    }
+    app.filter_worker.request(filters.clone());
+    app.filtered = Some(super::model::FilteredSearch {
+        filters,
+        rows: None,
+        truncated: false,
+    });
+}
+
 pub(super) fn update_search_results(
     history: Option<&Result<Vec<String>, String>>,
     query: &str,
@@ -161,9 +202,10 @@ pub(super) fn update_search_results(
     selection: &mut ListState,
 ) {
     let previously_selected = results.get(selection.selected().unwrap_or(0)).copied();
+    let text = crate::search_query::parse_query(query).text;
     *results = history
         .and_then(|result| result.as_ref().ok())
-        .map(|rows| crate::history::search_matches(rows, query))
+        .map(|rows| crate::history::search_matches(rows, &text))
         .unwrap_or_default();
     let selected = previously_selected
         .and_then(|previous| results.iter().position(|index| *index == previous))

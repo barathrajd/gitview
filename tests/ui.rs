@@ -398,6 +398,7 @@ fn renders_debounced_search_result_list() {
             matches: &matches,
             query: "search",
             pending: false,
+            truncated_at: None,
             selection: &mut selection,
         },
         120,
@@ -408,6 +409,33 @@ fn renders_debounced_search_result_list() {
     assert!(search.contains("Fix search results"));
     assert!(!search.contains("Unrelated change"));
     assert!(search.contains("open"));
+}
+
+#[test]
+fn search_page_says_when_a_filtered_search_hit_its_limit() {
+    let history = Ok(vec![
+        "* 1234567 Fix search results - Sam\u{1f}1234567".to_owned(),
+    ]);
+    let mut selection = ListState::default();
+    let screen = |truncated_at, selection: &mut ListState| {
+        draw(
+            Screen::Search {
+                history: Some(&history),
+                matches: &[0],
+                query: "author:sam",
+                pending: false,
+                truncated_at,
+                selection,
+            },
+            160,
+            24,
+        )
+    };
+    assert!(
+        screen(Some(1000), &mut selection)
+            .contains("showing best of first 1000 matches — narrow the query")
+    );
+    assert!(!screen(None, &mut selection).contains("showing best of"));
 }
 
 #[test]
@@ -757,6 +785,7 @@ fn search_page_underlines_the_matched_characters() {
                     matches: &matches,
                     query: "search",
                     pending: false,
+                    truncated_at: None,
                     selection: &mut selection,
                 },
                 ratatui::symbols::border::PLAIN,
@@ -770,4 +799,32 @@ fn search_page_underlines_the_matched_characters() {
             false, false, false, false, true, true, true, true, true, true
         ]
     );
+}
+
+#[test]
+fn search_page_wraps_long_rows() {
+    let history = Ok(vec![format!(
+        "* 1234567 ({}) docs: add thirty notes - Sam{}1234567",
+        (1..=30)
+            .map(|n| format!("topic-{n:02}"))
+            .collect::<Vec<_>>()
+            .join(", "),
+        '\u{1f}'
+    )]);
+    let mut selection = ListState::default();
+    selection.select(Some(0));
+    let screen = draw(
+        Screen::Search {
+            history: Some(&history),
+            matches: &[0],
+            query: "docs",
+            pending: false,
+            truncated_at: None,
+            selection: &mut selection,
+        },
+        80,
+        24,
+    );
+    assert!(screen.contains("topic-30"), "{screen}");
+    assert!(screen.contains("- Sam"), "{screen}");
 }

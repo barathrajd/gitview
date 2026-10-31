@@ -45,10 +45,19 @@ fn repeated_filters_collect_every_value() {
 }
 
 #[test]
-fn unknown_keys_and_empty_values_stay_free_text() {
-    let query = parse_query("http://example.com author: fix");
+fn unknown_keys_stay_free_text() {
+    let query = parse_query("http://example.com fix");
     assert!(!query.is_filtered());
-    assert_eq!(query.text, "http://example.com author: fix");
+    assert!(!query.names_a_filter);
+    assert_eq!(query.text, "http://example.com fix");
+}
+
+#[test]
+fn a_filter_key_without_a_value_is_left_out_until_typed() {
+    let query = parse_query("path: fix");
+    assert!(!query.is_filtered());
+    assert!(query.names_a_filter);
+    assert_eq!(query.text, "fix");
 }
 
 #[test]

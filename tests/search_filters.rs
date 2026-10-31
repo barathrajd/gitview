@@ -36,7 +36,12 @@ fn sample() -> Repo {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let root = std::env::temp_dir().join(format!("gitview-search-filters-{nanos}"));
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let unique = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let root = std::env::temp_dir().join(format!(
+        "gitview-search-filters-{}-{nanos}-{unique}",
+        std::process::id()
+    ));
     std::fs::create_dir(&root).unwrap();
     git(&root, &[], &["init", "-q", "-b", "main"]);
     let commit = |author: &str, date: &str, path: &str, message: &str| {

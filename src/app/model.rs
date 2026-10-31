@@ -42,6 +42,15 @@ pub(super) struct App {
     pub(super) search_results: Vec<usize>,
     pub(super) search_selection: ListState,
     pub(super) search_debounce: Option<Instant>,
+    /// Git-side results while the query has filters.
+    pub(super) filtered: Option<FilteredSearch>,
+    pub(super) filter_worker: LatestRead<
+        crate::search_query::SearchQuery,
+        (
+            crate::search_query::SearchQuery,
+            Result<crate::search_query::Filtered, String>,
+        ),
+    >,
     pub(super) history_sender: Sender<(u64, Result<Vec<String>, String>)>,
     pub(super) receiver: Receiver<(u64, Result<Vec<String>, String>)>,
     pub(super) history_request: u64,
@@ -152,6 +161,14 @@ pub(super) struct App {
 
 /// An inline `/` search: the row to return to on Esc, and the matching rows
 /// in history order.
+pub(super) struct FilteredSearch {
+    /// The query's filters, with the free text left out.
+    pub(super) filters: crate::search_query::SearchQuery,
+    /// `None` while Git runs.
+    pub(super) rows: Option<Result<Vec<String>, String>>,
+    pub(super) truncated: bool,
+}
+
 pub(super) struct InlineSearch {
     pub(super) origin: Option<usize>,
     pub(super) matches: Vec<usize>,

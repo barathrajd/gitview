@@ -15,7 +15,7 @@ use ratatui::{Terminal, backend::Backend, widgets::ListState};
 pub use super::helpers::Navigation;
 use super::{
     agent, control, drain, draw,
-    helpers::{CommitReadResult, backend_error},
+    helpers::{CommitReadResult, FILTER_LIMIT, backend_error},
     input::{self, Route},
     keys,
     model::App,
@@ -158,6 +158,13 @@ pub fn run_app_with_agent<H: Host>(
     let search_results = Vec::new();
     let search_selection = ListState::default();
     let search_debounce: Option<Instant> = None;
+    let filtered = None;
+    let filter_root = root.to_path_buf();
+    let filter_worker =
+        crate::read_worker::LatestRead::new(move |filters: crate::search_query::SearchQuery| {
+            let result = crate::search_query::run_filtered(&filter_root, &filters, FILTER_LIMIT);
+            (filters, result)
+        });
     let (history_sender, receiver) =
         std::sync::mpsc::channel::<(u64, Result<Vec<String>, String>)>();
     let history_request = 0u64;
@@ -287,6 +294,8 @@ pub fn run_app_with_agent<H: Host>(
         search_results,
         search_selection,
         search_debounce,
+        filtered,
+        filter_worker,
         history_sender,
         receiver,
         history_request,

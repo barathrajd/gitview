@@ -152,6 +152,8 @@ pub enum Screen<'a> {
         matches: &'a [usize],
         query: &'a str,
         pending: bool,
+        /// Set when a filtered search kept only this many commits.
+        truncated_at: Option<usize>,
         selection: &'a mut ListState,
     },
     Profiles {
