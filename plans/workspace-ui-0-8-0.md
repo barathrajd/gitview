@@ -121,9 +121,9 @@ every panel already handles.
    with `n`/`N`, highlighting, and the Git-side filters run off the render
    loop, with one test per filter, quoting, OR-repeats, the 1,000 cap
    notice, and an unknown-ref error shown on the page. Typing any filter key
-   opens the SEARCH page; long result rows wrap. Known gaps: `n`/`N` after a
-   filtered search match the whole query text, and filtered results do not
-   refresh on repository changes.
+   opens the SEARCH page; long result rows wrap. After a filtered search,
+   `n`/`N` step through the commits it found, and filtered results refresh
+   on repository changes, keeping the selected commit.
 3b. **Search beyond History.** Bring `/` to the other lists where it helps
    (worktree files, commit files, branches, tags, sessions, and others found
    in an audit). Scoped with the user after milestone 3; not started.
@@ -407,5 +407,7 @@ refs, `--literal-pathspecs`). The app runs it on a `LatestRead` worker and
 keeps the rows in `App.filtered`. Tests: `search_query`, `search_filters`,
 `app_replay_search_filters`, and two `ui` tests. Hand-tested by the user on
 the playground: `msg:`, `path:`, wrapping, and an empty filter key. The
-1,000-commit notice is covered only by a UI test. Next is milestone 3b
+1,000-commit notice is covered only by a UI test. Filtered `n`/`N` and the
+refresh on repository changes (`App.last_filtered`) are covered by
+`app_replay_search_filters` and were hand-tested by the user. Next is milestone 3b
 (search beyond History), scoped with the user first.
