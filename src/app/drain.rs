@@ -81,14 +81,56 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
         if app.searching {
             app.search_debounce = Some(Instant::now());
         }
+        // The repository changed: search again, keeping the old rows on
+        // screen until the new ones arrive.
+        if let Some(filtered) = &app.filtered {
+            app.filter_worker.request(filtered.filters.clone());
+        }
+    }
+    if let Some((filters, result)) = app.filter_worker.take_result()
+        && let Some(filtered) = &mut app.filtered
+        && filtered.filters == filters
+    {
+        let selected_hash = filtered
+            .rows
+            .as_ref()
+            .and_then(|rows| rows.as_ref().ok())
+            .zip(app.search_selection.selected())
+            .and_then(|(rows, selected)| rows.get(*app.search_results.get(selected)?))
+            .and_then(|row| crate::history::full_hash(row))
+            .map(str::to_owned);
+        filtered.truncated = result.as_ref().is_ok_and(|found| found.truncated);
+        filtered.rows = Some(result.map(|found| found.rows));
+        if app.search_debounce.is_none() {
+            update_search_results(
+                search_rows(app.history.as_ref(), app.filtered.as_ref()),
+                &app.query,
+                &mut app.search_results,
+                &mut app.search_selection,
+            );
+            // Keep the same commit selected after a refresh.
+            if let Some(Ok(rows)) = app.filtered.as_ref().and_then(|f| f.rows.as_ref())
+                && let Some(position) = selected_hash.and_then(|hash| {
+                    app.search_results.iter().position(|&index| {
+                        rows.get(index)
+                            .and_then(|row| crate::history::full_hash(row))
+                            == Some(hash.as_str())
+                    })
+                })
+            {
+                app.search_selection.select(Some(position));
+            }
+        }
+        app.needs_redraw = true;
     }
     if app.searching
         && app
             .search_debounce
             .is_some_and(|deadline| Instant::now() >= deadline)
     {
+        sync_filters(app);
         update_search_results(
-            app.history.as_ref(),
+            search_rows(app.history.as_ref(), app.filtered.as_ref()),
             &app.query,
             &mut app.search_results,
             &mut app.search_selection,

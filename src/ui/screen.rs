@@ -10,6 +10,13 @@ use std::path::Path;
 
 use super::prepared::PreparedDiff;
 
+/// The inline search: the status-line text and the query whose matches are
+/// underlined in History.
+pub struct SearchPrompt<'a> {
+    pub line: String,
+    pub query: &'a str,
+}
+
 pub struct Cockpit<'a> {
     pub repository: &'a Path,
     pub profile: &'a str,
@@ -17,6 +24,8 @@ pub struct Cockpit<'a> {
     pub history: Option<&'a Result<Vec<String>, String>>,
     pub status: Option<&'a Result<Vec<Entry>, String>>,
     pub feedback: &'a str,
+    /// The inline `/` prompt, drawn on the status line in place of the counts.
+    pub search_prompt: Option<SearchPrompt<'a>>,
     pub focused: View,
     pub history_selection: &'a mut ListState,
     pub working_tree_selection: &'a mut ListState,
@@ -143,6 +152,8 @@ pub enum Screen<'a> {
         matches: &'a [usize],
         query: &'a str,
         pending: bool,
+        /// Set when a filtered search kept only this many commits.
+        truncated_at: Option<usize>,
         selection: &'a mut ListState,
     },
     Profiles {

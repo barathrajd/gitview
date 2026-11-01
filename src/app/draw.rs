@@ -231,10 +231,16 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                     }
                 } else if app.searching {
                     Screen::Search {
-                        history: app.history.as_ref(),
+                        history: search_rows(app.history.as_ref(), app.filtered.as_ref()),
                         matches: &app.search_results,
                         query: &app.query,
-                        pending: app.search_debounce.is_some(),
+                        pending: app.search_debounce.is_some()
+                            || app.filtered.as_ref().is_some_and(|f| f.rows.is_none()),
+                        truncated_at: app
+                            .filtered
+                            .as_ref()
+                            .filter(|f| f.truncated)
+                            .map(|_| FILTER_LIMIT),
                         selection: &mut app.search_selection,
                     }
                 } else {
@@ -245,6 +251,23 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                         history: app.history.as_ref(),
                         status: app.status.as_ref(),
                         feedback: &workspace_feedback,
+                        search_prompt: app.inline_search.as_ref().map(|search| {
+                            let status = if app.query.trim().is_empty() {
+                                String::new()
+                            } else if let Some(position) = app
+                                .selection
+                                .selected()
+                                .and_then(|row| search.matches.iter().position(|&m| m == row))
+                            {
+                                format!("match {} of {}", position + 1, search.matches.len())
+                            } else {
+                                "no match".to_owned()
+                            };
+                            ui::SearchPrompt {
+                                line: format!("/{}_   {status}", app.query),
+                                query: &app.query,
+                            }
+                        }),
                         focused: app.app_state.view(),
                         history_selection: &mut app.selection,
                         working_tree_selection: &mut app.status_selection,

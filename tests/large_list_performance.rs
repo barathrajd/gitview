@@ -54,6 +54,7 @@ fn measure(size: usize, refs: usize, width: u16, height: u16, focused: View) -> 
                         history: Some(&history),
                         status: Some(&status),
                         feedback: "",
+                        search_prompt: None,
                         focused,
                         history_selection,
                         working_tree_selection,

@@ -398,6 +398,7 @@ fn renders_debounced_search_result_list() {
             matches: &matches,
             query: "search",
             pending: false,
+            truncated_at: None,
             selection: &mut selection,
         },
         120,
@@ -408,6 +409,33 @@ fn renders_debounced_search_result_list() {
     assert!(search.contains("Fix search results"));
     assert!(!search.contains("Unrelated change"));
     assert!(search.contains("open"));
+}
+
+#[test]
+fn search_page_says_when_a_filtered_search_hit_its_limit() {
+    let history = Ok(vec![
+        "* 1234567 Fix search results - Sam\u{1f}1234567".to_owned(),
+    ]);
+    let mut selection = ListState::default();
+    let screen = |truncated_at, selection: &mut ListState| {
+        draw(
+            Screen::Search {
+                history: Some(&history),
+                matches: &[0],
+                query: "author:sam",
+                pending: false,
+                truncated_at,
+                selection,
+            },
+            160,
+            24,
+        )
+    };
+    assert!(
+        screen(Some(1000), &mut selection)
+            .contains("showing best of first 1000 matches — narrow the query")
+    );
+    assert!(!screen(None, &mut selection).contains("showing best of"));
 }
 
 #[test]
@@ -714,4 +742,89 @@ fn renders_branch_and_commit_details() {
     assert!(commit.contains("j/k"));
     assert!(commit.contains("Enter/l"));
     assert!(commit.contains("diff"));
+}
+
+/// Whether the cells under `text` in the first row containing it are underlined.
+fn underlined(buffer: &ratatui::buffer::Buffer, text: &str) -> Vec<bool> {
+    let width = usize::from(buffer.area.width);
+    let cells = buffer.content();
+    let rows: Vec<String> = cells
+        .chunks(width)
+        .map(|row| row.iter().map(|cell| cell.symbol()).collect())
+        .collect();
+    let (y, row) = rows
+        .iter()
+        .enumerate()
+        .find(|(_, row)| row.contains(text))
+        .unwrap_or_else(|| panic!("{text} not drawn"));
+    let x = row[..row.find(text).unwrap()].chars().count();
+    (0..text.chars().count())
+        .map(|offset| {
+            cells[y * width + x + offset]
+                .modifier
+                .contains(ratatui::style::Modifier::UNDERLINED)
+        })
+        .collect()
+}
+
+#[test]
+fn search_page_underlines_the_matched_characters() {
+    let history = Ok(vec![
+        "* 1234567 Fix search results - Sam\u{1f}1234567".to_owned(),
+    ]);
+    let matches = vec![0];
+    let mut selection = ListState::default();
+    selection.select(Some(0));
+    let mut terminal = Terminal::new(TestBackend::new(120, 24)).unwrap();
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                Screen::Search {
+                    history: Some(&history),
+                    matches: &matches,
+                    query: "search",
+                    pending: false,
+                    truncated_at: None,
+                    selection: &mut selection,
+                },
+                ratatui::symbols::border::PLAIN,
+            )
+        })
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    assert_eq!(
+        underlined(buffer, "Fix search"),
+        [
+            false, false, false, false, true, true, true, true, true, true
+        ]
+    );
+}
+
+#[test]
+fn search_page_wraps_long_rows() {
+    let history = Ok(vec![format!(
+        "* 1234567 ({}) docs: add thirty notes - Sam{}1234567",
+        (1..=30)
+            .map(|n| format!("topic-{n:02}"))
+            .collect::<Vec<_>>()
+            .join(", "),
+        '\u{1f}'
+    )]);
+    let mut selection = ListState::default();
+    selection.select(Some(0));
+    let screen = draw(
+        Screen::Search {
+            history: Some(&history),
+            matches: &[0],
+            query: "docs",
+            pending: false,
+            truncated_at: None,
+            selection: &mut selection,
+        },
+        80,
+        24,
+    );
+    assert!(screen.contains("topic-30"), "{screen}");
+    assert!(screen.contains("- Sam"), "{screen}");
 }

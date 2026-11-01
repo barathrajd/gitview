@@ -1,4 +1,4 @@
-use std::{io, time::Instant};
+use std::io;
 
 use crate::app::{
     AppAction, View,
@@ -118,23 +118,11 @@ pub(in crate::app) fn handle<H: Host>(
                 );
             }
             AppAction::StartSearch => {
-                app.searching = true;
                 app.query.clear();
-                app.search_results = app
-                    .history
-                    .as_ref()
-                    .and_then(|result| result.as_ref().ok())
-                    .map(|rows| crate::history::search_matches(rows, ""))
-                    .unwrap_or_default();
-                let selected = app.selection.selected().unwrap_or(0);
-                let result_selection = app
-                    .search_results
-                    .iter()
-                    .position(|index| *index == selected)
-                    .unwrap_or(0);
-                app.search_selection
-                    .select((!app.search_results.is_empty()).then_some(result_selection));
-                app.search_debounce = app.history.is_none().then_some(Instant::now());
+                app.inline_search = Some(crate::app::model::InlineSearch {
+                    origin: app.selection.selected(),
+                    matches: Vec::new(),
+                });
             }
             AppAction::OpenSessions => {
                 app.sessions_page = Some(crate::sessions_page::SessionsPage::open(root));
@@ -290,6 +278,54 @@ pub(in crate::app) fn handle<H: Host>(
             AppAction::MoveDownBy(count) => move_selection(app, |selected, len| {
                 crate::app::move_down_by(selected, len, count)
             }),
+            AppAction::SearchNext | AppAction::SearchPrevious => {
+                let forward = action == AppAction::SearchNext;
+                if let Some(found) = &app.last_filtered {
+                    let rows = app
+                        .history
+                        .as_ref()
+                        .and_then(|rows| rows.as_ref().ok())
+                        .map(Vec::as_slice)
+                        .unwrap_or_default();
+                    let matches: Vec<usize> = rows
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, row)| {
+                            crate::history::full_hash(row).is_some_and(|hash| found.contains(hash))
+                        })
+                        .map(|(index, _)| index)
+                        .collect();
+                    let not_loaded = found.len() - matches.len();
+                    match crate::history::step_match(&matches, app.selection.selected(), forward) {
+                        Some(row) => {
+                            app.selection.select(Some(row));
+                            let position = matches.iter().position(|&m| m == row).unwrap_or(0);
+                            app.commit_feedback =
+                                format!("match {} of {}", position + 1, matches.len());
+                        }
+                        None => app.commit_feedback = "no match in loaded history".to_owned(),
+                    }
+                    app.needs_redraw = true;
+                    if not_loaded > 0 {
+                        app.commit_feedback
+                            .push_str(&format!(" ({not_loaded} not loaded)"));
+                    }
+                } else if let Some(row) = app
+                    .history
+                    .as_ref()
+                    .and_then(|rows| rows.as_ref().ok())
+                    .and_then(|rows| {
+                        crate::history::next_match(
+                            rows,
+                            &app.last_search,
+                            app.selection.selected(),
+                            forward,
+                        )
+                    })
+                {
+                    app.selection.select(Some(row));
+                }
+            }
             AppAction::MoveTop => move_selection(app, |_, len| (len > 0).then_some(0)),
             AppAction::MoveBottom => move_selection(app, |_, len| len.checked_sub(1)),
             AppAction::HalfPageDown

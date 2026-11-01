@@ -132,6 +132,7 @@ fn search_narrows_history_and_enter_opens_the_match() {
     let mut steps = history_steps();
     steps.extend([
         Char('/'),
+        Key(Tab),
         Text("readme"),
         WaitForGone("Add library"),
         WaitFor("1 matches"),
@@ -151,6 +152,7 @@ fn escape_leaves_search_with_the_match_selected() {
     let mut steps = history_steps();
     steps.extend([
         Char('/'),
+        Key(Tab),
         Text("readme"),
         WaitForGone("Add library"),
         Key(Enter),
@@ -440,6 +442,8 @@ fn search_results_page_without_typing_into_the_query() {
             WaitFor("Commit 40"),
             Key(Tab),
             Char('/'),
+            // Tab at the inline prompt opens the full results page.
+            Key(Tab),
             Text("Commit"),
             Pause(std::time::Duration::from_millis(300)),
         ]
@@ -500,4 +504,123 @@ fn diff_g_reaches_the_end_and_zz_centers_the_selected_hunk() {
             WaitFor("HUNK 2/2"),
         ],
     );
+}
+
+#[test]
+fn n_and_shift_n_move_between_search_matches_in_history_order() {
+    let repository = Repo::new();
+    for subject in [
+        "First beta",
+        "Second alpha",
+        "Third beta",
+        "Fourth alpha",
+        "Fifth beta",
+    ] {
+        repository.write("count.txt", &format!("{subject}\n"));
+        repository.commit_all(subject);
+    }
+    // `/alpha` jumps to the first match below; Enter stays there.
+    let search = || {
+        vec![
+            WaitFor("Fifth beta"),
+            Key(Tab),
+            Char('/'),
+            Text("alpha"),
+            Key(Enter),
+        ]
+    };
+    let cases: [(&[char], &str); 5] = [
+        (&[], "Fourth alpha"),
+        (&['n'], "Second alpha"),
+        // Past the last match, `n` wraps to the first.
+        (&['n', 'n'], "Fourth alpha"),
+        (&['N'], "Second alpha"),
+        // Opening search and cancelling it keeps the submitted query.
+        (&['/', 'n'], "Second alpha"),
+    ];
+    for (keys, subject) in cases {
+        let mut steps = search();
+        for key in keys {
+            steps.push(Char(*key));
+            // `/` opens search; Esc cancels it.
+            if *key == '/' {
+                steps.push(Key(Esc));
+            }
+        }
+        steps.push(Pause(std::time::Duration::from_millis(200)));
+        let screen = replay_sized(&repository.path(), 140, 20, steps);
+        assert!(
+            history_selects(&screen, subject),
+            "{keys:?} {subject}\n{screen}"
+        );
+    }
+}
+
+/// Five commits, newest first: Fifth beta, Fourth alpha, Third beta, Second
+/// alpha, First beta.
+fn alpha_beta_history() -> Repo {
+    let repository = Repo::new();
+    for subject in [
+        "First beta",
+        "Second alpha",
+        "Third beta",
+        "Fourth alpha",
+        "Fifth beta",
+    ] {
+        repository.write("count.txt", &format!("{subject}\n"));
+        repository.commit_all(subject);
+    }
+    repository
+}
+
+#[test]
+fn slash_searches_inline_and_esc_restores_the_selection() {
+    let repository = alpha_beta_history();
+    // Start on Third beta, the third row.
+    let start = || {
+        vec![
+            WaitFor("Fifth beta"),
+            Key(Tab),
+            Text("gg2j"),
+            Pause(std::time::Duration::from_millis(100)),
+            Char('/'),
+            Text("alpha"),
+            Pause(std::time::Duration::from_millis(200)),
+        ]
+    };
+
+    // While typing, History stays and the selection jumps to the first match
+    // at or below the start.
+    let screen = replay_sized(&repository.path(), 140, 20, start());
+    assert!(history_selects(&screen, "Second alpha"), "{screen}");
+    assert!(screen.contains("/alpha_"), "{screen}");
+    assert!(screen.contains("match 2 of 2"), "{screen}");
+    assert!(screen.contains("HISTORY"), "{screen}");
+    assert!(!screen.contains("SEARCH  alpha"), "{screen}");
+
+    // Esc puts the selection back.
+    let mut steps = start();
+    steps.extend([Key(Esc), Pause(std::time::Duration::from_millis(200))]);
+    let screen = replay_sized(&repository.path(), 140, 20, steps);
+    assert!(history_selects(&screen, "Third beta"), "{screen}");
+    assert!(!screen.contains("/alpha_"), "{screen}");
+
+    // Enter keeps the match selected without opening the commit.
+    let mut steps = start();
+    steps.extend([Key(Enter), Pause(std::time::Duration::from_millis(200))]);
+    let screen = replay_sized(&repository.path(), 140, 20, steps);
+    assert!(history_selects(&screen, "Second alpha"), "{screen}");
+    assert!(!screen.contains("CHANGED FILES"), "{screen}");
+
+    // Tab opens the full ranked page with the same query.
+    let mut steps = start();
+    steps.extend([Key(Tab), WaitFor("SEARCH  alpha_")]);
+    replay_sized(&repository.path(), 140, 20, steps);
+
+    // No match leaves the selection where it was.
+    let mut steps = start();
+    steps.extend([Text("zzz"), Pause(std::time::Duration::from_millis(200))]);
+    let screen = replay_sized(&repository.path(), 140, 20, steps);
+    assert!(screen.contains("no match"), "{screen}");
+    assert!(history_selects(&screen, "Third beta"), "{screen}");
 }

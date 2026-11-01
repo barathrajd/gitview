@@ -26,9 +26,11 @@ pub(crate) use prepared::{
     PreparedComparisonFile, comparison_file_lines, prepare_comparison_file, retained_line_bytes,
 };
 pub use render::{render, render_in};
-pub use screen::{Cockpit, HelpPage, Screen};
+pub use screen::{Cockpit, HelpPage, Screen, SearchPrompt};
 pub use theme::ASCII_BORDER;
-pub(crate) use theme::{ACCENT, MUTED, page_block, selection_style, wrapped_rows};
+pub(crate) use theme::{
+    ACCENT, MUTED, highlighted_history_row, page_block, selection_style, wrapped_rows,
+};
 pub use viewport::{Viewport, split_side_pane};
 
 pub use cockpit::{render_workspace_cockpit, worktree_display_row};

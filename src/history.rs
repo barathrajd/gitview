@@ -81,6 +81,11 @@ pub fn load_history_for_path(root: &Path, path: Option<&Path>) -> Result<Vec<Str
     Ok(rows)
 }
 
+/// The full commit hash after the row's unit separator.
+pub fn full_hash(row: &str) -> Option<&str> {
+    row.split_once('\x1f').map(|(_, hash)| hash.trim())
+}
+
 pub fn commit_id(row: &str) -> Option<&str> {
     let (prefix, suffix) = row.split_once('*')?;
     if !prefix
@@ -101,15 +106,100 @@ pub fn commit_id(row: &str) -> Option<&str> {
     }
 }
 
-/// Return visible commit rows matching the search query, preserving history order.
+/// Commit rows matching the search query, best match first. Each word must
+/// match somewhere in the row, its letters in order; case is ignored, and
+/// equal matches keep history order.
 pub fn search_matches(rows: &[String], query: &str) -> Vec<usize> {
-    let query = query.to_lowercase();
-    rows.iter()
-        .enumerate()
-        .filter_map(|(index, row)| {
-            (commit_id(row).is_some() && row.to_lowercase().contains(&query)).then_some(index)
-        })
+    let config = frizbee::Config::default().casing(frizbee::CaseMatching::Ignore);
+    let mut matcher = frizbee::Matcher::from_query(query, &config);
+    matcher
+        .match_list(rows)
+        .into_iter()
+        .map(|found| found.index as usize)
+        .filter(|&index| commit_id(&rows[index]).is_some())
         .collect()
+}
+
+/// Commit rows matching the query, in history order.
+pub fn matches_in_order(rows: &[String], query: &str) -> Vec<usize> {
+    let mut matches = search_matches(rows, query);
+    matches.sort_unstable();
+    matches
+}
+
+/// The matching commit row after `selected` (before it when `forward` is
+/// false), in history order and wrapping around. None without a query or a
+/// match.
+pub fn next_match(
+    rows: &[String],
+    query: &str,
+    selected: Option<usize>,
+    forward: bool,
+) -> Option<usize> {
+    if query.trim().is_empty() {
+        return None;
+    }
+    step_match(&matches_in_order(rows, query), selected, forward)
+}
+
+/// The match after (or before) the selection among `matches`, which are row
+/// indices in history order, wrapping around.
+pub fn step_match(matches: &[usize], selected: Option<usize>, forward: bool) -> Option<usize> {
+    let current = selected.unwrap_or(0);
+    if forward {
+        matches
+            .iter()
+            .find(|&&row| row > current)
+            .or_else(|| matches.first())
+    } else {
+        matches
+            .iter()
+            .rev()
+            .find(|&&row| row < current)
+            .or_else(|| matches.last())
+    }
+    .copied()
+}
+
+/// Byte offsets in `row` of the characters that match the query, in order.
+/// Empty without a query or a match.
+pub fn match_positions(row: &str, query: &str) -> Vec<usize> {
+    MatchFinder::new(query).positions(row)
+}
+
+/// Finds match positions for one query across many rows, building the
+/// matcher once.
+pub struct MatchFinder {
+    matcher: Option<frizbee::Matcher>,
+}
+
+impl MatchFinder {
+    pub fn new(query: &str) -> Self {
+        let config = frizbee::Config::default().casing(frizbee::CaseMatching::Ignore);
+        Self {
+            matcher: (!query.trim().is_empty())
+                .then(|| frizbee::Matcher::from_query(query, &config)),
+        }
+    }
+
+    /// Byte offsets in `row` of the matching characters, in order.
+    pub fn positions(&mut self, row: &str) -> Vec<usize> {
+        let Some(matcher) = &mut self.matcher else {
+            return Vec::new();
+        };
+        let mut positions: Vec<usize> = matcher
+            .match_one_indices(row, 0)
+            .map(|found| {
+                found
+                    .indices
+                    .into_iter()
+                    .map(|index| index as usize)
+                    .collect()
+            })
+            .unwrap_or_default();
+        positions.sort_unstable();
+        positions
+    }
 }
 
 /// Hide the full object ID used for searching from the visible graph row.

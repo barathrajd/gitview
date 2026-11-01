@@ -185,9 +185,11 @@ pub(super) fn render_search(
     matches: &[usize],
     query: &str,
     pending: bool,
+    truncated_at: Option<usize>,
     selection: &mut ListState,
     border: ratatui::symbols::border::Set<'static>,
 ) {
+    let text = crate::search_query::parse_query(query).text;
     let items = match history {
         None => vec![ListItem::new("Loading commit history...")],
         Some(Err(error)) => vec![ListItem::new(error.as_str())],
@@ -195,16 +197,30 @@ pub(super) fn render_search(
             vec![ListItem::new("Waiting for search results...")]
         }
         Some(Ok(_)) if matches.is_empty() => vec![ListItem::new("No matching commits")],
-        Some(Ok(rows)) => matches
-            .iter()
-            .filter_map(|index| rows.get(*index))
-            .map(|row| ListItem::new(history::display_row(row)))
-            .collect(),
+        Some(Ok(rows)) => {
+            // Border and the selection marker.
+            let width = usize::from(frame.area().width.saturating_sub(4)).max(1);
+            let mut finder = history::MatchFinder::new(&text);
+            matches
+                .iter()
+                .filter_map(|index| rows.get(*index))
+                .map(|row| {
+                    let line = crate::ui::highlighted_history_row(row, &mut finder);
+                    ListItem::new(wrap_spans(line, width))
+                })
+                .collect()
+        }
     };
     let title = if pending {
         format!("SEARCH  {query}_   updating")
     } else {
         format!("SEARCH  {query}_   {} matches", matches.len())
+    };
+    let title = match truncated_at {
+        Some(limit) if !pending => {
+            format!("{title}   showing best of first {limit} matches — narrow the query")
+        }
+        _ => title,
     };
     let hints = [
         ("Up/Down", "select"),
@@ -228,4 +244,40 @@ pub(super) fn render_search(
         );
     frame.render_stateful_widget(list, sections[0], selection);
     render_key_hints(frame, sections[1], &hints);
+}
+
+/// Splits a styled line into rows of at most `width` columns, breaking at
+/// spaces where it can.
+fn wrap_spans(
+    line: ratatui::text::Line<'static>,
+    width: usize,
+) -> Vec<ratatui::text::Line<'static>> {
+    let plain: String = line
+        .spans
+        .iter()
+        .map(|span| span.content.as_ref())
+        .collect();
+    let mut styled = Vec::with_capacity(plain.len());
+    for span in &line.spans {
+        styled.extend(std::iter::repeat_n(span.style, span.content.len()));
+    }
+    super::diff_layout::wrap_line_ranges(&plain, width)
+        .into_iter()
+        .map(|range| {
+            let mut spans: Vec<ratatui::text::Span<'static>> = Vec::new();
+            let mut start = range.start;
+            while start < range.end {
+                let style = styled[start];
+                let end = (start..range.end)
+                    .find(|&index| styled[index] != style)
+                    .unwrap_or(range.end);
+                spans.push(ratatui::text::Span::styled(
+                    plain[start..end].to_owned(),
+                    style,
+                ));
+                start = end;
+            }
+            ratatui::text::Line::from(spans)
+        })
+        .collect()
 }
