@@ -95,3 +95,90 @@ fn typing_a_filter_key_opens_the_search_page_before_its_value() {
     assert!(!screen.contains("no match"), "{screen}");
     assert!(screen.contains("Add readme"), "{screen}");
 }
+
+/// Five commits, newest first: Fifth beta, Fourth alpha, Third beta, Second
+/// alpha, First beta.
+fn alpha_beta_history() -> Repo {
+    let repository = Repo::new();
+    for subject in [
+        "First beta",
+        "Second alpha",
+        "Third beta",
+        "Fourth alpha",
+        "Fifth beta",
+    ] {
+        repository.write("count.txt", &format!("{subject}\n"));
+        repository.commit_all(subject);
+    }
+    repository
+}
+
+#[test]
+fn n_and_shift_n_repeat_a_filtered_search_through_its_results() {
+    let repository = alpha_beta_history();
+    let search = || {
+        vec![
+            WaitFor("Fifth beta"),
+            Key(Tab),
+            Char('/'),
+            Text("msg:alpha"),
+            WaitFor("2 matches"),
+            Key(Enter),
+            WaitFor("CHANGED FILES"),
+            Key(Esc),
+            WaitForGone("CHANGED FILES"),
+        ]
+    };
+    let cases: [(&[char], &str, &str); 3] = [
+        (&['n'], "Second alpha", "match 2 of 2"),
+        (&['n', 'n'], "Fourth alpha", "match 1 of 2"),
+        (&['N'], "Second alpha", "match 2 of 2"),
+    ];
+    for (keys, subject, status) in cases {
+        let mut steps = search();
+        steps.extend(keys.iter().map(|key| Char(*key)));
+        steps.push(Pause(std::time::Duration::from_millis(200)));
+        let screen = replay::replay_sized(&repository.path(), 140, 20, steps);
+        let selected = screen
+            .lines()
+            .any(|line| line.contains("› * ") && line.contains(subject));
+        assert!(selected, "{keys:?} {subject}\n{screen}");
+        assert!(screen.contains(status), "{keys:?} {status}\n{screen}");
+    }
+}
+
+#[test]
+fn filtered_results_refresh_when_the_repository_changes() {
+    let repository = Repo::with_history();
+    let root = repository.path();
+    let mut steps = vec![
+        WaitFor("Change library"),
+        Key(Tab),
+        Char('/'),
+        Text("msg:library"),
+        WaitFor("2 matches"),
+        // The file watcher starts in the background, as in
+        // `app_replay_refresh.rs`.
+        Pause(std::time::Duration::from_millis(2500)),
+    ];
+    steps.push(Do(Box::new(move || {
+        std::fs::write(root.join("notes.txt"), "library notes\n").unwrap();
+        for args in [
+            &["add", "-A"][..],
+            &["commit", "-q", "-m", "Document library"],
+        ] {
+            let status = std::process::Command::new("git")
+                .current_dir(&root)
+                .args(["-c", "user.name=Test", "-c", "user.email=test@example.com"])
+                .args(args)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        }
+    })));
+    steps.extend([WaitFor("3 matches"), WaitFor("Document library")]);
+
+    let screen = replay(&repository.path(), steps);
+
+    assert!(screen.contains("SEARCH  msg:library_"), "{screen}");
+}

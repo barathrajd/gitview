@@ -280,7 +280,37 @@ pub(in crate::app) fn handle<H: Host>(
             }),
             AppAction::SearchNext | AppAction::SearchPrevious => {
                 let forward = action == AppAction::SearchNext;
-                if let Some(row) = app
+                if let Some(found) = &app.last_filtered {
+                    let rows = app
+                        .history
+                        .as_ref()
+                        .and_then(|rows| rows.as_ref().ok())
+                        .map(Vec::as_slice)
+                        .unwrap_or_default();
+                    let matches: Vec<usize> = rows
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, row)| {
+                            crate::history::full_hash(row).is_some_and(|hash| found.contains(hash))
+                        })
+                        .map(|(index, _)| index)
+                        .collect();
+                    let not_loaded = found.len() - matches.len();
+                    match crate::history::step_match(&matches, app.selection.selected(), forward) {
+                        Some(row) => {
+                            app.selection.select(Some(row));
+                            let position = matches.iter().position(|&m| m == row).unwrap_or(0);
+                            app.commit_feedback =
+                                format!("match {} of {}", position + 1, matches.len());
+                        }
+                        None => app.commit_feedback = "no match in loaded history".to_owned(),
+                    }
+                    app.needs_redraw = true;
+                    if not_loaded > 0 {
+                        app.commit_feedback
+                            .push_str(&format!(" ({not_loaded} not loaded)"));
+                    }
+                } else if let Some(row) = app
                     .history
                     .as_ref()
                     .and_then(|rows| rows.as_ref().ok())

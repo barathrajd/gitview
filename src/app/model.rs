@@ -39,6 +39,9 @@ pub(super) struct App {
     pub(super) query: String,
     /// The query last submitted with Enter, which `n` and `N` repeat.
     pub(super) last_search: String,
+    /// Full hashes a submitted filtered search found, which `n` and `N`
+    /// step through instead of matching `last_search`.
+    pub(super) last_filtered: Option<std::collections::HashSet<String>>,
     pub(super) search_results: Vec<usize>,
     pub(super) search_selection: ListState,
     pub(super) search_debounce: Option<Instant>,

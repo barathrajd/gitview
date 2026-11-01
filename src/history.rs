@@ -81,6 +81,11 @@ pub fn load_history_for_path(root: &Path, path: Option<&Path>) -> Result<Vec<Str
     Ok(rows)
 }
 
+/// The full commit hash after the row's unit separator.
+pub fn full_hash(row: &str) -> Option<&str> {
+    row.split_once('\x1f').map(|(_, hash)| hash.trim())
+}
+
 pub fn commit_id(row: &str) -> Option<&str> {
     let (prefix, suffix) = row.split_once('*')?;
     if !prefix
@@ -134,7 +139,12 @@ pub fn next_match(
     if query.trim().is_empty() {
         return None;
     }
-    let matches = matches_in_order(rows, query);
+    step_match(&matches_in_order(rows, query), selected, forward)
+}
+
+/// The match after (or before) the selection among `matches`, which are row
+/// indices in history order, wrapping around.
+pub fn step_match(matches: &[usize], selected: Option<usize>, forward: bool) -> Option<usize> {
     let current = selected.unwrap_or(0);
     if forward {
         matches

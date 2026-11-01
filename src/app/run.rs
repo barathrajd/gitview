@@ -155,6 +155,7 @@ pub fn run_app_with_agent<H: Host>(
     let history_path_input: Option<String> = None;
     let query = String::new();
     let last_search = String::new();
+    let last_filtered = None;
     let search_results = Vec::new();
     let search_selection = ListState::default();
     let search_debounce: Option<Instant> = None;
@@ -291,6 +292,7 @@ pub fn run_app_with_agent<H: Host>(
         history_path_input,
         query,
         last_search,
+        last_filtered,
         search_results,
         search_selection,
         search_debounce,

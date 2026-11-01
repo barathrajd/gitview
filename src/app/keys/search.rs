@@ -26,6 +26,7 @@ pub(in crate::app) fn handle<H: Host>(
             }
             KeyCode::Enter => {
                 app.last_search.clone_from(&app.query);
+                app.last_filtered = None;
                 app.inline_search = None;
             }
             // The full page ranks the same query.
@@ -107,6 +108,17 @@ pub(in crate::app) fn handle<H: Host>(
                     );
                 }
                 app.search_debounce = None;
+                app.last_filtered = app
+                    .filtered
+                    .as_ref()
+                    .and_then(|filtered| filtered.rows.as_ref())
+                    .and_then(|rows| rows.as_ref().ok())
+                    .map(|rows| {
+                        rows.iter()
+                            .filter_map(|row| crate::history::full_hash(row))
+                            .map(str::to_owned)
+                            .collect()
+                    });
                 if let Some((index, id)) = selected_search_commit(
                     search_rows(app.history.as_ref(), app.filtered.as_ref()),
                     &app.search_results,
