@@ -494,5 +494,8 @@ diffs, tags, profiles, objects, comparison, path filter) open in the
 centre panel with the sidebar visible; worktree prompts and the full
 search page stay full screen. The old full-screen branch page is removed;
 the worktree section keeps the title WORKTREE. Help lists the new focus
-keys, `/`, `n`/`N`, and `v`, with a Sessions page. Tests:
-`app_replay_sidebar` and the sidebar cockpit test.
+keys, `/`, `n`/`N`, and `v`, with a Sessions page. One single-line
+bottom bar shows the keys (user correction): it never wraps, hints that
+don't fit fold into `? more`, and pages in the centre hand their keys to
+it instead of drawing their own hint row. Tests: `app_replay_sidebar` and
+the sidebar cockpit test.
