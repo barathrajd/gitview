@@ -404,9 +404,11 @@ pub fn render_in(
             border,
             None,
         ),
-        Screen::CommitDetails { details, selection } => {
-            render_commit_details(frame, details, selection, border)
-        }
+        Screen::CommitDetails {
+            details,
+            search_prompt,
+            selection,
+        } => render_commit_details(frame, details, search_prompt, selection, border),
         Screen::WorkingTree { status, selection } => {
             render_working_tree(frame, status, selection, border)
         }

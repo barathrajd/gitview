@@ -4,6 +4,7 @@ use crate::app::{
     AppAction, View,
     helpers::*,
     model::App,
+    model::SearchList,
     run::{Env, Flow, Host},
 };
 use crate::motion::{Motion, Parsed};
@@ -119,13 +120,13 @@ pub(in crate::app) fn handle<H: Host>(
             }
             AppAction::StartSearch => {
                 app.query.clear();
-                let view = app.app_state.view();
+                let list = match app.app_state.view() {
+                    View::History => SearchList::History,
+                    View::WorkingTree => SearchList::Worktree,
+                };
                 app.inline_search = Some(crate::app::model::InlineSearch {
-                    view,
-                    origin: match view {
-                        View::History => app.selection.selected(),
-                        View::WorkingTree => app.status_selection.selected(),
-                    },
+                    list,
+                    origin: super::search::list_selection(app, list).selected(),
                     matches: Vec::new(),
                 });
             }
@@ -286,21 +287,7 @@ pub(in crate::app) fn handle<H: Host>(
             AppAction::SearchNext | AppAction::SearchPrevious => {
                 let forward = action == AppAction::SearchNext;
                 if app.app_state.view() == View::WorkingTree {
-                    let order = worktree_search_order(app.status.as_ref());
-                    let matches = crate::list_search::matches_in_order(
-                        &order.iter().map(|(_, path)| path).collect::<Vec<_>>(),
-                        &app.last_search,
-                    );
-                    let current = app
-                        .status_selection
-                        .selected()
-                        .and_then(|entry| order.iter().position(|(index, _)| *index == entry));
-                    if let Some(position) = (!app.last_search.trim().is_empty())
-                        .then(|| crate::history::step_match(&matches, current, forward))
-                        .flatten()
-                    {
-                        app.status_selection.select(Some(order[position].0));
-                    }
+                    super::search::step_list(app, SearchList::Worktree, forward);
                 } else if let Some(found) = &app.last_filtered {
                     let rows = app
                         .history
@@ -380,6 +367,19 @@ pub(in crate::app) fn handle<H: Host>(
         KeyCode::Tab if !app.help && app.diff.is_some() => {
             app.diff_side_by_side = !app.diff_side_by_side;
             app.diff_scroll = 0;
+        }
+        KeyCode::Char('/') if !app.help && app.diff.is_none() && app.details.is_some() => {
+            app.query.clear();
+            app.inline_search = Some(crate::app::model::InlineSearch {
+                list: SearchList::CommitFiles,
+                origin: app.file_selection.selected(),
+                matches: Vec::new(),
+            });
+        }
+        KeyCode::Char(letter @ ('n' | 'N'))
+            if !app.help && app.diff.is_none() && app.details.is_some() =>
+        {
+            super::search::step_list(app, SearchList::CommitFiles, letter == 'n');
         }
         KeyCode::Tab
         | KeyCode::Char('b')

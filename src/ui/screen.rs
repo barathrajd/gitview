@@ -133,6 +133,7 @@ pub enum Screen<'a> {
     },
     CommitDetails {
         details: &'a (u64, Option<Result<CommitDetails, String>>),
+        search_prompt: Option<SearchPrompt<'a>>,
         selection: &'a mut ListState,
     },
     WorkingTree {

@@ -732,6 +732,7 @@ fn renders_branch_and_commit_details() {
     let commit = draw(
         Screen::CommitDetails {
             details: &details,
+            search_prompt: None,
             selection: &mut file_selection,
         },
         100,

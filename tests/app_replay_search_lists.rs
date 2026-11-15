@@ -128,3 +128,108 @@ fn worktree_search_matches_the_full_path() {
     );
     assert!(screen.contains("match 1 of 1"), "{screen}");
 }
+
+/// One commit changing `notes-a-alpha.txt`, `notes-b-beta.txt`,
+/// `notes-c-alpha.txt`, `notes-d-beta.txt`, and `notes-e-alpha.txt`.
+fn commit_files() -> Repo {
+    let repository = Repo::with_history();
+    for name in ["a-alpha", "b-beta", "c-alpha", "d-beta", "e-alpha"] {
+        repository.write(&format!("notes-{name}.txt"), "note\n");
+    }
+    repository.commit_all("Add notes");
+    repository
+}
+
+/// The changed file the commit details mark as selected.
+fn selected_file(screen: &str) -> Option<String> {
+    let line = screen.lines().find(|line| line.contains("› notes-"))?;
+    line.split_whitespace()
+        .find(|word| word.starts_with("notes-"))
+        .map(str::to_owned)
+}
+
+fn commit_files_screen(repository: &Repo, keys: Vec<replay::Step>) -> String {
+    let mut steps = vec![
+        WaitFor("Add notes"),
+        Key(crossterm::event::KeyCode::Tab),
+        Key(Enter),
+        WaitFor("CHANGED FILES"),
+    ];
+    steps.extend(keys);
+    steps.push(Pause(Duration::from_millis(200)));
+    replay_sized(&repository.path(), 140, 24, steps)
+}
+
+#[test]
+fn slash_jumps_through_commit_files_and_esc_restores_the_selection() {
+    let repository = commit_files();
+    // Start on notes-b-beta.txt, the second file.
+    let start = || vec![Char('j'), Char('/'), Text("alpha")];
+
+    let screen = commit_files_screen(&repository, start());
+    assert_eq!(
+        selected_file(&screen).as_deref(),
+        Some("notes-c-alpha.txt"),
+        "{screen}"
+    );
+    assert!(screen.contains("/alpha_"), "{screen}");
+    assert!(screen.contains("match 2 of 3"), "{screen}");
+    assert!(screen.contains("notes-d-beta.txt"), "{screen}");
+
+    let mut keys = start();
+    keys.push(Key(Esc));
+    let screen = commit_files_screen(&repository, keys);
+    assert_eq!(
+        selected_file(&screen).as_deref(),
+        Some("notes-b-beta.txt"),
+        "{screen}"
+    );
+    assert!(!screen.contains("/alpha_"), "{screen}");
+    // Esc closed only the search, not the commit.
+    assert!(screen.contains("CHANGED FILES"), "{screen}");
+
+    // Enter keeps the match without opening its diff.
+    let mut keys = start();
+    keys.push(Key(Enter));
+    let screen = commit_files_screen(&repository, keys);
+    assert_eq!(
+        selected_file(&screen).as_deref(),
+        Some("notes-c-alpha.txt"),
+        "{screen}"
+    );
+    assert!(screen.contains("CHANGED FILES"), "{screen}");
+    assert!(!screen.contains("/alpha_"), "{screen}");
+
+    let mut keys = start();
+    keys.push(Text("zzz"));
+    let screen = commit_files_screen(&repository, keys);
+    assert!(screen.contains("no match"), "{screen}");
+    assert_eq!(
+        selected_file(&screen).as_deref(),
+        Some("notes-b-beta.txt"),
+        "{screen}"
+    );
+}
+
+#[test]
+fn n_and_shift_n_step_through_commit_file_matches() {
+    let repository = commit_files();
+    let cases: [(&str, &str); 4] = [
+        ("", "notes-a-alpha.txt"),
+        ("n", "notes-c-alpha.txt"),
+        ("nnn", "notes-a-alpha.txt"),
+        ("N", "notes-e-alpha.txt"),
+    ];
+    for (keys, file) in cases {
+        let mut steps = vec![Char('/'), Text("alpha"), Key(Enter)];
+        if !keys.is_empty() {
+            steps.push(Text(keys));
+        }
+        let screen = commit_files_screen(&repository, steps);
+        assert_eq!(
+            selected_file(&screen).as_deref(),
+            Some(file),
+            "{keys:?}\n{screen}"
+        );
+    }
+}

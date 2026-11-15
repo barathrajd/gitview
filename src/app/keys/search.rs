@@ -7,7 +7,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::app::{
     helpers::*,
-    model::App,
+    model::{App, SearchList},
     run::{Env, Flow, Host},
 };
 
@@ -17,12 +17,13 @@ pub(in crate::app) fn handle<H: Host>(
     key: KeyEvent,
 ) -> io::Result<Flow> {
     let Env { root, .. } = env;
-    if app
+    if let Some(list) = app
         .inline_search
         .as_ref()
-        .is_some_and(|search| search.view == crate::app::View::WorkingTree)
+        .map(|search| search.list)
+        .filter(|&list| list != SearchList::History)
     {
-        return Ok(worktree_search(app, key));
+        return Ok(list_search(app, list, key));
     }
     if let Some(search) = &mut app.inline_search {
         let rows = app.history.as_ref().and_then(|rows| rows.as_ref().ok());
@@ -209,16 +210,13 @@ fn open_search_page(app: &mut App) {
     app.search_debounce = app.history.is_none().then_some(Instant::now());
 }
 
-/// A key while `/` searches the working-tree files, matching full paths in
-/// display order.
-fn worktree_search(app: &mut App, key: KeyEvent) -> Flow {
-    let Some(search) = &mut app.inline_search else {
-        return Flow::Next;
-    };
+/// A key while `/` searches a list other than History: the worktree files
+/// or the commit's changed files, matching full paths in display order.
+fn list_search(app: &mut App, list: SearchList, key: KeyEvent) -> Flow {
     match key.code {
         KeyCode::Esc => {
-            app.status_selection.select(search.origin);
-            app.inline_search = None;
+            let origin = app.inline_search.take().and_then(|search| search.origin);
+            list_selection(app, list).select(origin);
         }
         KeyCode::Enter => {
             app.last_search.clone_from(&app.query);
@@ -231,25 +229,78 @@ fn worktree_search(app: &mut App, key: KeyEvent) -> Flow {
             } else if let KeyCode::Char(c) = key.code {
                 app.query.push(c);
             }
-            let order = super::views::worktree_search_order(app.status.as_ref());
+            let order = search_order(app, list);
             let positions = crate::list_search::matches_in_order(
                 &order.iter().map(|(_, path)| path).collect::<Vec<_>>(),
                 &app.query,
             );
+            let Some(search) = &mut app.inline_search else {
+                return Flow::Handled;
+            };
             search.matches = positions
                 .iter()
                 .map(|&position| order[position].0)
                 .collect();
             let start = search
                 .origin
-                .and_then(|entry| order.iter().position(|(index, _)| *index == entry))
+                .and_then(|item| order.iter().position(|(index, _)| *index == item))
                 .unwrap_or(0);
             let target = crate::list_search::first_from(&positions, start)
                 .map(|position| order[position].0)
                 .or(search.origin);
-            app.status_selection.select(target);
+            list_selection(app, list).select(target);
         }
         _ => {}
     }
     Flow::Handled
+}
+
+/// The searched list's items in display order: each item's index into the
+/// list's data, and the text search matches.
+pub(in crate::app) fn search_order(app: &App, list: SearchList) -> Vec<(usize, String)> {
+    match list {
+        SearchList::History => Vec::new(),
+        SearchList::Worktree => super::views::worktree_search_order(app.status.as_ref()),
+        SearchList::CommitFiles => match &app.details {
+            Some((_, Some(Ok(commit)))) => commit
+                .files
+                .iter()
+                .map(|file| file.to_string_lossy().into_owned())
+                .enumerate()
+                .collect(),
+            _ => Vec::new(),
+        },
+    }
+}
+
+/// The selection the searched list moves.
+pub(in crate::app) fn list_selection(
+    app: &mut App,
+    list: SearchList,
+) -> &mut ratatui::widgets::ListState {
+    match list {
+        SearchList::History => &mut app.selection,
+        SearchList::Worktree => &mut app.status_selection,
+        SearchList::CommitFiles => &mut app.file_selection,
+    }
+}
+
+/// `n`/`N` on a list other than History: the next match of the last search
+/// after the selection, wrapping around.
+pub(in crate::app) fn step_list(app: &mut App, list: SearchList, forward: bool) {
+    if app.last_search.trim().is_empty() {
+        return;
+    }
+    let order = search_order(app, list);
+    let matches = crate::list_search::matches_in_order(
+        &order.iter().map(|(_, path)| path).collect::<Vec<_>>(),
+        &app.last_search,
+    );
+    let selection = list_selection(app, list);
+    let current = selection
+        .selected()
+        .and_then(|item| order.iter().position(|(index, _)| *index == item));
+    if let Some(position) = crate::history::step_match(&matches, current, forward) {
+        selection.select(Some(order[position].0));
+    }
 }
