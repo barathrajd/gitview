@@ -175,7 +175,7 @@ pub fn run_app_with_agent<H: Host>(
     std::thread::spawn(move || {
         let _ = sender.send((
             0,
-            crate::history::load_structured(&path, requested_history_path.as_deref()),
+            crate::history::load_view(&path, requested_history_path.as_deref(), false, 0),
         ));
     });
     let history: Option<Result<Vec<String>, String>> = None;
@@ -304,6 +304,7 @@ pub fn run_app_with_agent<H: Host>(
         history_request,
         history,
         history_entries: Vec::new(),
+        history_raw: false,
         history_more: false,
         history_layout: crate::graph::Layout::new(),
         more_sender,

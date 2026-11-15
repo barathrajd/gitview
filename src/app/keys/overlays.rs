@@ -102,10 +102,11 @@ pub(in crate::app) fn handle<H: Host>(
                 let filter = app.history_filter.clone();
                 app.history = None;
                 app.selection.select(None);
+                let raw = app.history_raw;
                 std::thread::spawn(move || {
                     let _ = sender.send((
                         id,
-                        crate::history::load_structured(&path, filter.as_deref()),
+                        crate::history::load_view(&path, filter.as_deref(), raw, 0),
                     ));
                 });
             }
@@ -135,10 +136,11 @@ pub(in crate::app) fn handle<H: Host>(
             let path = root.to_path_buf();
             app.history = None;
             let requested_history_path = app.history_filter.clone();
+            let raw = app.history_raw;
             std::thread::spawn(move || {
                 let _ = sender.send((
                     id,
-                    crate::history::load_structured(&path, requested_history_path.as_deref()),
+                    crate::history::load_view(&path, requested_history_path.as_deref(), raw, 0),
                 ));
             });
         }

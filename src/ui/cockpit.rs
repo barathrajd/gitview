@@ -65,6 +65,7 @@ pub fn render_workspace_cockpit(
             ("f", "path history"),
             ("D", "compare"),
             ("o", "object"),
+            ("v", "raw graph"),
             ("b", "branches"),
             ("p", "profiles"),
             ("/", "search"),
@@ -350,6 +351,12 @@ pub(super) fn render_history_panel(
             let height = usize::from(area.height.saturating_sub(2)).max(1);
             let window = visible_window(selection, rows.len(), height);
             let structured = entries.len() == rows.len();
+            // Raw `git log --graph` rows carry no parsed commits.
+            let title = if !entries.is_empty() && entries.iter().all(Option::is_none) {
+                "HISTORY · RAW"
+            } else {
+                "HISTORY"
+            };
             let shown = || {
                 window
                     .clone()
@@ -397,7 +404,7 @@ pub(super) fn render_history_panel(
             render_panel_list(
                 frame,
                 area,
-                "HISTORY",
+                title,
                 items,
                 &mut shown_selection,
                 focused,

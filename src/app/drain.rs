@@ -66,7 +66,7 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
             .and_then(|rows| rows.as_ref().ok())
             .zip(app.selection.selected())
             .and_then(|(rows, index)| rows.get(index))
-            .and_then(|row| crate::history::commit_id(row))
+            .and_then(|row| crate::history::full_hash(row))
             .map(str::to_owned);
         let result = result.map(|structured| {
             app.history_entries = structured.entries;
@@ -85,7 +85,7 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
         {
             let kept = selected_commit.as_deref().and_then(|wanted| {
                 rows.iter()
-                    .position(|row| crate::history::commit_id(row) == Some(wanted))
+                    .position(|row| crate::history::full_hash(row) == Some(wanted))
             });
             app.selection.select(Some(kept.unwrap_or(0)));
         }
@@ -403,10 +403,11 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
         let sender = app.history_sender.clone();
         let path = root.to_path_buf();
         let requested_history_path = app.history_filter.clone();
+        let raw = app.history_raw;
         std::thread::spawn(move || {
             let _ = sender.send((
                 id,
-                crate::history::load_structured(&path, requested_history_path.as_deref()),
+                crate::history::load_view(&path, requested_history_path.as_deref(), raw, 0),
             ));
         });
         app.status_request += 1;
@@ -449,10 +450,11 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
                 let sender = app.history_sender.clone();
                 let path = root.to_path_buf();
                 let requested_history_path = app.history_filter.clone();
+                let raw = app.history_raw;
                 std::thread::spawn(move || {
                     let _ = sender.send((
                         id,
-                        crate::history::load_structured(&path, requested_history_path.as_deref()),
+                        crate::history::load_view(&path, requested_history_path.as_deref(), raw, 0),
                     ));
                 });
                 app.status_request += 1;

@@ -161,3 +161,48 @@ fn history_loads_more_commits_past_the_first_page() {
         .unwrap_or("");
     assert!(selected.contains(" c0 "), "{screen}");
 }
+
+#[test]
+fn v_switches_to_the_raw_graph_and_back_keeping_the_commit() {
+    let repository = merged();
+    let select_feature = || {
+        vec![
+            WaitFor("Feature work"),
+            Key(Tab),
+            Char('/'),
+            Text("feature work"),
+            Key(Enter),
+        ]
+    };
+    let selected = |screen: &str| {
+        screen
+            .lines()
+            .find(|line| line.contains("› "))
+            .unwrap_or("")
+            .to_owned()
+    };
+
+    let mut steps = select_feature();
+    steps.extend([Char('v'), WaitFor("HISTORY · RAW")]);
+    let raw = replay_sized(&repository.path(), 160, 20, steps);
+    // Raw `git log --graph` characters, and the same commit selected.
+    assert!(raw.contains("|\\"), "{raw}");
+    assert!(!raw.contains('●'), "{raw}");
+    assert!(selected(&raw).contains("› | * "), "{raw}");
+    assert!(selected(&raw).contains("Feature work"), "{raw}");
+
+    let mut steps = select_feature();
+    steps.extend([
+        Char('v'),
+        WaitFor("HISTORY · RAW"),
+        Char('v'),
+        WaitFor("●─╮"),
+    ]);
+    let structured = replay_sized(&repository.path(), 160, 20, steps);
+    assert!(!structured.contains("HISTORY · RAW"), "{structured}");
+    assert!(
+        selected(&structured).contains("Feature work"),
+        "{structured}"
+    );
+    assert!(selected(&structured).contains("● "), "{structured}");
+}

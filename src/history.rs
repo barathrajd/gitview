@@ -252,6 +252,26 @@ pub fn load_structured(root: &Path, path: Option<&Path>) -> Result<Structured, S
     load_structured_count(root, path, HISTORY_PAGE)
 }
 
+/// Load History in the chosen view: the structured graph with at least
+/// `count` commits, or with `raw` the plain `git log --graph` rows, which
+/// carry no parsed commits and load no more pages.
+pub fn load_view(
+    root: &Path,
+    path: Option<&Path>,
+    raw: bool,
+    count: usize,
+) -> Result<Structured, String> {
+    if raw {
+        let rows = load_history_for_path(root, path)?;
+        return Ok(Structured {
+            entries: vec![None; rows.len()],
+            rows,
+            ..Structured::default()
+        });
+    }
+    load_structured_count(root, path, count)
+}
+
 /// Load the newest `count` commits, at least one page, as a reload that
 /// keeps as much History as was loaded.
 pub fn load_structured_count(

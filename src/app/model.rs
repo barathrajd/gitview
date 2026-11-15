@@ -60,6 +60,9 @@ pub(super) struct App {
     pub(super) history: Option<Result<Vec<String>, String>>,
     /// The parsed commit and graph cells for each History row.
     pub(super) history_entries: Vec<Option<crate::history::Entry>>,
+    /// History shows raw `git log --graph` rows instead of the structured
+    /// graph (`v`).
+    pub(super) history_raw: bool,
     /// More commits follow the loaded History.
     pub(super) history_more: bool,
     /// The graph lanes after the last loaded row, for the next page.

@@ -270,8 +270,9 @@ fn start_wanted(app: &mut App, root: &std::path::Path) {
             .as_ref()
             .and_then(|rows| rows.as_ref().ok())
             .map_or(0, Vec::len);
+        let raw = app.history_raw;
         thread::spawn(move || {
-            let result = crate::history::load_structured_count(&path, filter.as_deref(), count);
+            let result = crate::history::load_view(&path, filter.as_deref(), raw, count);
             completion.mark();
             let _ = sender.send((id, result));
         });
