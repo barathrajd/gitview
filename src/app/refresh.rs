@@ -264,8 +264,15 @@ fn start_wanted(app: &mut App, root: &std::path::Path) {
         let sender = app.history_sender.clone();
         let path = root.to_path_buf();
         let filter = app.history_filter.clone();
+        // Reload as many commits as are loaded, so the selection stays.
+        let count = app
+            .history
+            .as_ref()
+            .and_then(|rows| rows.as_ref().ok())
+            .map_or(0, Vec::len);
+        let raw = app.history_raw;
         thread::spawn(move || {
-            let result = crate::history::load_history_for_path(&path, filter.as_deref());
+            let result = crate::history::load_view(&path, filter.as_deref(), raw, count);
             completion.mark();
             let _ = sender.send((id, result));
         });

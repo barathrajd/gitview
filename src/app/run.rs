@@ -167,7 +167,7 @@ pub fn run_app_with_agent<H: Host>(
             (filters, result)
         });
     let (history_sender, receiver) =
-        std::sync::mpsc::channel::<(u64, Result<Vec<String>, String>)>();
+        std::sync::mpsc::channel::<(u64, Result<crate::history::Structured, String>)>();
     let history_request = 0u64;
     let sender = history_sender.clone();
     let path = root.to_path_buf();
@@ -175,10 +175,11 @@ pub fn run_app_with_agent<H: Host>(
     std::thread::spawn(move || {
         let _ = sender.send((
             0,
-            crate::history::load_history_for_path(&path, requested_history_path.as_deref()),
+            crate::history::load_view(&path, requested_history_path.as_deref(), false, 0),
         ));
     });
     let history: Option<Result<Vec<String>, String>> = None;
+    let (more_sender, more_receiver) = std::sync::mpsc::channel();
     let selection = ListState::default();
     let (details_sender, details_receiver) =
         std::sync::mpsc::channel::<(u64, Result<crate::details::CommitDetails, String>)>();
@@ -302,6 +303,13 @@ pub fn run_app_with_agent<H: Host>(
         receiver,
         history_request,
         history,
+        history_entries: Vec::new(),
+        history_raw: false,
+        history_more: false,
+        history_layout: crate::graph::Layout::new(),
+        more_sender,
+        more_receiver,
+        more_pending: None,
         selection,
         details_sender,
         details_receiver,

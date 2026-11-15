@@ -221,7 +221,7 @@ fn amend_rewrites_head_with_the_new_message_after_confirmation() {
             Key(Enter),
             WaitFor("This rewrites HEAD and changes its commit ID."),
             Char('y'),
-            WaitFor("Change library again - Test"),
+            WaitFor("(HEAD -> main) Change library again"),
         ],
     );
 

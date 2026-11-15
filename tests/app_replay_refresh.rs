@@ -86,7 +86,7 @@ fn a_commit_made_outside_appears_in_history_and_the_selection_stays_put() {
     let mut steps = history_steps();
     steps.extend([
         Char('j'),
-        WaitFor("› * "),
+        WaitFor("› ● "),
         Pause(WATCHER_READY),
         outside_write(root.join("agent.txt"), "from the agent\n"),
         outside_git_step(root.clone(), &["add", "-A"]),
@@ -98,7 +98,7 @@ fn a_commit_made_outside_appears_in_history_and_the_selection_stays_put() {
 
     let selected = screen
         .lines()
-        .find(|line| line.contains("› * "))
+        .find(|line| line.contains("› ● "))
         .expect("a row is selected");
     assert!(
         selected.contains("Add library"),

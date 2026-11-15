@@ -66,14 +66,26 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
             .and_then(|rows| rows.as_ref().ok())
             .zip(app.selection.selected())
             .and_then(|(rows, index)| rows.get(index))
-            .and_then(|row| crate::history::commit_id(row))
+            .and_then(|row| crate::history::full_hash(row))
             .map(str::to_owned);
+        let result = result.map(|structured| {
+            app.history_entries = structured.entries;
+            app.history_more = structured.more;
+            app.history_layout = structured.layout;
+            structured.rows
+        });
+        if result.is_err() {
+            app.history_entries.clear();
+            app.history_more = false;
+        }
+        // Any page still loading extended the old rows.
+        app.more_pending = None;
         if let Ok(rows) = &result
             && !rows.is_empty()
         {
             let kept = selected_commit.as_deref().and_then(|wanted| {
                 rows.iter()
-                    .position(|row| crate::history::commit_id(row) == Some(wanted))
+                    .position(|row| crate::history::full_hash(row) == Some(wanted))
             });
             app.selection.select(Some(kept.unwrap_or(0)));
         }
@@ -87,6 +99,28 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
             app.filter_worker.request(filtered.filters.clone());
         }
     }
+    while let Ok((request, skip, result)) = app.more_receiver.try_recv() {
+        if app.more_pending != Some((request, skip)) {
+            continue;
+        }
+        app.more_pending = None;
+        app.needs_redraw = true;
+        let Some(Ok(rows)) = &mut app.history else {
+            continue;
+        };
+        match result {
+            Ok(page) if rows.len() == skip => {
+                rows.extend(page.rows);
+                app.history_entries.extend(page.entries);
+                app.history_more = page.more;
+                app.history_layout = page.layout;
+            }
+            Ok(_) => {}
+            // Keep the loaded rows; scrolling near the end tries again.
+            Err(error) => app.commit_feedback = error,
+        }
+    }
+    request_more_history(app, root);
     if let Some((filters, result)) = app.filter_worker.take_result()
         && let Some(filtered) = &mut app.filtered
         && filtered.filters == filters
@@ -369,10 +403,11 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
         let sender = app.history_sender.clone();
         let path = root.to_path_buf();
         let requested_history_path = app.history_filter.clone();
+        let raw = app.history_raw;
         std::thread::spawn(move || {
             let _ = sender.send((
                 id,
-                crate::history::load_history_for_path(&path, requested_history_path.as_deref()),
+                crate::history::load_view(&path, requested_history_path.as_deref(), raw, 0),
             ));
         });
         app.status_request += 1;
@@ -415,13 +450,11 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
                 let sender = app.history_sender.clone();
                 let path = root.to_path_buf();
                 let requested_history_path = app.history_filter.clone();
+                let raw = app.history_raw;
                 std::thread::spawn(move || {
                     let _ = sender.send((
                         id,
-                        crate::history::load_history_for_path(
-                            &path,
-                            requested_history_path.as_deref(),
-                        ),
+                        crate::history::load_view(&path, requested_history_path.as_deref(), raw, 0),
                     ));
                 });
                 app.status_request += 1;
@@ -621,4 +654,39 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
         }
     }
     Ok(Flow::Next)
+}
+
+/// Rows from the end of History at which the next page starts loading.
+const MORE_MARGIN: usize = 100;
+
+/// Load the next page of History in the background once the selection is
+/// near the end of the loaded rows.
+fn request_more_history(app: &mut App, root: &std::path::Path) {
+    let Some(Ok(rows)) = &app.history else {
+        return;
+    };
+    let near_end = app
+        .selection
+        .selected()
+        .is_some_and(|selected| selected + MORE_MARGIN >= rows.len());
+    if !app.history_more || app.more_pending.is_some() || !near_end {
+        return;
+    }
+    let skip = rows.len();
+    let request = app.history_request;
+    app.more_pending = Some((request, skip));
+    let sender = app.more_sender.clone();
+    let path = root.to_path_buf();
+    let filter = app.history_filter.clone();
+    let layout = app.history_layout.clone();
+    std::thread::spawn(move || {
+        let result = crate::history::load_more(
+            &path,
+            filter.as_deref(),
+            skip,
+            crate::history::HISTORY_PAGE,
+            layout,
+        );
+        let _ = sender.send((request, skip, result));
+    });
 }

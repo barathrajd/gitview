@@ -110,6 +110,30 @@ pub(in crate::app) fn handle<H: Host>(
                     app.history_filter.as_deref(),
                 ));
             }
+            AppAction::ToggleRawHistory => {
+                // Reload in the other view; the reload keeps the selected
+                // commit by its full hash, and the old rows stay on screen
+                // until the new ones arrive.
+                app.history_raw = !app.history_raw;
+                app.history_request += 1;
+                app.more_pending = None;
+                let id = app.history_request;
+                let sender = app.history_sender.clone();
+                let path = root.to_path_buf();
+                let filter = app.history_filter.clone();
+                let raw = app.history_raw;
+                let count = app
+                    .history
+                    .as_ref()
+                    .and_then(|rows| rows.as_ref().ok())
+                    .map_or(0, Vec::len);
+                std::thread::spawn(move || {
+                    let _ = sender.send((
+                        id,
+                        crate::history::load_view(&path, filter.as_deref(), raw, count),
+                    ));
+                });
+            }
             AppAction::StartPathHistory => {
                 app.history_path_input = Some(
                     app.history_filter

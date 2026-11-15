@@ -54,10 +54,25 @@ pub(super) struct App {
             Result<crate::search_query::Filtered, String>,
         ),
     >,
-    pub(super) history_sender: Sender<(u64, Result<Vec<String>, String>)>,
-    pub(super) receiver: Receiver<(u64, Result<Vec<String>, String>)>,
+    pub(super) history_sender: Sender<(u64, Result<crate::history::Structured, String>)>,
+    pub(super) receiver: Receiver<(u64, Result<crate::history::Structured, String>)>,
     pub(super) history_request: u64,
     pub(super) history: Option<Result<Vec<String>, String>>,
+    /// The parsed commit and graph cells for each History row.
+    pub(super) history_entries: Vec<Option<crate::history::Entry>>,
+    /// History shows raw `git log --graph` rows instead of the structured
+    /// graph (`v`).
+    pub(super) history_raw: bool,
+    /// More commits follow the loaded History.
+    pub(super) history_more: bool,
+    /// The graph lanes after the last loaded row, for the next page.
+    pub(super) history_layout: crate::graph::Layout,
+    /// The next page: the History request it extends, the rows it skips,
+    /// and the result.
+    pub(super) more_sender: Sender<(u64, usize, Result<crate::history::Structured, String>)>,
+    pub(super) more_receiver: Receiver<(u64, usize, Result<crate::history::Structured, String>)>,
+    /// A next page is loading for these rows.
+    pub(super) more_pending: Option<(u64, usize)>,
     pub(super) selection: ListState,
     pub(super) details_sender: Sender<(u64, Result<crate::details::CommitDetails, String>)>,
     pub(super) details_receiver: Receiver<(u64, Result<crate::details::CommitDetails, String>)>,

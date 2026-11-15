@@ -31,6 +31,8 @@ pub enum AppAction {
     /// `N`: the previous matching commit, above the selection.
     SearchPrevious,
     StartPathHistory,
+    /// `v`: switch History between the structured graph and raw rows.
+    ToggleRawHistory,
     OpenComparison,
     InspectObject,
     OpenBranches,
@@ -164,6 +166,7 @@ impl AppState {
             (View::History, KeyCode::Char('o')) => Some(AppAction::InspectObject),
             (View::History, KeyCode::Char('D')) => Some(AppAction::OpenComparison),
             (View::History, KeyCode::Char('f')) => Some(AppAction::StartPathHistory),
+            (View::History, KeyCode::Char('v')) => Some(AppAction::ToggleRawHistory),
             (_, KeyCode::Char('/')) => Some(AppAction::StartSearch),
             (_, KeyCode::Char('n')) => Some(AppAction::SearchNext),
             (_, KeyCode::Char('N')) => Some(AppAction::SearchPrevious),

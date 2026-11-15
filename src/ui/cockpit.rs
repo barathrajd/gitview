@@ -43,6 +43,7 @@ pub fn render_workspace_cockpit(
         profile,
         branches,
         history,
+        history_entries,
         status,
         focused,
         feedback,
@@ -64,6 +65,7 @@ pub fn render_workspace_cockpit(
             ("f", "path history"),
             ("D", "compare"),
             ("o", "object"),
+            ("v", "raw graph"),
             ("b", "branches"),
             ("p", "profiles"),
             ("/", "search"),
@@ -111,6 +113,7 @@ pub fn render_workspace_cockpit(
                 frame,
                 area,
                 history,
+                history_entries,
                 history_selection,
                 true,
                 highlight,
@@ -145,6 +148,7 @@ pub fn render_workspace_cockpit(
             frame,
             panes[1],
             history,
+            history_entries,
             history_selection,
             focused == View::History,
             highlight,
@@ -169,6 +173,7 @@ pub fn render_workspace_cockpit(
             frame,
             panes[1],
             history,
+            history_entries,
             history_selection,
             focused == View::History,
             highlight,
@@ -326,36 +331,118 @@ pub(super) fn render_history_panel(
     frame: &mut Viewport<'_, '_>,
     area: ratatui::layout::Rect,
     history: Option<&Result<Vec<String>, String>>,
+    entries: &[Option<history::Entry>],
     selection: &mut ListState,
     focused: bool,
     highlight: &str,
     border: ratatui::symbols::border::Set<'static>,
 ) {
-    let items = match history {
+    let style = Style::default()
+        .bg(Color::Rgb(25, 43, 52))
+        .fg(Color::Rgb(241, 245, 249))
+        .bold();
+    let rows = match history {
         None => vec![ListItem::new("Loading history...")],
         Some(Err(error)) => vec![ListItem::new(error.as_str())],
         Some(Ok(rows)) if rows.is_empty() => vec![ListItem::new("No commits yet")],
-        Some(Ok(rows)) => rows
-            .iter()
-            .map({
-                let mut finder = history::MatchFinder::new(highlight);
-                move |row| ListItem::new(crate::ui::highlighted_history_row(row, &mut finder))
-            })
-            .collect(),
+        Some(Ok(rows)) => {
+            // Build only the rows that fit, so long History draws quickly;
+            // `selection` keeps the scroll offset over all rows.
+            let height = usize::from(area.height.saturating_sub(2)).max(1);
+            let window = visible_window(selection, rows.len(), height);
+            let structured = entries.len() == rows.len();
+            // Raw `git log --graph` rows carry no parsed commits.
+            let title = if !entries.is_empty() && entries.iter().all(Option::is_none) {
+                "HISTORY · RAW"
+            } else {
+                "HISTORY"
+            };
+            let shown = || {
+                window
+                    .clone()
+                    .filter_map(|index| entries.get(index)?.as_ref())
+            };
+            let mut finder = history::MatchFinder::new(highlight);
+            // Borders and the selection marker take four columns.
+            let layout = crate::ui::history_rows::RowLayout {
+                graph_width: shown()
+                    .map(|entry| entry.graph.cells.len())
+                    .max()
+                    .unwrap_or(0),
+                width: usize::from(area.width.saturating_sub(4)),
+                author_width: shown()
+                    .map(|entry| {
+                        unicode_width::UnicodeWidthStr::width(entry.commit.author.as_str())
+                    })
+                    .max()
+                    .unwrap_or(0),
+                ascii: border == crate::ui::ASCII_BORDER,
+                now: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |elapsed| elapsed.as_secs() as i64),
+            };
+            let items = window
+                .clone()
+                .map(|index| match entries.get(index) {
+                    Some(Some(entry)) if structured => {
+                        ListItem::new(crate::ui::history_rows::history_line(
+                            &rows[index],
+                            entry,
+                            &layout,
+                            &mut finder,
+                        ))
+                    }
+                    // A notice row, or raw rows without parsed commits.
+                    _ => ListItem::new(crate::ui::highlighted_history_row(
+                        &rows[index],
+                        &mut finder,
+                    )),
+                })
+                .collect();
+            let mut shown_selection = ListState::default();
+            shown_selection.select(selection.selected().map(|index| index - window.start));
+            render_panel_list(
+                frame,
+                area,
+                title,
+                items,
+                &mut shown_selection,
+                focused,
+                border,
+                style,
+            );
+            return;
+        }
     };
     render_panel_list(
-        frame,
-        area,
-        "HISTORY",
-        items,
-        selection,
-        focused,
-        border,
-        Style::default()
-            .bg(Color::Rgb(25, 43, 52))
-            .fg(Color::Rgb(241, 245, 249))
-            .bold(),
+        frame, area, "HISTORY", rows, selection, focused, border, style,
     );
+}
+
+/// The rows a list of `len` rows shows in `height` rows: the stored offset,
+/// moved just enough to keep the selection visible, as ratatui's `List`
+/// scrolls. Updates the offset in `selection`.
+pub(super) fn visible_window(
+    selection: &mut ListState,
+    len: usize,
+    height: usize,
+) -> std::ops::Range<usize> {
+    let selected = selection
+        .selected()
+        .map(|index| index.min(len.saturating_sub(1)));
+    let mut offset = selection.offset().min(len.saturating_sub(1));
+    if let Some(selected) = selected {
+        if selected < offset {
+            offset = selected;
+        } else if selected >= offset + height {
+            offset = selected + 1 - height;
+        }
+    }
+    *selection.offset_mut() = offset;
+    if let Some(selected) = selected {
+        selection.select(Some(selected));
+    }
+    offset..(offset + height).min(len)
 }
 
 pub(super) struct Inspector<'a> {

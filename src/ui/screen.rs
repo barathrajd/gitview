@@ -22,6 +22,7 @@ pub struct Cockpit<'a> {
     pub profile: &'a str,
     pub branches: Option<&'a Result<Branches, String>>,
     pub history: Option<&'a Result<Vec<String>, String>>,
+    pub history_entries: &'a [Option<crate::history::Entry>],
     pub status: Option<&'a Result<Vec<Entry>, String>>,
     pub feedback: &'a str,
     /// The inline `/` prompt, drawn on the status line in place of the counts.
