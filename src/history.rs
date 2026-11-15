@@ -6,7 +6,8 @@ pub fn load_history(root: &Path) -> Result<Vec<String>, String> {
     load_history_for_path(root, None)
 }
 
-pub fn load_history_for_path(root: &Path, path: Option<&Path>) -> Result<Vec<String>, String> {
+/// Reject a history path that is empty, absolute, or leaves the repository.
+pub fn check_history_path(path: Option<&Path>) -> Result<(), String> {
     if let Some(path) = path
         && (path.as_os_str().is_empty()
             || path.is_absolute()
@@ -21,6 +22,11 @@ pub fn load_history_for_path(root: &Path, path: Option<&Path>) -> Result<Vec<Str
     {
         return Err("Use a repository-relative history path without parent components".into());
     }
+    Ok(())
+}
+
+pub fn load_history_for_path(root: &Path, path: Option<&Path>) -> Result<Vec<String>, String> {
+    check_history_path(path)?;
     let mut command = process::git_command();
     command.current_dir(root).arg("--literal-pathspecs").args([
         "log",

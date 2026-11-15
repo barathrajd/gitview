@@ -1,6 +1,7 @@
 pub mod app;
 pub mod branches;
 pub mod commit;
+pub mod commit_log;
 pub mod comparison;
 pub mod comparison_page;
 pub mod config;

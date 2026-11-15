@@ -138,6 +138,17 @@ every panel already handles.
 4. **Structured history.** Parse commits with parents, page them, draw the
    lanes and columns, keep `v` for raw; graph tests with merges, octopus
    merges, and long-lived branches; measure scrolling on 100,000 commits.
+   Decided with the user (November 15, 2026): rounded Unicode lanes, one
+   colour per lane (`●` commits, `│ ├ ╮ ╯` lines; `--ascii` uses ASCII);
+   compact relative dates (`2h`, `3d`, `5w`, `1y`); columns graph, short
+   hash, ref badges, subject, author, date. On narrow panels the date
+   drops first, then the author; long ref badges shorten. Slices: (1) parse
+   commits with parents from NUL-delimited `git log` in pages; (2) lane
+   layout as a pure function, tested on merges, octopus merges, and
+   long-lived branches; (3) draw structured rows and move History's users
+   (selection, details, search, `n`/`N`, MCP) to parsed commits; (4) load
+   more pages near the end, drop the 200 cap, measure 100,000 commits;
+   (5) `v` raw view with the selection following the commit.
 5. **Sidebar and remaining pages.** Sessions, branches, and changed files in
    the sidebar; move branches, tags, profiles, objects, and comparison in.
 6. **Agent-driven panels.** Select tools target panels, `search_history`,
