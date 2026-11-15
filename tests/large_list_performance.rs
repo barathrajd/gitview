@@ -61,6 +61,7 @@ fn measure(size: usize, refs: usize, width: u16, height: u16, focused: View) -> 
                         working_tree_selection,
                         branch_selection: &mut ListState::default(),
                         sessions: None,
+                        page_open: false,
                     }),
                     ratatui::symbols::border::PLAIN,
                 );
@@ -229,6 +230,7 @@ fn measures_structured_history_on_100k_commits() {
                             working_tree_selection: &mut working_tree_selection,
                             branch_selection: &mut ListState::default(),
                             sessions: None,
+                            page_open: false,
                         }),
                         ratatui::symbols::border::PLAIN,
                     );

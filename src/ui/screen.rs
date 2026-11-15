@@ -34,6 +34,8 @@ pub struct Cockpit<'a> {
     pub branch_selection: &'a mut ListState,
     /// The sidebar's Sessions section, once the sessions have been read.
     pub sessions: Option<crate::sessions_page::SessionSection>,
+    /// A page covers the centre panel and takes the keys.
+    pub page_open: bool,
 }
 
 pub enum Screen<'a> {

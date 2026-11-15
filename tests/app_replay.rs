@@ -282,11 +282,13 @@ fn hunk_keys_scroll_a_working_tree_diff_to_each_change() {
     };
     repository.write("src/lib.rs", &lines("first edited", "last edited"));
 
-    // On a short terminal the second hunk is off screen until `]` scrolls to it.
+    // On a short terminal the second hunk is off screen until `]` scrolls to
+    // it. The diff opens in the centre panel, below the header and above the
+    // status and hint rows.
     let screen = replay_sized(
         &repository.path(),
         140,
-        9,
+        14,
         [
             WaitFor("src/lib.rs"),
             Key(Enter),

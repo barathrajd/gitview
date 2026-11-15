@@ -137,11 +137,12 @@ fn the_open_diff_follows_edits_and_keeps_its_place() {
     repository.write("src/lib.rs", &lines("first edited", "last edited"));
     let rewritten = Box::leak(lines("first edited", "last REWRITTEN").into_boxed_str());
 
-    // On a short terminal the second hunk is off screen until `]` scrolls to it.
+    // On a short terminal the second hunk is off screen until `]` scrolls to
+    // it; the diff opens in the centre panel, between header and status.
     let screen = replay_sized(
         &root,
         140,
-        9,
+        14,
         [
             WaitFor("src/lib.rs"),
             Key(Enter),

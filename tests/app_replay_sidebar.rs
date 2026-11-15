@@ -163,3 +163,39 @@ fn sessions_sit_above_branches_and_a_focuses_them() {
     // Tab goes down to Branches.
     assert!(screen.contains("Enter/l  switch"), "{screen}");
 }
+
+#[test]
+fn pages_open_in_the_centre_with_the_sidebar_visible() {
+    let repository = repository();
+    repository.git(&["tag", "v1"]);
+    let cases: [(Vec<replay::Step>, &str); 3] = [
+        (
+            vec![Char('H'), Key(Enter), WaitFor("CHANGED FILES")],
+            "CHANGED FILES",
+        ),
+        (
+            vec![
+                Char('b'),
+                WaitFor("BRANCHES ("),
+                Char('t'),
+                WaitFor("LOCAL TAGS"),
+            ],
+            "LOCAL TAGS",
+        ),
+        (
+            vec![Char('H'), Char('o'), WaitFor("INSPECT GIT OBJECT")],
+            "INSPECT GIT OBJECT",
+        ),
+    ];
+    for (keys, title) in cases {
+        let mut steps = vec![WaitFor("BRANCHES (2)")];
+        steps.extend(keys);
+        let screen = replay_sized(&repository.path(), 140, 30, steps);
+        assert!(screen.contains(title), "{screen}");
+        // The sidebar stays beside the page; History is covered.
+        assert!(screen.contains("SESSIONS"), "{screen}");
+        assert!(screen.contains("WORKTREE"), "{screen}");
+        assert!(!screen.contains("HISTORY"), "{screen}");
+        assert!(screen.contains("Esc  back"), "{screen}");
+    }
+}

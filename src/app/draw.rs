@@ -138,6 +138,31 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                 } else {
                     None
                 };
+                // The workspace; `page_open` while a page covers the centre.
+                macro_rules! cockpit {
+                    ($page_open:expr) => {
+                        ui::Cockpit {
+                            repository: root,
+                            profile: &app.profile_label,
+                            branches: app.branches.as_ref(),
+                            history: app.history.as_ref(),
+                            history_entries: &app.history_entries,
+                            status: app.status.as_ref(),
+                            feedback: &workspace_feedback,
+                            search_prompt: prompt_line.clone().map(|line| ui::SearchPrompt {
+                                line,
+                                query: &app.query,
+                            }),
+                            focused: app.app_state.view(),
+                            history_selection: &mut app.selection,
+                            working_tree_selection: &mut app.status_selection,
+                            branch_selection: &mut app.branch_selection,
+                            sessions: app.sessions_page.as_ref().map(|page| page.section()),
+                            page_open: $page_open,
+                        }
+                    };
+                }
+                let mut workspace_only = false;
                 let screen = if let Some(context) = app.pending_preview {
                     Screen::PreviewLoading {
                         message: context.label(),
@@ -267,24 +292,31 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                         selection: &mut app.search_selection,
                     }
                 } else {
-                    Screen::Cockpit(ui::Cockpit {
-                        repository: root,
-                        profile: &app.profile_label,
-                        branches: app.branches.as_ref(),
-                        history: app.history.as_ref(),
-                        history_entries: &app.history_entries,
-                        status: app.status.as_ref(),
-                        feedback: &workspace_feedback,
-                        search_prompt: prompt_line.clone().map(|line| ui::SearchPrompt {
-                            line,
-                            query: &app.query,
-                        }),
-                        focused: app.app_state.view(),
-                        history_selection: &mut app.selection,
-                        working_tree_selection: &mut app.status_selection,
-                        branch_selection: &mut app.branch_selection,
-                        sessions: app.sessions_page.as_ref().map(|page| page.section()),
-                    })
+                    // The workspace is built below, once nothing else
+                    // borrows its selections.
+                    workspace_only = true;
+                    Screen::PreviewLoading { message: "" }
+                };
+                // Pages open in the centre panel over the workspace, with the
+                // sidebar still visible; prompts and confirmations above stay
+                // full screen.
+                let page = matches!(
+                    screen,
+                    Screen::Object(_)
+                        | Screen::Comparison(_)
+                        | Screen::Tags(_)
+                        | Screen::Profiles { .. }
+                        | Screen::PathHistoryInput { .. }
+                        | Screen::PreparedDiff { .. }
+                        | Screen::Diff { .. }
+                        | Screen::CommitDetails { .. }
+                );
+                let (screen, centre) = if workspace_only {
+                    (Screen::Cockpit(cockpit!(false)), centre)
+                } else if page {
+                    (Screen::Cockpit(cockpit!(true)), Some(screen))
+                } else {
+                    (screen, centre)
                 };
                 let gitview_area = match layout {
                     ui::AgentLayout::GitviewOnly(area) => Some(area),

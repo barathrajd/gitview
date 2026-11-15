@@ -15,12 +15,7 @@ pub(in crate::app) fn handle<H: Host>(
     env: &mut Env<'_, H>,
     key: KeyEvent,
 ) -> io::Result<Flow> {
-    let Env {
-        terminal,
-        root,
-        profiles,
-        ..
-    } = env;
+    let Env { root, profiles, .. } = env;
     if !app.help && (app.diff.is_some() || app.details.is_some()) {
         match app.page_motions.key(key) {
             Parsed::Pending => return Ok(Flow::Handled),
@@ -491,7 +486,7 @@ pub(in crate::app) fn handle<H: Host>(
                     text,
                     app.diff_raw_view,
                     app.diff_side_by_side,
-                    terminal.size().map_or(80, |size| size.width),
+                    diff_width(app),
                 );
                 if !positions.is_empty() {
                     app.selected_hunk = (app.selected_hunk + 1).min(positions.len() - 1);
@@ -512,7 +507,7 @@ pub(in crate::app) fn handle<H: Host>(
                     text,
                     app.diff_raw_view,
                     app.diff_side_by_side,
-                    terminal.size().map_or(80, |size| size.width),
+                    diff_width(app),
                 );
                 if !positions.is_empty() {
                     app.selected_hunk = app.selected_hunk.saturating_sub(1);
@@ -535,7 +530,7 @@ pub(in crate::app) fn handle<H: Host>(
                             text,
                             app.diff_raw_view,
                             app.diff_side_by_side,
-                            terminal.size().map_or(80, |size| size.width),
+                            diff_width(app),
                         )
                         .len())
             {
@@ -755,4 +750,11 @@ pub(in crate::app) fn worktree_search_order(
         .into_iter()
         .map(|index| (index, entries[index].path.to_string_lossy().into_owned()))
         .collect()
+}
+
+/// The width the open diff is drawn at: the centre panel it opens in.
+fn diff_width(app: &App) -> u16 {
+    app.gitview_area.map_or(80, |area| {
+        crate::ui::cockpit_centre_area(area, &app.workspace).width
+    })
 }

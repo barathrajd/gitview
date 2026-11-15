@@ -47,6 +47,7 @@ pub fn render_workspace_cockpit(
         working_tree_selection,
         branch_selection,
         sessions,
+        page_open,
     } = cockpit;
     // Only the focused list is searched.
     let query = search_prompt.as_ref().map_or("", |prompt| prompt.query);
@@ -101,7 +102,10 @@ pub fn render_workspace_cockpit(
         ],
     };
     hints.extend([("j/k", "move"), ("?", "help"), ("q", "quit")]);
-    if search_prompt.is_some() {
+    if page_open {
+        // The page in the centre lists its own keys.
+        hints = vec![("Esc", "back"), ("?", "help"), ("q", "quit")];
+    } else if search_prompt.is_some() {
         hints = vec![("Enter", "stay"), ("Esc", "back")];
         if focused == View::History {
             hints.push(("Tab", "full list"));
