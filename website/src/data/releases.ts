@@ -17,6 +17,27 @@ const tag = (version: string) => ({
 
 export const releases: Release[] = [
   {
+    version: "0.8.0",
+    date: "Upcoming",
+    status: "planned",
+    summary:
+      "One keyboard-first workspace: sessions, branches, and changed files in a sidebar beside history, with pages opening in the centre. History draws its own graph without a commit limit, / searches every list, and Vim motions work everywhere.",
+    highlights: [
+      "The sidebar stacks Sessions, Branches, and the Worktree; Tab moves down it and then to history, and commit details, diffs, tags, and comparison open in the centre panel.",
+      "History draws colored graph lanes with aligned hash, ref, subject, author, and age columns, loads more commits as you scroll, and `v` shows raw `git log --graph`.",
+      "`/` searches history, changed files, a commit's files, branches, tags, and sessions in place, with highlighting and `n`/`N`; history filters such as `author:` and `path:` search all of history.",
+      "`gg`, `G`, counts, half and full pages, and `zz` work in every list and diff.",
+      "One single-line bottom bar lists the keys for the focused panel, ending with `? more` when they don't fit.",
+      "The agent pane forwards mouse and wheel input, and `Ctrl+W O` toggles any pane full width.",
+    ],
+    featureIds: ["workspace", "structured-history", "search", "motions", "help", "agent-pane"],
+    note: "Agent-driven panels move to the next release. Known issues: inline search over 100,000 loaded history rows costs about 30 ms per keystroke, the raw graph view keeps its 200-commit limit, and on narrow windows some keys appear only in help.",
+    links: [
+      { label: "crates.io 0.8.0", url: "https://crates.io/crates/gitview/0.8.0" },
+      tag("0.8.0"),
+    ],
+  },
+  {
     version: "0.7.1",
     date: "October 30, 2026",
     status: "released",
@@ -25,7 +46,7 @@ export const releases: Release[] = [
       "The installer reliably finds the latest release without cutting curl off early.",
       "Merged sessions correctly show zero commits ahead of their base branch.",
       "The website adds searchable feature navigation, linked changelog highlights, real terminal demos, and a shared logo.",
-      "The website reads its version from Cargo.toml and redeploys after a release.",
+      "The website displays the latest release version and redeploys after a release.",
     ],
     featureIds: ["install", "sessions", null, null],
     note: "The known limitations listed for 0.7.0 still apply. This patch adds no new Git workflows.",

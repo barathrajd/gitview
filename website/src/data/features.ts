@@ -40,11 +40,10 @@ export const features = [
   },
   {
     id: "history",
-    title: "Filter, search, and compare history",
-    body: "Filter history to a literal file or directory, search commits as you type, and compare any two local commits on one page with folding per file. Branches and remote refs already stored locally work as revisions; nothing is fetched.",
+    title: "Filter and compare history",
+    body: "Filter history to a literal file or directory, and compare any two local commits on one page with folding per file. Branches and remote refs already stored locally work as revisions; nothing is fetched.",
     shots: [
       { name: "pathhistory", label: "History filtered to docs/notes.md" },
-      { name: "search", label: "Debounced history search" },
       { name: "comparison", label: "Comparison of two commits across three files" },
     ],
   },
@@ -66,7 +65,7 @@ export const features = [
   {
     id: "help",
     title: "Help on every page",
-    body: "Press ? on any page for the actions available there. The footer always lists the keys for the current view.",
+    body: "Press ? for the actions available in the focused panel or page. One bottom bar lists the keys that fit, ending with ? more when they don't.",
     shots: [{ name: "help", label: "Contextual help over the working tree" }],
   },
 ].map(item => ({ ...item, since: item.id === "help" ? "0.4.0" : "0.6.0" })),
@@ -102,13 +101,13 @@ export const features = [
   {
     id: "sessions",
     title: "Give each agent its own worktree",
-    body: "With --session, the agent works in a new worktree on its own branch, created from the branch you're on. Press A for the Sessions page: review a session's commits and diff, merge it with a merge commit, or discard it after seeing what would be lost. Gitview refuses a merge if anything moved since your review, and a conflict changes nothing.",
+    body: "With --session, the agent works in a new worktree on its own branch, created from the branch you're on. Press A to focus Sessions in the sidebar: review a session's commits and diff, merge it with a merge commit, or discard it after seeing what would be lost. Gitview refuses a merge if anything moved since your review, and a conflict changes nothing.",
     transcript: [
       "$ cd /tmp/notes && gitview --session --run sh -c 'sleep 30'",
       "Session session-20261030-110040 is kept on branch gitview/session-20261030-110040 at /private/tmp/notes/.git/gitview/sessions/session-20261030-110040.",
     ],
     shots: [
-      { name: "sessions", label: "The Sessions page (A): an agent session one commit ahead of main" },
+      { name: "sessions", label: "The Sessions section (A): an agent session one commit ahead of main" },
       { name: "session-review", label: "Reviewing the session: its commit and the diff it would bring into main" },
     ],
   },
@@ -128,4 +127,30 @@ export const features = [
     ],
   },
 ].map(item => ({ ...item, since: "0.7.0" })),
+...[
+  {
+    id: "workspace",
+    title: "One workspace",
+    body: "Sessions, branches, and changed files stack in a sidebar beside history. Tab moves down the sidebar and then to history, Shift+Tab moves up, and A, b, W, and H jump to a section. Commit details, diffs, tags, profiles, and comparison open in the centre panel without hiding the sidebar.",
+    shots: [{ name: "workspace", label: "The workspace: sessions, branches, and worktree, with history alongside on wide terminals" }],
+  },
+  {
+    id: "structured-history",
+    title: "A commit graph Gitview draws",
+    body: "History draws colored lanes for merges and branches, then aligned columns for the short hash, branch and tag labels, subject, author, and age. It loads more commits as you scroll, with no 200-commit limit, and v switches to Git's own git log --graph text.",
+    shots: [],
+  },
+  {
+    id: "search",
+    title: "Search every list",
+    body: "Press / in history, the worktree, a commit's files, branches, tags, or sessions. The selection jumps to the best fuzzy match as you type, matches are highlighted, and n and N step through them. History filters such as author:, path:, msg:, and since: search all of history with Git.",
+    shots: [],
+  },
+  {
+    id: "motions",
+    title: "Vim motions everywhere",
+    body: "gg and G jump to the ends, counts such as 5j repeat a move, Ctrl+D and Ctrl+U move half a page, Ctrl+F and Ctrl+B a full page, and zz centers the selection, in every list and diff.",
+    shots: [],
+  },
+].map(item => ({ ...item, since: "0.8.0" })),
 ];

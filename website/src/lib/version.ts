@@ -2,15 +2,13 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { releases } from "../data/releases";
 
-// The site is built from the `website` folder, locally and on CI, so the
-// crate's manifest is one level up. Reading it at build time keeps every
-// version on the site in step with the release that was just cut.
-const manifest = readFileSync(resolve(process.cwd(), "../Cargo.toml"), "utf8");
-const found = manifest.match(/^\[package\][\s\S]*?^version\s*=\s*"([^"]+)"/m);
-if (!found) throw new Error("Could not read the package version from Cargo.toml");
+// Release Please updates this manifest when a release is cut. Cargo.toml can
+// already contain the next development version, which isn't installable yet.
+const manifest = JSON.parse(readFileSync(resolve(process.cwd(), "../.release-please-manifest.json"), "utf8"));
+if (typeof manifest["."] !== "string") throw new Error("Could not read the released version from .release-please-manifest.json");
 
 /** The version of Gitview the install options give, such as "0.7.0". */
-export const currentVersion = found[1];
+export const currentVersion = manifest["."] as string;
 
 /** The release notes for the current version. */
 export const currentRelease = releases.find((release) => release.version === currentVersion);

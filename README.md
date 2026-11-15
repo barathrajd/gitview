@@ -57,31 +57,34 @@ download the archives yourself from the
 [GitHub releases](https://github.com/barathrajd/gitview/releases); each comes
 with a `.sha256` checksum. Windows isn't supported.
 
-## What's new in 0.6.0
+## What's new in 0.8.0
 
-Gitview 0.6.0, released October 29, 2026, completes six everyday local Git
-workflows. Each is described in [Controls](#controls), and the
-[website](https://gitview.barathrajdevarajan.dev/features/) shows a screenshot
-of each one.
+Gitview 0.8.0 turns the separate pages into one keyboard-first workspace. You
+see your sessions, branches, and changed files beside history, and pages open
+in the centre without hiding them. [Controls](#controls) lists every key, and
+the [release notes](RELEASE.md) cover the details.
 
-- **Repository setup:** `gitview init` and `gitview clone` from the command line.
-- **Path operations:** ignore-rule lookup for any path, stop tracking, confirmed
-  removal and moves of tracked paths, and discard of a staged rename.
-- **Commit editor:** Ctrl+E edits the message in your Git editor, and saving a
-  changed message commits it without a second Enter. Amend keeps its warning.
-- **History:** filter by file or directory, compare two commits on one page, and
-  search commits as you type.
-- **Branches and tags:** rename, delete, and return to the previous branch;
-  list, create (lightweight), verify, and delete local tags.
-- **Inspection:** describe any commit, tag, tree, or blob and compare against
-  remote refs already stored locally. Nothing is fetched.
+- **Workspace:** the sidebar stacks **Sessions**, **Branches**, and the
+  **Worktree**. **Tab** moves down the sidebar and then to history, and
+  **Shift+Tab** moves up. Commit details, diffs, tags, profiles, object
+  inspection, comparison, and branch and session actions open in the centre
+  panel.
+- **Structured history:** Gitview draws the commit graph with colored lanes and
+  aligned columns for the hash, branch and tag labels, subject, author, and
+  age. History loads more commits as you scroll, with no 200-commit limit.
+  Press **v** for Git's own `git log --graph` text.
+- **Search:** **/** searches the focused list in place: history, changed files,
+  a commit's files, branches, tags, and sessions. Matches are highlighted, and
+  **n**/**N** move between them. History search also accepts `author:`,
+  `path:`, `msg:`, `since:`, `until:`, and `ref:` filters, which search all of
+  history.
+- **Vim motions:** **gg**, **G**, counts such as **5j**, **Ctrl+D**/**Ctrl+U**,
+  **Ctrl+F**/**Ctrl+B**, and **zz** work in every list and diff.
+- **Agent pane:** mouse and wheel input reach the agent, and **Ctrl+W O**
+  toggles any pane full width.
 
-Known issues: native memory on a very large comparison varies between runs, a
-renderer-only memory diagnostic still exceeds its budget, and TypeScript, TSX,
-and TOML diffs aren't syntax highlighted. The [release notes](RELEASE.md) list
-the follow-up work. Linux packaging isn't provided yet, so 0.6.0 ships the crate
-and the macOS Apple Silicon archive. Remotes, merge and conflict workflows, and
-export remain out of scope.
+One bottom bar lists the keys for the focused panel. When they don't all fit,
+it ends with **? more**, and **?** shows the full list.
 
 ## Build and run
 
@@ -182,8 +185,10 @@ you're on, checks it out under `.git/gitview/sessions/`, and runs both the
 agent and Gitview there. The session stays after you quit. Gitview needs a
 checked-out branch to start one, since that's where the work merges back.
 
-Press **A** for the Sessions page. Each session shows how many commits it has
-on top of its base branch and whether it has uncommitted work.
+Press **A** to focus the **Sessions** section at the top of the sidebar. Each
+session shows a short state: how many commits it has on top of its base branch
+(`2 ahead`), `clean`, or `+ edits` when it has uncommitted work. Reviews and
+confirmations open in the centre panel.
 
 - **Enter** reviews the session's commits and diff.
 - **m** then **y** merges it into the base branch with a merge commit, in your
@@ -244,6 +249,21 @@ Gitview the tools reply that Gitview isn't reachable.
 
 ## Controls
 
+Gitview is one workspace. The sidebar on the left stacks **Sessions**,
+**Branches**, and the **Worktree**, and history fills the centre. Below 119
+columns, or beside an agent, only the focused panel shows.
+
+- **Tab** moves focus down the sidebar (Sessions, Branches, Worktree) and then
+  to history; **Shift+Tab** moves up. **A**, **b**, **W**, and **H** jump to
+  Sessions, Branches, the Worktree, and history. **Esc** in a sidebar section
+  returns to history. Pages such as commit details, diffs, tags, and
+  comparison open in the centre panel, and **Esc** closes them.
+- One bottom bar lists the keys for the focused panel or open page. When they
+  don't all fit, it ends with **? more**; press **?** for the full list.
+- **gg** and **G** jump to the first and last row, a count repeats a motion
+  (**5j**), **Ctrl+D**/**Ctrl+U** move half a page, **Ctrl+F**/**Ctrl+B** a
+  full page, and **zz** centers the selection. These work in every list and
+  diff.
 - **Up/Down** or **j/k** navigate lists and scroll diffs. **Enter** or **l**
   opens a commit or file; **Esc** or **h** goes back. Search and branch-name
   prompts accept these letters as normal text.
@@ -268,9 +288,19 @@ Gitview the tools reply that Gitview isn't reachable.
   bounded preview; commits also show Git's nearest-tag description. Binary
   blobs show a notice. Use **j/k** to scroll, **e/Esc** to edit the revision,
   and **H** to return to history.
-- **Tab** switches between history and the working tree. **/** opens debounced
-  history search. **Up/Down** selects a result, **Enter** opens its details,
-  **Backspace** edits the query, and **Esc** returns to history.
+- History draws its own commit graph: colored lanes, then the short hash,
+  branch and tag labels, subject, author, and age (`2h`, `3d`, `5w`). Narrow
+  panels drop the age, then the author. More commits load as you scroll. Press
+  **v** to switch to Git's `git log --graph` text, which shows at most 200
+  commits, and **v** again to switch back; the selected commit stays selected.
+- **/** searches the focused list in place: history, changed files, a commit's
+  files, branches, tags, or sessions. The selection jumps to the best match as
+  you type, and matched letters are highlighted. **Enter** keeps the match,
+  **Esc** returns to where you started, and **n**/**N** step through matches.
+  In history, **Tab** opens the full ranked results page, and the filters
+  `author:`, `path:`, `msg:`, `since:`, `until:`, and `ref:` search all of
+  history with Git (up to 1,000 commits). Quote values with spaces, such as
+  `author:"Alice Smith"`.
 - In the working-tree view, **s** stages the selected file, **u** unstages it,
   **S** stages all changes, **U** unstages all staged changes, and **r**
   refreshes status. Press **d** to review and confirm discarding one unstaged or
@@ -307,12 +337,13 @@ Gitview the tools reply that Gitview isn't reachable.
   existing subject and description; **Enter** opens a warning that shows the
   old and replacement messages, and **y** confirms the rewrite. The reviewed
   staged changes are included, while unstaged edits remain in the worktree.
-- Press **b** to browse local branches. Select one and press **Enter**, or press
-  **c** to create a branch from the current commit. Confirm with **y** or cancel
-  with **n** or **Esc**. Press **r** to rename the selected branch or **d**
-  to review deletion. Git refuses unmerged or checked-out branch deletion;
-  changed branch tips or checkout state require a new preview. Press **-** in
-  the branch screen to review and return to the previous branch or detached
+- Press **b** to focus **Branches** in the sidebar. Select one and press
+  **Enter**, or press **c** to create a branch from the current commit.
+  Prompts and confirmations open in the centre panel; confirm with **y** or
+  cancel with **n** or **Esc**. Press **r** to rename the selected branch or
+  **d** to review deletion. Git refuses unmerged or checked-out branch
+  deletion; changed branch tips or checkout state require a new preview. Press
+  **-** in Branches to review and return to the previous branch or detached
   commit. The destination and checkout state are rechecked before switching.
 - Press **t** from branches to open local tags. Use **c** to create a
   lightweight tag at the reviewed `HEAD`, **d** to confirm local deletion, and
@@ -321,8 +352,7 @@ Gitview the tools reply that Gitview isn't reachable.
   **r** to refresh the list, and **Esc** to return. Tag creation never replaces
   an existing tag; deletion rejects a changed object. Annotated and signed tag
   creation are not available in the TUI.
-- **?** opens help and **Esc** closes it; **q** quits. Each page shows its
-  available actions in the footer and help panel.
+- **?** opens help for the focused panel and **Esc** closes it; **q** quits.
 
 ## Git config profiles
 
@@ -453,7 +483,8 @@ a new line. The control channel was checked with Claude Code and with Codex
 [security review](docs/agent-workspace-security.md) for what the control
 channel allows and what it guards against.
 
-History is limited to 200 commits. Diffs are limited to 1 MB or 5,000 lines and
+The raw `git log --graph` view (**v**) shows at most 200 commits; the
+structured history has no limit. Diffs are limited to 1 MB or 5,000 lines and
 indicate truncation; binary changes show Git's binary notice. IDE diffs show
 syntax-colored Before and After panes by default, with long lines wrapped and
 aligned. Press **v** to switch between IDE and raw diff styling, and **Tab** to

@@ -168,10 +168,17 @@ every panel already handles.
    the centre; (4) tags, profiles, objects, comparison, commit details, and
    diffs in the centre panel; (5) narrow and agent layouts, help, and the
    full suite.
-6. **Agent-driven panels.** Select tools target panels, `search_history`,
-   changed-file marks; rerun the live agent suite.
+6. **Agent-driven panels (deferred to the next release).** Select tools
+   target panels, `search_history`, changed-file marks; rerun the live
+   agent suite. The user moved this out of 0.8.0 on November 15, 2026, so
+   0.8.0 ships after milestone 7.
 7. **Docs and release.** Help, README, website, screenshots, and the full
    format, test, lint, and release-build pass.
+
+   The README, release notes, website copy, workspace captures, and agent and
+   session demos have been updated. The site labels 0.8.0 as planned until the
+   release manifest changes. Earlier workflow screenshots still need a refresh;
+   the full release verification and publishing steps remain open.
 
 ## Risks & open questions
 

@@ -4,6 +4,43 @@ This file is the single release plan and release-notes record for Gitview.
 
 ## Upcoming
 
+### Gitview 0.8.0 — workspace release
+
+Gitview 0.8.0 replaces the separate full-screen pages with one workspace: a
+sidebar of sessions, branches, and changed files beside a centre panel for
+history, commits, diffs, and the other pages. History draws its own commit
+graph and loads without a commit limit, `/` searches every list, and Vim
+motions work everywhere. Agent-driven panels (milestone 6 of the
+[workspace plan](plans/workspace-ui-0-8-0.md)) move to the next release.
+
+Highlights:
+
+- The sidebar stacks Sessions, Branches, and the Worktree. Tab moves down the
+  sidebar and then to history, Shift+Tab moves up, and `A`, `b`, `W`, and `H`
+  jump to a section. Commit details, diffs, tags, profiles, object inspection,
+  comparison, and branch and session actions open in the centre panel. The
+  inspector column is removed.
+- History draws colored graph lanes and aligned columns for the hash, ref
+  labels, subject, author, and age, and loads 500 commits at a time as you
+  scroll. `v` switches to raw `git log --graph` text.
+- `/` searches history, changed files, a commit's files, branches, tags, and
+  sessions in place, with highlighting and `n`/`N`. History search ranks
+  fuzzy matches and accepts `author:`, `path:`, `msg:`, `since:`, `until:`,
+  and `ref:` filters that search all of history.
+- `gg`, `G`, counts, `Ctrl+D`/`Ctrl+U`, `Ctrl+F`/`Ctrl+B`, and `zz` work in
+  every list and diff.
+- One single-line bottom bar lists the keys for the focused panel and ends with
+  `? more` when they don't fit; help has a page for each section.
+- The agent pane forwards mouse and wheel input, answers the background-color
+  query, and `Ctrl+W O` toggles any pane full width.
+
+Known issues:
+
+- Inline search over 100,000 loaded history rows costs about 30 ms per
+  keystroke on the UI thread.
+- The raw `git log --graph` view keeps its 200-commit limit.
+- On narrow windows some keys appear only in help (`?`).
+
 ### Gitview 0.7.1 — patch release
 
 This patch fixes latest-release discovery in the installer and the commit count
