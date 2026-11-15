@@ -80,7 +80,7 @@ pub(super) fn render_working_tree(
     selection: &mut ListState,
     border: ratatui::symbols::border::Set<'static>,
 ) {
-    let (items, selection_index) = worktree_items(status);
+    let (items, selection_index) = worktree_items(status, "");
     let hints = [
         ("j/k", "move"),
         ("Enter", "diff"),

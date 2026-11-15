@@ -119,8 +119,13 @@ pub(in crate::app) fn handle<H: Host>(
             }
             AppAction::StartSearch => {
                 app.query.clear();
+                let view = app.app_state.view();
                 app.inline_search = Some(crate::app::model::InlineSearch {
-                    origin: app.selection.selected(),
+                    view,
+                    origin: match view {
+                        View::History => app.selection.selected(),
+                        View::WorkingTree => app.status_selection.selected(),
+                    },
                     matches: Vec::new(),
                 });
             }
@@ -280,7 +285,23 @@ pub(in crate::app) fn handle<H: Host>(
             }),
             AppAction::SearchNext | AppAction::SearchPrevious => {
                 let forward = action == AppAction::SearchNext;
-                if let Some(found) = &app.last_filtered {
+                if app.app_state.view() == View::WorkingTree {
+                    let order = worktree_search_order(app.status.as_ref());
+                    let matches = crate::list_search::matches_in_order(
+                        &order.iter().map(|(_, path)| path).collect::<Vec<_>>(),
+                        &app.last_search,
+                    );
+                    let current = app
+                        .status_selection
+                        .selected()
+                        .and_then(|entry| order.iter().position(|(index, _)| *index == entry));
+                    if let Some(position) = (!app.last_search.trim().is_empty())
+                        .then(|| crate::history::step_match(&matches, current, forward))
+                        .flatten()
+                    {
+                        app.status_selection.select(Some(order[position].0));
+                    }
+                } else if let Some(found) = &app.last_filtered {
                     let rows = app
                         .history
                         .as_ref()
@@ -682,4 +703,18 @@ fn move_file_selection(app: &mut App, motion: Motion) {
                 .select(motion.select(selected, commit.files.len(), rows)),
         }
     }
+}
+
+/// Working-tree entries in display order, with the paths search matches.
+pub(in crate::app) fn worktree_search_order(
+    status: Option<&Result<Vec<crate::worktree::Entry>, String>>,
+) -> Vec<(usize, String)> {
+    let entries = status
+        .and_then(|status| status.as_ref().ok())
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    crate::ui::worktree_display_order(status)
+        .into_iter()
+        .map(|index| (index, entries[index].path.to_string_lossy().into_owned()))
+        .collect()
 }

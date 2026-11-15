@@ -29,8 +29,9 @@ pub use render::{render, render_in};
 pub use screen::{Cockpit, HelpPage, Screen, SearchPrompt};
 pub use theme::ASCII_BORDER;
 pub(crate) use theme::{
-    ACCENT, MUTED, highlighted_history_row, page_block, selection_style, wrapped_rows,
+    ACCENT, MUTED, highlighted_history_row, highlighted_spans, page_block, selection_style,
+    wrapped_rows,
 };
 pub use viewport::{Viewport, split_side_pane};
 
-pub use cockpit::{render_workspace_cockpit, worktree_display_row};
+pub use cockpit::{render_workspace_cockpit, worktree_display_order, worktree_display_row};

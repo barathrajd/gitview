@@ -127,6 +127,13 @@ every panel already handles.
 3b. **Search beyond History.** Bring `/` to the other lists where it helps
    (worktree files, commit files, branches, tags, sessions, and others found
    in an audit). Scoped with the user after milestone 3; not started.
+   Scope (agreed November 15, 2026): worktree files, commit files,
+   branches, tags, and sessions. `/` behaves like inline History search:
+   it jumps to the best fuzzy match and highlights matches, `n`/`N` step
+   through them, and every row stays visible (no filtering). Esc returns
+   to the starting row; Enter keeps the selection. File lists match the
+   full path. `n` keeps meaning "no" inside confirm prompts. One list per
+   slice, sharing one list-search component.
 4. **Structured history.** Parse commits with parents, page them, draw the
    lanes and columns, keep `v` for raw; graph tests with merges, octopus
    merges, and long-lived branches; measure scrolling on 100,000 commits.

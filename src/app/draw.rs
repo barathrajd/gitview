@@ -254,10 +254,11 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                         search_prompt: app.inline_search.as_ref().map(|search| {
                             let status = if app.query.trim().is_empty() {
                                 String::new()
-                            } else if let Some(position) = app
-                                .selection
-                                .selected()
-                                .and_then(|row| search.matches.iter().position(|&m| m == row))
+                            } else if let Some(position) = match search.view {
+                                crate::app::View::History => app.selection.selected(),
+                                crate::app::View::WorkingTree => app.status_selection.selected(),
+                            }
+                            .and_then(|row| search.matches.iter().position(|&m| m == row))
                             {
                                 format!("match {} of {}", position + 1, search.matches.len())
                             } else {

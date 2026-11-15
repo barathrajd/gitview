@@ -173,6 +173,8 @@ pub(super) struct FilteredSearch {
 }
 
 pub(super) struct InlineSearch {
+    /// The list being searched: History rows or working-tree entries.
+    pub(super) view: super::View,
     pub(super) origin: Option<usize>,
     pub(super) matches: Vec<usize>,
 }

@@ -128,6 +128,7 @@ pub(super) fn render_commit_workspace(
         workspace.entries,
         &mut read_only_selection,
         false,
+        "",
         border,
     );
     let mut message_lines = Vec::new();
@@ -236,6 +237,7 @@ pub(super) fn render_amend_confirmation(
         confirmation.entries,
         &mut read_only_selection,
         false,
+        "",
         border,
     );
     let lines = if confirmation.pending {

@@ -17,6 +17,13 @@ pub(in crate::app) fn handle<H: Host>(
     key: KeyEvent,
 ) -> io::Result<Flow> {
     let Env { root, .. } = env;
+    if app
+        .inline_search
+        .as_ref()
+        .is_some_and(|search| search.view == crate::app::View::WorkingTree)
+    {
+        return Ok(worktree_search(app, key));
+    }
     if let Some(search) = &mut app.inline_search {
         let rows = app.history.as_ref().and_then(|rows| rows.as_ref().ok());
         match key.code {
@@ -200,4 +207,49 @@ fn open_search_page(app: &mut App) {
         &mut app.search_selection,
     );
     app.search_debounce = app.history.is_none().then_some(Instant::now());
+}
+
+/// A key while `/` searches the working-tree files, matching full paths in
+/// display order.
+fn worktree_search(app: &mut App, key: KeyEvent) -> Flow {
+    let Some(search) = &mut app.inline_search else {
+        return Flow::Next;
+    };
+    match key.code {
+        KeyCode::Esc => {
+            app.status_selection.select(search.origin);
+            app.inline_search = None;
+        }
+        KeyCode::Enter => {
+            app.last_search.clone_from(&app.query);
+            app.last_filtered = None;
+            app.inline_search = None;
+        }
+        KeyCode::Backspace | KeyCode::Char(_) if plain_code(key) != KeyCode::Null => {
+            if key.code == KeyCode::Backspace {
+                app.query.pop();
+            } else if let KeyCode::Char(c) = key.code {
+                app.query.push(c);
+            }
+            let order = super::views::worktree_search_order(app.status.as_ref());
+            let positions = crate::list_search::matches_in_order(
+                &order.iter().map(|(_, path)| path).collect::<Vec<_>>(),
+                &app.query,
+            );
+            search.matches = positions
+                .iter()
+                .map(|&position| order[position].0)
+                .collect();
+            let start = search
+                .origin
+                .and_then(|entry| order.iter().position(|(index, _)| *index == entry))
+                .unwrap_or(0);
+            let target = crate::list_search::first_from(&positions, start)
+                .map(|position| order[position].0)
+                .or(search.origin);
+            app.status_selection.select(target);
+        }
+        _ => {}
+    }
+    Flow::Handled
 }
