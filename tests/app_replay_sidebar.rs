@@ -35,22 +35,29 @@ fn the_sidebar_stacks_branches_above_the_working_tree() {
 }
 
 #[test]
-fn tab_and_shift_tab_cycle_files_branches_sessions_and_history() {
+fn tab_moves_down_the_sidebar_and_shift_tab_moves_up() {
     let repository = repository();
     let start = || vec![WaitFor("BRANCHES (2)"), WaitFor("staged.txt")];
+    let after = |keys: &[crossterm::event::KeyCode]| {
+        let mut steps = start();
+        steps.extend(keys.iter().map(|&key| Key(key)));
+        steps.push(Pause(std::time::Duration::from_millis(200)));
+        replay_sized(&repository.path(), 140, 30, steps)
+    };
 
     // Files first: the worktree's row is marked.
-    let screen = replay_sized(&repository.path(), 140, 30, start());
+    let screen = after(&[]);
     assert!(
         sidebar_selection(&screen).unwrap().contains("staged.txt"),
         "{screen}"
     );
-
-    // Tab: Branches, whose row is now the sidebar's only mark.
-    let mut steps = start();
-    steps.push(Key(Tab));
-    steps.push(Pause(std::time::Duration::from_millis(200)));
-    let screen = replay_sized(&repository.path(), 140, 30, steps);
+    // Tab: History, below the sidebar's last section.
+    let screen = after(&[Tab]);
+    assert!(screen.contains("Enter/l  details"), "{screen}");
+    // Tab again wraps to Sessions at the top, then Branches.
+    let screen = after(&[Tab, Tab]);
+    assert!(screen.contains("Enter  review"), "{screen}");
+    let screen = after(&[Tab, Tab, Tab]);
     assert_eq!(
         sidebar_selection(&screen).as_deref(),
         Some("feature"),
@@ -58,30 +65,11 @@ fn tab_and_shift_tab_cycle_files_branches_sessions_and_history() {
     );
     assert!(screen.contains("Enter/l  switch"), "{screen}");
 
-    // Tab again: Sessions, then History.
-    let mut steps = start();
-    steps.extend([
-        Key(Tab),
-        Key(Tab),
-        Pause(std::time::Duration::from_millis(200)),
-    ]);
-    let screen = replay_sized(&repository.path(), 140, 30, steps);
+    // Shift-Tab from Files goes up to Branches, then Sessions.
+    let screen = after(&[BackTab]);
+    assert!(screen.contains("Enter/l  switch"), "{screen}");
+    let screen = after(&[BackTab, BackTab]);
     assert!(screen.contains("Enter  review"), "{screen}");
-    let mut steps = start();
-    steps.extend([
-        Key(Tab),
-        Key(Tab),
-        Key(Tab),
-        Pause(std::time::Duration::from_millis(200)),
-    ]);
-    let screen = replay_sized(&repository.path(), 140, 30, steps);
-    assert!(screen.contains("Enter/l  details"), "{screen}");
-
-    // Shift-Tab from Files goes straight to History.
-    let mut steps = start();
-    steps.extend([Key(BackTab), Pause(std::time::Duration::from_millis(200))]);
-    let screen = replay_sized(&repository.path(), 140, 30, steps);
-    assert!(screen.contains("Enter/l  details"), "{screen}");
 }
 
 #[test]
@@ -172,5 +160,6 @@ fn sessions_sit_above_branches_and_a_focuses_them() {
             Pause(std::time::Duration::from_millis(200)),
         ],
     );
-    assert!(screen.contains("Enter/l  details"), "{screen}");
+    // Tab goes down to Branches.
+    assert!(screen.contains("Enter/l  switch"), "{screen}");
 }

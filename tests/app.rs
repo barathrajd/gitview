@@ -2,23 +2,24 @@ use crossterm::event::KeyCode;
 use gitview::app::{AppAction, AppState, View, move_down, move_up};
 
 #[test]
-fn working_tree_is_the_default_and_tab_cycles_files_branches_sessions_history() {
+fn tab_moves_down_the_sidebar_then_to_history() {
     let mut app = AppState::default();
 
+    // Files is the default; Tab goes Files, History, Sessions, Branches.
     assert_eq!(app.view(), View::WorkingTree);
-    assert_eq!(app.handle_tab(false), Some(AppAction::OpenBranches));
-    assert_eq!(app.view(), View::Branches);
-    assert_eq!(app.handle_tab(false), Some(AppAction::OpenSessions));
-    assert_eq!(app.view(), View::Sessions);
     assert_eq!(app.handle_tab(false), Some(AppAction::ReturnToHistory));
     assert_eq!(app.view(), View::History);
+    assert_eq!(app.handle_tab(false), Some(AppAction::OpenSessions));
+    assert_eq!(app.view(), View::Sessions);
+    assert_eq!(app.handle_tab(false), Some(AppAction::OpenBranches));
+    assert_eq!(app.view(), View::Branches);
     assert_eq!(app.handle_tab(false), Some(AppAction::LoadWorkingTree));
     assert_eq!(app.view(), View::WorkingTree);
 
-    // Shift-Tab goes the other way.
-    assert_eq!(app.handle_back_tab(false), Some(AppAction::ReturnToHistory));
-    assert_eq!(app.handle_back_tab(false), Some(AppAction::OpenSessions));
+    // Shift-Tab goes up the sidebar.
     assert_eq!(app.handle_back_tab(false), Some(AppAction::OpenBranches));
+    assert_eq!(app.handle_back_tab(false), Some(AppAction::OpenSessions));
+    assert_eq!(app.handle_back_tab(false), Some(AppAction::ReturnToHistory));
     assert_eq!(
         app.handle_key(KeyCode::BackTab, false),
         Some(AppAction::LoadWorkingTree)
@@ -77,7 +78,7 @@ fn tab_is_ignored_while_an_overlay_or_mutation_blocks_navigation() {
 #[test]
 fn history_and_working_tree_keys_map_to_testable_actions() {
     let mut app = AppState::default();
-    assert_eq!(app.handle_back_tab(false), Some(AppAction::ReturnToHistory));
+    assert_eq!(app.handle_tab(false), Some(AppAction::ReturnToHistory));
 
     assert_eq!(
         app.handle_key(KeyCode::Char('/'), false),
@@ -98,8 +99,8 @@ fn history_and_working_tree_keys_map_to_testable_actions() {
     // `b` focused Branches, where `s` stages nothing.
     assert_eq!(app.handle_key(KeyCode::Char('s'), false), None);
 
-    // Shift-Tab from Branches reaches the working tree.
-    assert_eq!(app.handle_back_tab(false), Some(AppAction::LoadWorkingTree));
+    // Tab from Branches reaches the working tree below it.
+    assert_eq!(app.handle_tab(false), Some(AppAction::LoadWorkingTree));
     assert_eq!(
         app.handle_key(KeyCode::Char('s'), false),
         Some(AppAction::StageSelected)
@@ -125,7 +126,7 @@ fn lowercase_c_starts_a_commit_only_from_the_working_tree() {
         app.handle_key(KeyCode::Char('c'), false),
         Some(AppAction::StartCommit)
     );
-    assert_eq!(app.handle_back_tab(false), Some(AppAction::ReturnToHistory));
+    assert_eq!(app.handle_tab(false), Some(AppAction::ReturnToHistory));
     assert_eq!(app.handle_key(KeyCode::Char('c'), false), None);
 }
 
@@ -136,7 +137,7 @@ fn lowercase_a_starts_an_amend_only_from_the_working_tree() {
         app.handle_key(KeyCode::Char('a'), false),
         Some(AppAction::StartAmend)
     );
-    assert_eq!(app.handle_back_tab(false), Some(AppAction::ReturnToHistory));
+    assert_eq!(app.handle_tab(false), Some(AppAction::ReturnToHistory));
     assert_eq!(app.handle_key(KeyCode::Char('a'), false), None);
 }
 
@@ -147,7 +148,7 @@ fn lowercase_d_previews_discard_only_from_the_working_tree() {
         app.handle_key(KeyCode::Char('d'), false),
         Some(AppAction::PreviewDiscardSelected)
     );
-    assert_eq!(app.handle_back_tab(false), Some(AppAction::ReturnToHistory));
+    assert_eq!(app.handle_tab(false), Some(AppAction::ReturnToHistory));
     assert_eq!(app.handle_key(KeyCode::Char('d'), false), None);
 }
 

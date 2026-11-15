@@ -118,7 +118,8 @@ impl AppState {
     }
 
     /// Apply Tab when the active screen permits workspace navigation:
-    /// Files, Branches, Sessions, History, and back to Files.
+    /// Sessions, Branches, Files, History, and back to Sessions, top to
+    /// bottom as the sidebar draws them.
     pub fn handle_tab(&mut self, blocked: bool) -> Option<AppAction> {
         self.cycle(blocked, true)
     }
@@ -132,11 +133,12 @@ impl AppState {
         if blocked {
             return None;
         }
-        // Files, Branches, Sessions, History, and back to Files.
+        // Top to bottom as the sidebar draws them, then History:
+        // Sessions, Branches, Files, History, and back to Sessions.
         const ORDER: [View; 4] = [
-            View::WorkingTree,
-            View::Branches,
             View::Sessions,
+            View::Branches,
+            View::WorkingTree,
             View::History,
         ];
         let index = ORDER

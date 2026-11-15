@@ -157,8 +157,10 @@ every panel already handles.
    inspector, comparison, and branch and session actions open in the
    centre panel in place of History, with the sidebar and agent still
    visible; Esc returns to History. The wide-terminal INSPECTOR column is
-   removed. Tab cycles Files, Branches, Sessions, History and wraps;
-   Shift-Tab reverses; `b`, `A`, `W`, and `H` jump to Branches, Sessions,
+   removed. Tab moves top to bottom as the sidebar draws its sections,
+   Sessions, Branches, Files, then History, and wraps (user correction,
+   November 15, 2026: Tab first ran Files, Branches, Sessions, against the
+   drawn order); Shift-Tab reverses; `b`, `A`, `W`, and `H` jump to Branches, Sessions,
    Files, and History. Slices: (1) remove the inspector and make the
    sidebar a stack holding Files, with Tab/Shift-Tab focus; (2) the
    Branches section with today's branch keys, prompts and confirmations in

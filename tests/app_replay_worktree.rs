@@ -153,8 +153,6 @@ fn narrow_terminals_show_one_pane_and_tab_switches_it() {
         [
             WaitFor("STAGED CHANGES"),
             Key(Tab),
-            Key(Tab),
-            Key(Tab),
             WaitFor("Change library"),
         ],
     );

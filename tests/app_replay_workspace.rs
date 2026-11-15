@@ -15,7 +15,7 @@ fn narrow_workspace_shows_only_the_focused_panel() {
         &repository.path(),
         118,
         30,
-        [WaitFor("notes.txt"), Key(Tab), Key(Tab), Key(Tab)],
+        [WaitFor("notes.txt"), Key(Tab)],
     );
     assert!(screen.contains("HISTORY"));
     assert!(!screen.contains("WORKTREE"));
@@ -329,7 +329,7 @@ fn agent_workspace_shows_only_the_selected_gitview_pane() {
             Some(&["sh", "-c", "echo agent-ready; sleep 30"]),
             width,
             30,
-            [WaitFor("agent-ready"), Key(Tab), Key(Tab), Key(Tab)],
+            [WaitFor("agent-ready"), Key(Tab)],
         );
         assert!(history.contains("HISTORY"), "{width}: {history}");
         assert!(!history.contains("WORKTREE"), "{width}: {history}");
