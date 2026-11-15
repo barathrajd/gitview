@@ -1,5 +1,61 @@
 # Changelog
 
+## [0.8.0](https://github.com/barathrajd/gitview/compare/v0.7.1...v0.8.0) (2026-11-15)
+
+
+### Features
+
+* **history:** draw a structured commit graph ([85c6021](https://github.com/barathrajd/gitview/commit/85c602165ef77a407b2079c04aa8ee76fbe9712a))
+* **history:** load more commits as the selection nears the end ([7fff62f](https://github.com/barathrajd/gitview/commit/7fff62f5fa3eb29ab994470c7e7156321a58d687))
+* **history:** structured commit graph with paging and raw toggle ([8d1eee3](https://github.com/barathrajd/gitview/commit/8d1eee3f027ca3a7206116dcce82ac77ff0cd41d))
+* **history:** toggle the raw git log graph with v ([e960825](https://github.com/barathrajd/gitview/commit/e960825ff0907b66b4c7ffc6415149285397789f))
+* **keys:** add G and zz to the diff view ([2374ae8](https://github.com/barathrajd/gitview/commit/2374ae863553d7366a678675eac9a922fc0c2972))
+* **keys:** add gg, G, and counted vertical motions ([24cb64f](https://github.com/barathrajd/gitview/commit/24cb64f12c117b74c22bc87f0c1ef9a063f0bbcf))
+* **keys:** add half-page, page, and zz motions ([69ca0d2](https://github.com/barathrajd/gitview/commit/69ca0d2a1df1faf5d0b6d1f2ef8e59e3ec58ef47))
+* **keys:** add motions to branch and profile lists ([4e7a8c5](https://github.com/barathrajd/gitview/commit/4e7a8c54dcec0cd27d2d77fbf5a1fc142801619b))
+* **keys:** add motions to commit files and diffs ([e66b638](https://github.com/barathrajd/gitview/commit/e66b6381d9d781c47909881c170d37bc46011833))
+* **keys:** add motions to pages and diff ends ([a204689](https://github.com/barathrajd/gitview/commit/a204689d8042819879eafdfcbb15c535b944263f))
+* **keys:** add motions to the comparison review ([3248080](https://github.com/barathrajd/gitview/commit/3248080c29de08c2482f038a037c0865b3799268))
+* **keys:** add motions to the object and tag pages ([100f678](https://github.com/barathrajd/gitview/commit/100f6780dfa456e11e9e0dc6a4d2aa4c4d2f63a5))
+* **keys:** add motions to the sessions page ([407363e](https://github.com/barathrajd/gitview/commit/407363eb9894180d9bfd436a77b183a4280edfcd))
+* **keys:** center the selected Worktree file with zz ([f41cf06](https://github.com/barathrajd/gitview/commit/f41cf06a84a5ff54e9a1964f8615a23cc3c1eb79))
+* **keys:** page through search results ([f290aba](https://github.com/barathrajd/gitview/commit/f290aba861272efaaa1379cf1118993658c03678))
+* **keys:** vim list motions for History and Worktree ([bb78bba](https://github.com/barathrajd/gitview/commit/bb78bbabbbb5eb27ca77dd60f89d68285c400842))
+* **keys:** vim motions for more lists, Ctrl-key safety, and a local playground ([ccba216](https://github.com/barathrajd/gitview/commit/ccba2161c9f77d39267d153a9af7a9b03d3c56be))
+* **search:** fuzzy History search with inline /, n/N, and Git-side filters ([5fc322d](https://github.com/barathrajd/gitview/commit/5fc322db0d96b703e58e56fdbfbd56fe10c29893))
+* **search:** highlight matched characters ([e09fc26](https://github.com/barathrajd/gitview/commit/e09fc267ab656625baea8237adf06fbdd66a9554))
+* **search:** rank fuzzy matches over loaded commits ([3d84c2d](https://github.com/barathrajd/gitview/commit/3d84c2db903d28213255310f1fbfb28cb58362dc))
+* **search:** search all history with Git-side filters ([f3e15a7](https://github.com/barathrajd/gitview/commit/f3e15a7232ebaf70d600100a8af81532519ada09))
+* **search:** search beyond History with / and n/N ([2ee1f99](https://github.com/barathrajd/gitview/commit/2ee1f9935354b88ef5802e01b1b6be9157493157))
+* **search:** search branches with / and n/N ([cbac8e2](https://github.com/barathrajd/gitview/commit/cbac8e24814a7859830dd4d2aa2339952ce640bd))
+* **search:** search commit files with / and n/N ([aab34a8](https://github.com/barathrajd/gitview/commit/aab34a8cc21560e82fa5bca5a206c49014c5463e))
+* **search:** search History inline with / and n/N ([d2e05b7](https://github.com/barathrajd/gitview/commit/d2e05b750e20548cb8b4c3a35c406cc169092d3e))
+* **search:** search sessions with / and n/N ([a0de12f](https://github.com/barathrajd/gitview/commit/a0de12f0cece41337e04650deda9912fd3c99d82))
+* **search:** search tags with / and n/N ([41f0275](https://github.com/barathrajd/gitview/commit/41f0275ccf52adcfe1bba3b36266694d1dc73050))
+* **search:** search worktree files with / and n/N ([58fdb3b](https://github.com/barathrajd/gitview/commit/58fdb3be34d02ad5a73c23b8922b0dc65092b1a2))
+* **website:** prepare workspace release 0.8.0 ([c191713](https://github.com/barathrajd/gitview/commit/c1917131855086e84ae72fd5fed8138a30b65682))
+* **workspace:** add a Sessions section to the sidebar ([518b914](https://github.com/barathrajd/gitview/commit/518b914c132aa8e9bac9ce50f54ea06cef73836e))
+* **workspace:** add panel controls and improve agent terminal compatibility ([8b6ed4a](https://github.com/barathrajd/gitview/commit/8b6ed4aa5e3316cfb1d153462f010956504893e6))
+* **workspace:** one single-line hint bar and updated help ([3f9f0b5](https://github.com/barathrajd/gitview/commit/3f9f0b5e6c9cdee15a0069e8dd5bff65a8501c7d))
+* **workspace:** open pages in the centre panel ([31fb696](https://github.com/barathrajd/gitview/commit/31fb696646431c49d90fd87dd5f0ba16f4748a23))
+* **workspace:** persist cockpit panel focus visibility and width ([76d36f7](https://github.com/barathrajd/gitview/commit/76d36f7c9702e940ec58360674be7ed8b57b83e9))
+* **workspace:** remove the inspector column and keep subjects readable ([789f395](https://github.com/barathrajd/gitview/commit/789f395880a72bf0eabb94aee32324046f2179e1))
+* **workspace:** resize hide and restore the agent pane ([a73fc44](https://github.com/barathrajd/gitview/commit/a73fc4479e1240750caaebeb9de6b733900fd801))
+* **workspace:** share agent geometry and toggle full-width panels ([60c8b65](https://github.com/barathrajd/gitview/commit/60c8b65b8a6cd6b99a79fdd43533143a94e57a19))
+* **workspace:** stack a Branches section above the worktree ([8e3e9d4](https://github.com/barathrajd/gitview/commit/8e3e9d4f95b4364eb02865ae46ccd876a2f9d77a))
+* **workspace:** stacked sidebar, centre-panel pages, and one hint bar ([2deb629](https://github.com/barathrajd/gitview/commit/2deb62954a0bd80f3f3c48a9d46d13e481dc3d9e))
+* **workspace:** toggle full width directly from the agent pane ([9e9087a](https://github.com/barathrajd/gitview/commit/9e9087a0fdddce7e23069d118fb5f6450e991982))
+
+
+### Bug Fixes
+
+* **keys:** ignore Ctrl and Alt letters in prompts and pages ([bb378aa](https://github.com/barathrajd/gitview/commit/bb378aa354ad82a9007ef19e434366eea523c394))
+* **keys:** ignore Ctrl and Alt letters in view shortcuts ([7256379](https://github.com/barathrajd/gitview/commit/72563792ee2c0f83fc72bb4c6f49cede2c67dba3))
+* **pane:** improve agent scrolling theme detection and mouse support ([ce294b6](https://github.com/barathrajd/gitview/commit/ce294b657add6711067cd15c954cd3821ab8a395))
+* **search:** repeat filtered searches with n/N and refresh their results ([a3457ac](https://github.com/barathrajd/gitview/commit/a3457ac843f67c24ac08aae62c2157637fe7745f))
+* **workspace:** move Tab down the sidebar in drawn order ([8b654b3](https://github.com/barathrajd/gitview/commit/8b654b354306972aa49ba93420a3574ff762481d))
+* **workspace:** resize the focused panel and use Tab for focus ([bbb40a8](https://github.com/barathrajd/gitview/commit/bbb40a8452a03f53b117b1d0d331988ad431d6bf))
+
 ## [0.7.1](https://github.com/barathrajd/gitview/compare/v0.7.0...v0.7.1) (2026-10-30)
 
 
