@@ -338,3 +338,101 @@ fn n_and_shift_n_step_through_branch_matches() {
         );
     }
 }
+
+/// Lightweight tags, sorted: v1-alpha, v2-beta, v3-alpha, v4-beta.
+fn tags() -> Repo {
+    let repository = Repo::with_history();
+    for name in ["v1-alpha", "v2-beta", "v3-alpha", "v4-beta"] {
+        repository.git(&["tag", name]);
+    }
+    repository
+}
+
+/// The tag the tag page marks as selected.
+fn selected_tag(screen: &str) -> Option<String> {
+    let line = screen.lines().find(|line| line.contains("› v"))?;
+    let (_, rest) = line.split_once("› ")?;
+    rest.split_whitespace().next().map(str::to_owned)
+}
+
+fn tags_screen(repository: &Repo, keys: Vec<replay::Step>) -> String {
+    let mut steps = vec![
+        WaitFor("Change library"),
+        Char('b'),
+        WaitFor("Local branches"),
+        Char('t'),
+        WaitFor("v4-beta"),
+    ];
+    steps.extend(keys);
+    steps.push(Pause(Duration::from_millis(200)));
+    replay_sized(&repository.path(), 140, 24, steps)
+}
+
+#[test]
+fn slash_jumps_through_tags_and_esc_restores_the_selection() {
+    let repository = tags();
+    // Start on v2-beta, the second tag.
+    let start = || vec![Char('j'), Char('/'), Text("alpha")];
+
+    let screen = tags_screen(&repository, start());
+    assert_eq!(
+        selected_tag(&screen).as_deref(),
+        Some("v3-alpha"),
+        "{screen}"
+    );
+    assert!(screen.contains("/alpha_"), "{screen}");
+    assert!(screen.contains("match 2 of 2"), "{screen}");
+    assert!(screen.contains("v4-beta"), "{screen}");
+
+    let mut keys = start();
+    keys.push(Key(Esc));
+    let screen = tags_screen(&repository, keys);
+    assert_eq!(
+        selected_tag(&screen).as_deref(),
+        Some("v2-beta"),
+        "{screen}"
+    );
+    // Esc closed only the search, not the tag page.
+    assert!(screen.contains("LOCAL TAGS"), "{screen}");
+    assert!(!screen.contains("/alpha_"), "{screen}");
+
+    let mut keys = start();
+    keys.push(Key(Enter));
+    let screen = tags_screen(&repository, keys);
+    assert_eq!(
+        selected_tag(&screen).as_deref(),
+        Some("v3-alpha"),
+        "{screen}"
+    );
+    assert!(!screen.contains("/alpha_"), "{screen}");
+
+    // Typed letters edit the query instead of running tag actions.
+    let mut keys = start();
+    keys.push(Text("dvzz"));
+    let screen = tags_screen(&repository, keys);
+    assert!(screen.contains("no match"), "{screen}");
+    assert!(!screen.contains("CONFIRM TAG OPERATION"), "{screen}");
+    assert_eq!(
+        selected_tag(&screen).as_deref(),
+        Some("v2-beta"),
+        "{screen}"
+    );
+}
+
+#[test]
+fn n_and_shift_n_step_through_tag_matches() {
+    let repository = tags();
+    let cases: [(&str, &str); 3] = [("", "v1-alpha"), ("n", "v3-alpha"), ("N", "v3-alpha")];
+    for (keys, tag) in cases {
+        let mut steps = vec![Char('/'), Text("alpha"), Key(Enter)];
+        if !keys.is_empty() {
+            steps.push(Text(keys));
+        }
+        let screen = tags_screen(&repository, steps);
+        assert_eq!(
+            selected_tag(&screen).as_deref(),
+            Some(tag),
+            "{keys:?}\n{screen}"
+        );
+    }
+}

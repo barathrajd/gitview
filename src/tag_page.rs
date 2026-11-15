@@ -41,6 +41,7 @@ pub struct TagPage {
     pending_read: Option<ReadKind>,
     read_worker: crate::read_worker::LatestRead<ReadRequest, ReadResult>,
     verification: Option<String>,
+    search: Option<crate::list_search::InlineSearch>,
     scroll: u16,
     /// The verification's scroll limit and visible rows, and the list's
     /// visible rows, from the last render.
@@ -70,6 +71,7 @@ impl TagPage {
             pending_read: None,
             read_worker,
             verification: None,
+            search: None,
             scroll: 0,
             view: std::cell::Cell::new((0, 1, 1)),
             sender,
@@ -164,6 +166,15 @@ impl TagPage {
             && !self.pending
             && self.input.is_none()
             && self.confirm.is_none()
+            && self.search.is_none()
+    }
+
+    /// Tag names, which `/` matches.
+    fn names(&self) -> Vec<String> {
+        self.entries
+            .iter()
+            .map(|tag| tag.name.to_string_lossy().into_owned())
+            .collect()
     }
 
     /// Scroll the verification or move the list selection by a motion.
@@ -179,8 +190,9 @@ impl TagPage {
         }
     }
 
-    /// Return false when the user leaves the tag page.
-    pub fn key(&mut self, root: &Path, key: KeyCode) -> bool {
+    /// Return false when the user leaves the tag page. `/` searches tag
+    /// names; Enter saves the query in `last_search` for `n`/`N`.
+    pub fn key(&mut self, root: &Path, key: KeyCode, last_search: &mut String) -> bool {
         if self.pending_read.is_some() {
             if key == KeyCode::Esc {
                 self.read_worker.cancel();
@@ -215,6 +227,16 @@ impl TagPage {
             }
             return true;
         }
+        if self.search.is_some() {
+            let names = self.names();
+            let Some(search) = &mut self.search else {
+                return true;
+            };
+            if !search.key(key, &names, &mut self.selected, last_search) {
+                self.search = None;
+            }
+            return true;
+        }
         if self.confirm.is_some() {
             match key {
                 KeyCode::Char('y') => {
@@ -232,9 +254,11 @@ impl TagPage {
             KeyCode::Char('d')=>if let Some(tag)=self.entries.get(self.selected) {self.confirm=Some(Action::Delete(tag.clone()));},
             KeyCode::Char('v')=>if let Some(tag)=self.entries.get(self.selected) {self.pending_read=Some(ReadKind::Verify);self.read_worker.request(ReadRequest::Verify(tag.clone()));},
             KeyCode::Char('r')=>self.run(root.to_path_buf(),Action::Refresh),
+            KeyCode::Char('/')=>self.search=Some(crate::list_search::InlineSearch::start(self.selected)),
+            KeyCode::Char(letter @ ('n'|'N'))=>if let Some(index)=crate::list_search::step(&self.names(),last_search,self.selected,letter=='n') {self.selected=index;},
             KeyCode::Down|KeyCode::Char('j')=>self.selected=(self.selected+1).min(self.entries.len().saturating_sub(1)),
             KeyCode::Up|KeyCode::Char('k')=>self.selected=self.selected.saturating_sub(1),
-            KeyCode::Char('?')=>self.feedback="c: create lightweight tag at HEAD; d: confirm local deletion; v: verify signature; r: refresh; Esc: return to branches.".into(), _=>{}
+            KeyCode::Char('?')=>self.feedback="c: create lightweight tag at HEAD; d: confirm local deletion; v: verify signature; r: refresh; /: search, n/N: next or previous match; Esc: return to branches.".into(), _=>{}
         }
         true
     }
@@ -267,9 +291,12 @@ impl TagPage {
             &[("Enter", "review target"), ("Esc", "cancel")]
         } else if self.confirm.is_some() {
             &[("y", "confirm"), ("n/Esc", "cancel")]
+        } else if self.search.is_some() {
+            &[("Enter", "stay"), ("Esc", "back")]
         } else {
             &[
                 ("j/k", "select"),
+                ("/", "search"),
                 ("c", "create"),
                 ("d", "delete"),
                 ("v", "verify"),
@@ -337,29 +364,41 @@ impl TagPage {
             let (max, page, _) = self.view.get();
             self.view.set((max, page, visible));
             let start = self.selected.saturating_sub(visible.saturating_sub(1));
+            let mut finder = crate::history::MatchFinder::new(
+                self.search
+                    .as_ref()
+                    .map_or("", |search| search.query.as_str()),
+            );
             for (index, tag) in self.entries.iter().enumerate().skip(start).take(visible) {
                 let selected = index == self.selected;
-                let text = format!(
-                    "{} {}  [{}]  {}",
-                    if selected { "›" } else { " " },
-                    tag.name.to_string_lossy(),
+                let name = tag.name.to_string_lossy();
+                let mut spans = vec![Span::raw(if selected { "› " } else { "  " })];
+                spans.extend(crate::ui::highlighted_spans(
+                    &name,
+                    &finder.positions(&name),
+                ));
+                spans.push(Span::raw(format!(
+                    "  [{}]  {}",
                     if tag.kind == "tag" {
                         "annotated"
                     } else {
                         "lightweight"
                     },
                     tag.object
-                );
-                lines.push(Line::styled(
-                    text,
-                    if selected {
-                        selection_style()
-                    } else {
-                        Style::default()
-                    },
-                ));
+                )));
+                lines.push(Line::from(spans).style(if selected {
+                    selection_style()
+                } else {
+                    Style::default()
+                }));
             }
             lines.push(Line::raw(""));
+            if let Some(search) = &self.search {
+                lines.push(Line::styled(
+                    search.line(self.selected),
+                    Style::default().fg(ACCENT),
+                ));
+            }
             lines.extend(self.feedback.lines().map(|line| {
                 Line::styled(
                     line.to_owned(),
