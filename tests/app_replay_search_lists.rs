@@ -233,3 +233,108 @@ fn n_and_shift_n_step_through_commit_file_matches() {
         );
     }
 }
+
+/// Local branches, sorted: feature-alpha, fix-beta, main, release-alpha,
+/// topic-beta.
+fn branches() -> Repo {
+    let repository = Repo::with_history();
+    for name in ["feature-alpha", "fix-beta", "release-alpha", "topic-beta"] {
+        repository.git(&["branch", name]);
+    }
+    repository
+}
+
+/// The branch the branch page marks as selected.
+fn selected_branch(screen: &str) -> Option<String> {
+    let line = screen.lines().find(|line| line.contains("› "))?;
+    let (_, rest) = line.split_once("› ")?;
+    rest.trim_start_matches(['*', ' '])
+        .split_whitespace()
+        .next()
+        .map(|name| name.trim_end_matches('│').to_owned())
+}
+
+fn branches_screen(repository: &Repo, keys: Vec<replay::Step>) -> String {
+    let mut steps = vec![
+        WaitFor("Change library"),
+        Char('b'),
+        WaitFor("topic-beta"),
+        Text("gg"),
+    ];
+    steps.extend(keys);
+    steps.push(Pause(Duration::from_millis(200)));
+    replay_sized(&repository.path(), 140, 24, steps)
+}
+
+#[test]
+fn slash_jumps_through_branches_and_esc_restores_the_selection() {
+    let repository = branches();
+    // Start on fix-beta, the second branch.
+    let start = || vec![Char('j'), Char('/'), Text("alpha")];
+
+    let screen = branches_screen(&repository, start());
+    assert_eq!(
+        selected_branch(&screen).as_deref(),
+        Some("release-alpha"),
+        "{screen}"
+    );
+    assert!(screen.contains("/alpha_"), "{screen}");
+    assert!(screen.contains("match 2 of 2"), "{screen}");
+    assert!(screen.contains("topic-beta"), "{screen}");
+
+    let mut keys = start();
+    keys.push(Key(Esc));
+    let screen = branches_screen(&repository, keys);
+    assert_eq!(
+        selected_branch(&screen).as_deref(),
+        Some("fix-beta"),
+        "{screen}"
+    );
+    // Esc closed only the search, not the branch page.
+    assert!(screen.contains("Local branches"), "{screen}");
+    assert!(!screen.contains("/alpha_"), "{screen}");
+
+    // Enter keeps the match without asking to switch.
+    let mut keys = start();
+    keys.push(Key(Enter));
+    let screen = branches_screen(&repository, keys);
+    assert_eq!(
+        selected_branch(&screen).as_deref(),
+        Some("release-alpha"),
+        "{screen}"
+    );
+    assert!(!screen.contains("/alpha_"), "{screen}");
+    assert!(!screen.to_lowercase().contains("switch to"), "{screen}");
+
+    let mut keys = start();
+    keys.push(Text("zzz"));
+    let screen = branches_screen(&repository, keys);
+    assert!(screen.contains("no match"), "{screen}");
+    assert_eq!(
+        selected_branch(&screen).as_deref(),
+        Some("fix-beta"),
+        "{screen}"
+    );
+}
+
+#[test]
+fn n_and_shift_n_step_through_branch_matches() {
+    let repository = branches();
+    let cases: [(&str, &str); 3] = [
+        ("", "feature-alpha"),
+        ("n", "release-alpha"),
+        ("N", "release-alpha"),
+    ];
+    for (keys, branch) in cases {
+        let mut steps = vec![Char('/'), Text("alpha"), Key(Enter)];
+        if !keys.is_empty() {
+            steps.push(Text(keys));
+        }
+        let screen = branches_screen(&repository, steps);
+        assert_eq!(
+            selected_branch(&screen).as_deref(),
+            Some(branch),
+            "{keys:?}\n{screen}"
+        );
+    }
+}

@@ -384,8 +384,9 @@ pub fn render_in(
         Screen::Branches {
             branches,
             feedback,
+            search_prompt,
             selection,
-        } => render_branches(frame, branches, feedback, selection, border),
+        } => render_branches(frame, branches, feedback, search_prompt, selection, border),
         Screen::Diff {
             diff,
             scroll,

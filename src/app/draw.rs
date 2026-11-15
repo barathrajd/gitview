@@ -204,6 +204,10 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                     Screen::Branches {
                         branches: app.branches.as_ref(),
                         feedback: &app.branch_feedback,
+                        search_prompt: prompt_line.clone().map(|line| ui::SearchPrompt {
+                            line,
+                            query: &app.query,
+                        }),
                         selection: &mut app.branch_selection,
                     }
                 } else if let (Some(diff), Some(prepared)) = (&app.diff, &app.prepared_diff) {
@@ -325,6 +329,7 @@ fn search_line(app: &App) -> Option<String> {
         SearchList::History => app.selection.selected(),
         SearchList::Worktree => app.status_selection.selected(),
         SearchList::CommitFiles => app.file_selection.selected(),
+        SearchList::Branches => app.branch_selection.selected(),
     };
     let status = if app.query.trim().is_empty() {
         String::new()

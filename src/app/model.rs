@@ -178,6 +178,7 @@ pub(super) enum SearchList {
     History,
     Worktree,
     CommitFiles,
+    Branches,
 }
 
 pub(super) struct InlineSearch {

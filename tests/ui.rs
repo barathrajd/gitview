@@ -540,6 +540,7 @@ fn renders_error_states_for_git_backed_views() {
         Screen::Branches {
             branches: Some(&branches),
             feedback: "",
+            search_prompt: None,
             selection: &mut selection,
         },
         80,
@@ -707,6 +708,7 @@ fn renders_branch_and_commit_details() {
         Screen::Branches {
             branches: Some(&branches),
             feedback: "",
+            search_prompt: None,
             selection: &mut branch_selection,
         },
         100,

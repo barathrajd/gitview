@@ -211,7 +211,7 @@ fn open_search_page(app: &mut App) {
 }
 
 /// A key while `/` searches a list other than History: the worktree files
-/// or the commit's changed files, matching full paths in display order.
+/// files, the commit's changed files, or branches, in display order.
 fn list_search(app: &mut App, list: SearchList, key: KeyEvent) -> Flow {
     match key.code {
         KeyCode::Esc => {
@@ -270,6 +270,15 @@ pub(in crate::app) fn search_order(app: &App, list: SearchList) -> Vec<(usize, S
                 .collect(),
             _ => Vec::new(),
         },
+        SearchList::Branches => match &app.branches {
+            Some(Ok(data)) => data
+                .branches
+                .iter()
+                .map(|name| name.to_string_lossy().into_owned())
+                .enumerate()
+                .collect(),
+            _ => Vec::new(),
+        },
     }
 }
 
@@ -282,6 +291,7 @@ pub(in crate::app) fn list_selection(
         SearchList::History => &mut app.selection,
         SearchList::Worktree => &mut app.status_selection,
         SearchList::CommitFiles => &mut app.file_selection,
+        SearchList::Branches => &mut app.branch_selection,
     }
 }
 
