@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.8.1](https://github.com/barathrajd/gitview/compare/v0.8.0...v0.8.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **ci:** avoid repeating release recovery checks ([4dc5cd4](https://github.com/barathrajd/gitview/commit/4dc5cd408b3a60a9f195d3676c55645d2fff9692))
+* **ci:** speed up release recovery tasks ([3a0f2df](https://github.com/barathrajd/gitview/commit/3a0f2dfd07c70092a788bcd4922f67fce3e59b46))
+* **ci:** use supported macOS release runner ([c29aeb2](https://github.com/barathrajd/gitview/commit/c29aeb2435637aca1e7bcb9660b3d0c1cee27bca))
+* **ci:** use supported macOS release runner ([340dc03](https://github.com/barathrajd/gitview/commit/340dc036b9266ee570ebbc5725e784796d191579))
+
 ## [0.8.0](https://github.com/barathrajd/gitview/compare/v0.7.1...v0.8.0) (2026-11-15)
 
 
