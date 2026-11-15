@@ -175,6 +175,11 @@ every panel already handles.
 7. **Docs and release.** Help, README, website, screenshots, and the full
    format, test, lint, and release-build pass.
 
+   The README, release notes, website copy, workspace captures, and agent and
+   session demos have been updated. The site labels 0.8.0 as planned until the
+   release manifest changes. Earlier workflow screenshots still need a refresh;
+   the full release verification and publishing steps remain open.
+
 ## Risks & open questions
 
 - **The rewrite touches everything.** *Mitigation:* the replay harness pins

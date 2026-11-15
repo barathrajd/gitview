@@ -3,7 +3,6 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import Navigation from "../components/Navigation.astro";
 import { features } from "../data/features";
 
-import { currentVersion } from "../lib/version";
 import Footer from "../components/Footer.astro";
 import TerminalDemo from "../components/TerminalDemo.astro";
 import TerminalShot from "../components/TerminalShot.astro";
@@ -12,10 +11,10 @@ import { href } from "../lib/base";
 // Screens captured from the real binary on a throwaway sample repository.
 const available = [
   {
-    title: "One screen for status, history, and context",
-    body: "The worktree groups staged, changed, and untracked files. History shows the commit graph with branch and tag labels, and the inspector shows the selected commit and a worktree summary. The footer lists the keys for the current pane.",
+    title: "Status and history at a glance",
+    body: "The sidebar groups sessions, branches, and worktree changes beside the commit graph. The bottom bar lists the keys for the focused panel.",
     name: "cockpit",
-    label: "Main screen: worktree, history, and inspector",
+    label: "Workspace: sessions, branches, worktree, and history",
   },
   {
     title: "Before and after, highlighted",
@@ -40,7 +39,7 @@ const entries = [
       <p class="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-400">Features</p>
       <h1 class="mt-4 max-w-3xl text-4xl font-semibold tracking-[-0.045em] text-slate-50 sm:text-5xl">Explore the workbench.</h1>
       <div class="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-base leading-7 text-slate-400">
-        <p>Find a workflow, see it in action. Real terminal captures from Gitview {currentVersion}.</p>
+        <p>Find a workflow, see it in action. Terminal captures show Gitview across releases, including the 0.8.0 workspace.</p>
         <a class="inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap text-emerald-300 hover:underline" href={href("changelog/")}>Release notes <span aria-hidden="true">↗</span></a>
       </div>
 
@@ -61,7 +60,7 @@ const entries = [
           <p class="font-mono text-xs text-emerald-300">Since {item.name === "diff" ? "0.4.0" : "0.3.0"}</p>
           <h2 class="mt-3 text-2xl text-slate-100">{item.title}</h2>
           <p class="my-5 max-w-3xl leading-7 text-slate-400">{item.body}</p>
-          <TerminalShot name={item.name} label={item.label} />
+          <TerminalShot name={item.name === "cockpit" ? "workspace" : item.name} label={item.label} />
         </section>)}
         {features.map(item => <section data-feature={item.id} id={item.id} class="min-w-0 scroll-mt-24">
           <p class="font-mono text-xs text-emerald-300">Since {item.since}</p>
@@ -80,7 +79,7 @@ const entries = [
         id="sessions"
         title="gitview  ·  review and merge an agent session"
         frames={[
-          { name: "sessions-1", keys: "A", caption: "The Sessions page lists the agent's session, one commit ahead of main." },
+          { name: "sessions-1", keys: "A", caption: "The Sessions section lists the agent's session, one commit ahead of main." },
           { name: "sessions-2", keys: "Enter", caption: "Review the session's commit and the diff it would bring into main." },
           { name: "sessions-3", keys: "m", caption: "Gitview asks before merging, and says when it would refuse." },
           { name: "sessions-4", keys: "y", caption: "Merged into main with a merge commit; the session is now even with main." },

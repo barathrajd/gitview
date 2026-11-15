@@ -325,6 +325,14 @@ fn capture_the_website_screenshots() {
         let repository = Repo::with_changes_at(Path::new(SAMPLE_PATH));
         capture(
             &repository,
+            None,
+            size,
+            &asset("workspace", phone),
+            "Gitview workspace showing sessions, branches, worktree changes, and commit history.",
+            |slot| vec![WaitFor("WORKTREE"), WaitFor("notes.txt"), Capture(slot)],
+        );
+        capture(
+            &repository,
             Some(&["sh", "-c", &agent_script]),
             size,
             &asset("agent", phone),
@@ -337,7 +345,7 @@ fn capture_the_website_screenshots() {
                 // On a phone-sized terminal Gitview starts in front; the focus
                 // key brings the agent forward.
                 let mut steps = if phone {
-                    vec![WaitFor("notes.txt"), Ctrl('\\'), WaitFor("get_status")]
+                    vec![WaitFor("notes.txt"), Ctrl('\\'), WaitFor("untracked")]
                 } else {
                     vec![WaitFor("get_status"), WaitFor("notes.txt")]
                 };
@@ -354,7 +362,14 @@ fn capture_the_website_screenshots() {
             size,
             &asset("sessions", phone),
             "The Sessions page listing an agent session, one commit ahead of main, with keys to review, discard, and refresh.",
-            |slot| vec![Char('A'), WaitFor(name), Capture(slot)],
+            |slot| {
+                vec![
+                    Char('A'),
+                    WaitFor("SESSIONS ("),
+                    WaitFor(name),
+                    Capture(slot),
+                ]
+            },
         );
         capture(
             &repository,
@@ -365,8 +380,10 @@ fn capture_the_website_screenshots() {
             |slot| {
                 vec![
                     Char('A'),
+                    WaitFor("SESSIONS ("),
                     WaitFor(name),
                     Key(Enter),
+                    WaitFor("REVIEW SESSION"),
                     WaitFor("Draft the release notes"),
                     Capture(slot),
                 ]
@@ -468,9 +485,11 @@ fn capture_the_website_screenshots() {
             |slots| {
                 vec![
                     Char('A'),
+                    WaitFor("SESSIONS ("),
                     WaitFor(name),
                     Capture(slots[0].clone()),
                     Key(Enter),
+                    WaitFor("REVIEW SESSION"),
                     WaitFor("Draft the release notes"),
                     Capture(slots[1].clone()),
                     Char('m'),

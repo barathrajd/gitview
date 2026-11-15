@@ -25,23 +25,21 @@ The implementation is complete when these outcomes can be checked directly.
 - Every feature and platform statement matches the repository README or a
   released capability. The page makes no unsupported speed comparison or
   benchmark claim.
-- The terminal preview matches the current Worktree, History, and Inspector
-  layout and key hints; its repository content is labeled as sample data.
+- The terminal preview shows the workspace sidebar and history; its repository
+  content is labeled as sample data.
   Feature descriptions cover diffs, staging, and commit creation and amend, as
   shipped in 0.5.0, without implying remote operations or interactive rebase
   support.
 - The home page stays high level: one terminal screenshot in the hero, the
   six-card feature summary, and the install guide, with links to the other pages.
-- A `/features/` page shows each workflow with a screenshot of the real binary.
-  Its "New in 0.6.0" section describes the released version, and the install
-  instructions install the latest published release.
+- A `/features/` page presents workflows with terminal captures and transcripts
+  from Gitview. The install instructions install the latest published release.
 - A `/changelog/` page lists every release from 0.2.1, with any planned release
-  clearly marked, summarized from `RELEASE.md` in `website/src/data/releases.ts`. It states that
-  Linux packaging moves to the next release and that remotes, merge, and export
-  stay out.
+  clearly marked, summarized from `RELEASE.md` in
+  `website/src/data/releases.ts`.
 - Every page fits phone widths from 320 px with no horizontal page scroll. Each
   terminal screenshot has a 140-column version for desktop and a 64-column
-  version captured from the same binary for phones, so none needs sideways
+  version for phones, so none needs sideways
   scrolling. Elements that still scroll sideways hide their scrollbars.
 - Below 640 px the navigation collapses into a menu button that opens a panel
   with Features, Changelog, Install, and GitHub links. It works with the
@@ -218,3 +216,17 @@ descriptions. Feature hashes and browser history preserve direct links.
 - [x] Build the site and pass all three website tests (40 assertions).
 
 Full feature coverage and additional real demo captures remain separate work.
+
+### 0.8.0 workspace update
+
+The site presents the upcoming workspace with new desktop and narrow terminal
+captures, updated sidebar and session descriptions, and changelog entries for
+the graph, search, motions, and help. Older captures remain in the catalogue and
+are identified as captures from earlier releases. The screenshot replay also
+refreshes the agent and session demos from the current workspace.
+
+- [x] Capture the workspace and agent demos at both terminal sizes.
+- [x] Mark 0.8.0 as planned until the release manifest records it as published.
+- [x] Build the site and test the catalogue, release status, and links.
+- [ ] Recapture the remaining earlier workflow screens for the 0.8.0 layout.
+- [ ] Complete the release's remaining verification and publishing steps.

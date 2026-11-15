@@ -56,7 +56,13 @@ artifact is ignored and isn't needed.
 
 ## Keep product information current
 
-Before changing feature or platform claims, check the root `README.md`,
-`RELEASE.md`, and `Cargo.toml`. The macOS prebuilt installer supports Apple
-Silicon. Linux release packaging and Windows support remain deferred. Don't
-add performance comparisons unless you have reproducible benchmark data.
+Before changing feature or platform claims, check the root `README.md` and
+`RELEASE.md`. The prebuilt installer supports macOS Apple Silicon and Linux
+x86_64. Windows isn't supported. Don't add performance comparisons without
+reproducible benchmark data.
+
+The site reads the latest published version from `.release-please-manifest.json`.
+The version in `Cargo.toml` can be ahead of the latest release. Capture the
+workspace, agent, and session images with the ignored `website_screenshots`
+test described in `tests/website_screenshots.rs`. Other workflow captures may
+show earlier layouts and need a separate refresh.

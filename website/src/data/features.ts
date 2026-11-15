@@ -132,7 +132,7 @@ export const features = [
     id: "workspace",
     title: "One workspace",
     body: "Sessions, branches, and changed files stack in a sidebar beside history. Tab moves down the sidebar and then to history, Shift+Tab moves up, and A, b, W, and H jump to a section. Commit details, diffs, tags, profiles, and comparison open in the centre panel without hiding the sidebar.",
-    shots: [{ name: "cockpit", label: "The workspace: sidebar sections beside the structured history" }],
+    shots: [{ name: "workspace", label: "The workspace: sessions, branches, and worktree, with history alongside on wide terminals" }],
   },
   {
     id: "structured-history",
@@ -144,7 +144,7 @@ export const features = [
     id: "search",
     title: "Search every list",
     body: "Press / in history, the worktree, a commit's files, branches, tags, or sessions. The selection jumps to the best fuzzy match as you type, matches are highlighted, and n and N step through them. History filters such as author:, path:, msg:, and since: search all of history with Git.",
-    shots: [{ name: "search", label: "History search with a filter" }],
+    shots: [],
   },
   {
     id: "motions",
