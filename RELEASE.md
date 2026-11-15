@@ -4,7 +4,43 @@ This file is the single release plan and release-notes record for Gitview.
 
 ## Upcoming
 
-### Gitview 0.8.0 — workspace release
+### Gitview 0.7.1 — patch release
+
+This patch fixes latest-release discovery in the installer and the commit count
+shown for a merged agent session. The website adds a searchable feature sidebar,
+changelog links to feature demonstrations, shared branding, and automatic
+version updates and deployment after a release. Known 0.7.0 limitations remain.
+
+
+### Next release — follow-up tasks carried over from 0.6.0
+
+Gitview 0.6.0 shipped with the known issues below. They are open work for a
+future release and aren't release promises.
+
+- Linux x86_64: native checks, performance evidence, a release archive with
+  checksum, and installer selection on a Linux runner.
+- Memory: explain why native RSS on a large (about 940 KB) comparison varies
+  between runs (256 to 13,552 KiB growth over 100 open/close cycles against a
+  10,240 KiB budget); live heap stays flat. See the
+  [performance report](docs/performance-0-6-0.md).
+- Memory: the renderer-only diff RSS diagnostic
+  (`measures_diff_cache_lifecycle`) exceeded its budget about half the time
+  while live heap stayed flat. Decided: reshape it. RSS shows one bounded
+  allocator step of ten-odd MiB at an unpredictable point, and macOS compression
+  hides idle leaked memory from RSS, so the check now fails on a sustained rise
+  (ignoring the two largest single-block jumps). Leak detection is the
+  live-allocation diagnostic, which catches 20 KB per cycle. The
+  large-comparison variance above is still open.
+- Evidence: rerun the full pre-release pass on a clean revision, and confirm
+  Clippy on the CI toolchain from the release pull request.
+- Process: complete the focused security review and the shared Definition of
+  Done review that 0.6.0 did not wait for.
+- Coverage gaps: syntax highlighting for TypeScript, TSX, and TOML, and
+  cancelling running Git commands when a comparison or object page closes.
+
+## Released
+
+### Gitview 0.8.0 — November 15, 2026
 
 Gitview 0.8.0 replaces the separate full-screen pages with one workspace: a
 sidebar of sessions, branches, and changed files beside a centre panel for
@@ -41,41 +77,8 @@ Known issues:
 - The raw `git log --graph` view keeps its 200-commit limit.
 - On narrow windows some keys appear only in help (`?`).
 
-### Gitview 0.7.1 — patch release
+Release: [GitHub v0.8.0](https://github.com/barathrajd/gitview/releases/tag/v0.8.0).
 
-This patch fixes latest-release discovery in the installer and the commit count
-shown for a merged agent session. The website adds a searchable feature sidebar,
-changelog links to feature demonstrations, shared branding, and automatic
-version updates and deployment after a release. Known 0.7.0 limitations remain.
-
-
-### Next release — follow-up tasks carried over from 0.6.0
-
-Gitview 0.6.0 shipped with the known issues below. They are open work for a
-future release and aren't release promises.
-
-- Linux x86_64: native checks, performance evidence, a release archive with
-  checksum, and installer selection on a Linux runner.
-- Memory: explain why native RSS on a large (about 940 KB) comparison varies
-  between runs (256 to 13,552 KiB growth over 100 open/close cycles against a
-  10,240 KiB budget); live heap stays flat. See the
-  [performance report](docs/performance-0-6-0.md).
-- Memory: the renderer-only diff RSS diagnostic
-  (`measures_diff_cache_lifecycle`) exceeded its budget about half the time
-  while live heap stayed flat. Decided: reshape it. RSS shows one bounded
-  allocator step of ten-odd MiB at an unpredictable point, and macOS compression
-  hides idle leaked memory from RSS, so the check now fails on a sustained rise
-  (ignoring the two largest single-block jumps). Leak detection is the
-  live-allocation diagnostic, which catches 20 KB per cycle. The
-  large-comparison variance above is still open.
-- Evidence: rerun the full pre-release pass on a clean revision, and confirm
-  Clippy on the CI toolchain from the release pull request.
-- Process: complete the focused security review and the shared Definition of
-  Done review that 0.6.0 did not wait for.
-- Coverage gaps: syntax highlighting for TypeScript, TSX, and TOML, and
-  cancelling running Git commands when a comparison or object page closes.
-
-## Released
 
 ### Gitview 0.6.0 — October 29, 2026
 

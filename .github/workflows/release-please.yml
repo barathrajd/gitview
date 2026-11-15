@@ -28,12 +28,24 @@ permissions:
 
 jobs:
   pre-release-checks:
+    # Recovery tasks operate on an existing release tag and don't create a new
+    # release. The main-branch release run already passed this gate.
+    if: ${{ github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-release-checks-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-release-checks-${{ hashFiles('Cargo.lock') }}-
       - name: Check formatting
         run: cargo fmt --check
       - name: Run tests
@@ -53,6 +65,7 @@ jobs:
 
   release-please:
     needs: pre-release-checks
+    if: ${{ github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
@@ -68,7 +81,7 @@ jobs:
 
   build-macos-arm64:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.task == 'build-macos-arm64') }}
+    if: ${{ always() && (needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.task == 'build-macos-arm64')) }}
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
@@ -95,7 +108,7 @@ jobs:
 
   build-linux-x86_64:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && (inputs.task == 'build-linux-x86_64' || inputs.task == 'dry-run-linux-x86_64')) }}
+    if: ${{ always() && (needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && (inputs.task == 'build-linux-x86_64' || inputs.task == 'dry-run-linux-x86_64'))) }}
     runs-on: ubuntu-latest
     env:
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.task == 'dry-run-linux-x86_64' }}
@@ -292,7 +305,7 @@ jobs:
 
   publish-crate:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.task == 'publish-crate') }}
+    if: ${{ always() && (needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.task == 'publish-crate')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
