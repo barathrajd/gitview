@@ -69,7 +69,7 @@ jobs:
   build-macos-arm64:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.task == 'build-macos-arm64') }}
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
         with:
