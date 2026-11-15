@@ -179,6 +179,7 @@ fn pages_open_in_the_centre_with_the_sidebar_visible() {
                 WaitFor("BRANCHES ("),
                 Char('t'),
                 WaitFor("LOCAL TAGS"),
+                WaitFor("[lightweight]"),
             ],
             "LOCAL TAGS",
         ),
@@ -196,6 +197,15 @@ fn pages_open_in_the_centre_with_the_sidebar_visible() {
         assert!(screen.contains("SESSIONS"), "{screen}");
         assert!(screen.contains("WORKTREE"), "{screen}");
         assert!(!screen.contains("HISTORY"), "{screen}");
-        assert!(screen.contains("Esc  back"), "{screen}");
+        // One hint bar: the page's keys, on the screen's bottom row only.
+        assert!(!screen.contains("Tab  pane"), "{screen}");
+        let lines: Vec<&str> = screen.lines().collect();
+        let bottom = lines.last().unwrap();
+        assert!(bottom.contains("Esc"), "{screen}");
+        assert_eq!(
+            lines.iter().filter(|line| line.contains("Esc")).count(),
+            1,
+            "{screen}"
+        );
     }
 }

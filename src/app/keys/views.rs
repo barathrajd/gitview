@@ -661,15 +661,35 @@ fn page_rows(app: &App) -> usize {
     let Some(area) = app.gitview_area else {
         return 1;
     };
+    // Below the three-row header; the status line and the one-row hint
+    // bar sit underneath, and the layout model reserves the status row.
     let panels = ratatui::layout::Rect {
         y: area.y.saturating_add(3),
         height: area.height.saturating_sub(4),
         ..area
     };
     let layout = app.workspace.gitview_layout(panels);
-    let panel = match app.app_state.view().panel() {
+    let view = app.app_state.view();
+    let panel = match view.panel() {
         crate::workspace::Panel::Center => layout.center,
-        _ => layout.sidebar,
+        // The focused section of the stacked sidebar.
+        _ => layout.sidebar.map(|sidebar| {
+            let sessions = app
+                .sessions_page
+                .as_ref()
+                .map_or(1, |page| page.section().rows.len());
+            let branches = match &app.branches {
+                Some(Ok(data)) => data.branches.len(),
+                _ => 1,
+            };
+            let [sessions_area, branches_area, files] =
+                crate::ui::sidebar_sections(sidebar, sessions, branches, view);
+            match view {
+                View::Sessions => sessions_area,
+                View::Branches => branches_area,
+                _ => files,
+            }
+        }),
     };
     panel.map_or(1, |panel| {
         usize::from(panel.height.saturating_sub(2)).max(1)

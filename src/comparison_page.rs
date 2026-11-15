@@ -250,9 +250,7 @@ impl ComparisonPage {
         frame: &mut Viewport<'_, '_>,
         border: ratatui::symbols::border::Set<'static>,
     ) {
-        use crate::ui::{
-            ACCENT, MUTED, hint_row_count, page_block, render_key_hints, selection_style,
-        };
+        use crate::ui::{ACCENT, MUTED, page_block, render_key_hints, selection_style};
         let hints: &[(&str, &str)] = if self.pending {
             &[("Working", "loading comparison"), ("Esc", "return")]
         } else if self.mode == Mode::Input {
@@ -275,7 +273,7 @@ impl ComparisonPage {
         };
         let areas = Layout::vertical([
             Constraint::Min(1),
-            Constraint::Length(hint_row_count(hints, frame.area().width)),
+            Constraint::Length(crate::ui::hints::hint_height(frame, hints)),
         ])
         .split(frame.area());
         render_key_hints(frame, areas[1], hints);

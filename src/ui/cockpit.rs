@@ -57,60 +57,17 @@ pub fn render_workspace_cockpit(
         View::Branches => ("", "", query),
         View::Sessions => ("", "", ""),
     };
-    let mut hints = match focused {
-        View::History => vec![
-            ("Tab", "pane"),
-            ("W", "worktree"),
-            ("Enter/l", "details"),
-            ("f", "path history"),
-            ("D", "compare"),
-            ("o", "object"),
-            ("v", "raw graph"),
-            ("b", "branches"),
-            ("p", "profiles"),
-            ("/", "search"),
-        ],
-        View::WorkingTree => vec![
-            ("Tab", "pane"),
-            ("Enter", "diff"),
-            ("s", "stage"),
-            ("u", "unstage"),
-            ("S", "stage all"),
-            ("U", "unstage all"),
-            ("c", "commit"),
-            ("a", "amend HEAD"),
-            ("r", "refresh"),
-            ("p", "profiles"),
-            ("/", "search"),
-        ],
-        View::Branches => vec![
-            ("Tab", "pane"),
-            ("Enter/l", "switch"),
-            ("c", "create"),
-            ("r", "rename"),
-            ("d", "delete"),
-            ("-", "previous checkout"),
-            ("t", "tags"),
-            ("/", "search"),
-        ],
-        View::Sessions => vec![
-            ("Tab", "pane"),
-            ("Enter", "review"),
-            ("d", "discard"),
-            ("r", "refresh"),
-            ("/", "search"),
-        ],
-    };
-    hints.extend([("j/k", "move"), ("?", "help"), ("q", "quit")]);
+    let mut hints = workspace_hints(focused);
     if page_open {
-        // The page in the centre lists its own keys.
-        hints = vec![("Esc", "back"), ("?", "help"), ("q", "quit")];
+        // The page in the centre hands its keys to this bar instead.
+        hints.clear();
     } else if search_prompt.is_some() {
         hints = vec![("Enter", "stay"), ("Esc", "back")];
         if focused == View::History {
             hints.push(("Tab", "full list"));
         }
     }
+    // One row of hints; those that don't fit fold into `? more`.
     let sections = Layout::vertical([
         Constraint::Length(3),
         Constraint::Min(6),
@@ -207,7 +164,9 @@ pub fn render_workspace_cockpit(
         Line::styled(feedback, Style::default().fg(Color::Rgb(94, 234, 212)))
     };
     frame.render_widget(Paragraph::new(status_line), sections[2]);
-    render_key_hints_padded(frame, sections[3], &hints);
+    if !hints.is_empty() {
+        render_key_hints_padded(frame, sections[3], &hints);
+    }
 }
 
 pub(super) fn render_worktree_panel(
@@ -524,25 +483,13 @@ fn render_sidebar(
         focused,
         sidebar_focused,
     } = sidebar;
-    // Sessions, then Branches, each sized to its rows up to a share of the
-    // height that is larger while focused; the working tree takes the rest.
-    let fit = |rows: usize, share: u16, focus: View| {
-        let share = if focused == focus { share * 2 } else { share };
-        section_rows(rows).min(area.height * share / 100).max(3)
-    };
     let session_rows = sessions.map_or(1, |section| section.rows.len());
     let branch_count = match branches {
         Some(Ok(data)) => data.branches.len(),
         _ => 1,
     };
-    let session_height = fit(session_rows, 20, View::Sessions);
-    let branch_height = fit(branch_count, 30, View::Branches);
-    let [session_area, branch_area, files_area] = Layout::vertical([
-        Constraint::Length(session_height),
-        Constraint::Length(branch_height),
-        Constraint::Min(3),
-    ])
-    .areas(area);
+    let [session_area, branch_area, files_area] =
+        sidebar_sections(area, session_rows, branch_count, focused);
     render_session_section(
         frame,
         session_area,
@@ -716,4 +663,76 @@ fn render_session_section(
             .fg(Color::Rgb(241, 245, 249))
             .bold(),
     );
+}
+
+/// The workspace hint bar for the focused view, before an inline search or
+/// an open page replaces it.
+pub fn workspace_hints(focused: View) -> Vec<(&'static str, &'static str)> {
+    let mut hints = match focused {
+        View::History => vec![
+            ("Tab", "pane"),
+            ("W", "worktree"),
+            ("Enter/l", "details"),
+            ("f", "path history"),
+            ("D", "compare"),
+            ("o", "object"),
+            ("v", "raw graph"),
+            ("b", "branches"),
+            ("p", "profiles"),
+            ("/", "search"),
+        ],
+        View::WorkingTree => vec![
+            ("Tab", "pane"),
+            ("Enter", "diff"),
+            ("s", "stage"),
+            ("u", "unstage"),
+            ("S", "stage all"),
+            ("U", "unstage all"),
+            ("c", "commit"),
+            ("a", "amend HEAD"),
+            ("r", "refresh"),
+            ("p", "profiles"),
+            ("/", "search"),
+        ],
+        View::Branches => vec![
+            ("Tab", "pane"),
+            ("Enter/l", "switch"),
+            ("c", "create"),
+            ("r", "rename"),
+            ("d", "delete"),
+            ("-", "previous checkout"),
+            ("t", "tags"),
+            ("/", "search"),
+        ],
+        View::Sessions => vec![
+            ("Tab", "pane"),
+            ("Enter", "review"),
+            ("d", "discard"),
+            ("r", "refresh"),
+            ("/", "search"),
+        ],
+    };
+    hints.extend([("j/k", "move"), ("?", "help"), ("q", "quit")]);
+    hints
+}
+
+/// The sidebar's Sessions, Branches, and working-tree areas: Sessions and
+/// Branches each take what their rows need up to a share of the height
+/// that doubles while focused; the working tree takes the rest.
+pub fn sidebar_sections(
+    area: ratatui::layout::Rect,
+    session_rows: usize,
+    branch_rows: usize,
+    focused: View,
+) -> [ratatui::layout::Rect; 3] {
+    let fit = |rows: usize, share: u16, focus: View| {
+        let share = if focused == focus { share * 2 } else { share };
+        section_rows(rows).min(area.height * share / 100).max(3)
+    };
+    Layout::vertical([
+        Constraint::Length(fit(session_rows, 20, View::Sessions)),
+        Constraint::Length(fit(branch_rows, 30, View::Branches)),
+        Constraint::Min(3),
+    ])
+    .areas(area)
 }

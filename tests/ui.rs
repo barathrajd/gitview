@@ -1,6 +1,5 @@
 use gitview::{
     app::BranchAction,
-    branches::{Branches, HeadState},
     config::FolderProfile,
     details::CommitDetails,
     ui::{HelpPage, Screen, render, render_help_overlay},
@@ -115,8 +114,9 @@ fn commit_message_shows_staged_and_unstaged_files_before_single_enter_commit() {
     assert!(input.contains("src/ready.rs"));
     assert!(input.contains("src/wip.rs"));
     assert!(input.contains("notes.txt"));
-    assert!(input.contains("commit"));
+    // One hint row: the first keys, then `? more` for those that don't fit.
     assert!(input.contains("Ctrl+J"));
+    assert!(input.contains("?  more"));
     assert!(!input.contains("CONFIRM COMMIT"));
 
     let amend = draw(
@@ -535,19 +535,6 @@ fn renders_error_states_for_git_backed_views() {
     );
     assert!(working_tree.contains("Git status failed"));
 
-    let branches = Err("Branch listing failed".to_owned());
-    let branch_error = draw(
-        Screen::Branches {
-            branches: Some(&branches),
-            feedback: "",
-            search_prompt: None,
-            selection: &mut selection,
-        },
-        80,
-        24,
-    );
-    assert!(branch_error.contains("Branch listing failed"));
-
     let diff = (1, Some(Err("Diff failed".to_owned())));
     let diff_error = draw(
         Screen::Diff {
@@ -631,22 +618,20 @@ fn working_tree_diff_shows_hunk_controls_and_selection() {
         20,
     );
     assert!(rendered.contains("HUNK 2/2"));
-    assert!(rendered.contains("stage"));
-    assert!(rendered.contains("unstage"));
-    assert!(rendered.contains("stage all"));
-    assert!(rendered.contains("unstage all"));
     assert!(!rendered.contains("quit"));
-    assert!(!rendered.contains("help"));
     assert!(!rendered.contains("history"));
     assert!(!rendered.contains("scroll"));
+    // At 56 columns the hunk keys don't all fit on the one hint row: it keeps
+    // the first ones and ends with `? more`.
     let cells: Vec<_> = rendered.chars().collect();
     let rows = cells
         .chunks(56)
         .map(|row| row.iter().collect::<String>())
         .collect::<Vec<_>>();
-    let action_row = rows.iter().find(|row| row.contains("stage all")).unwrap();
-    assert!(action_row.contains("unstage all"));
-    assert!(action_row.contains("unstage"));
+    let hint_rows: Vec<_> = rows.iter().filter(|row| row.contains("hunk")).collect();
+    assert_eq!(hint_rows.len(), 1, "{rendered}");
+    assert!(hint_rows[0].contains("? more"), "{rendered}");
+    assert!(!rendered.contains("unstage all"), "{rendered}");
 }
 
 #[test]
@@ -697,29 +682,7 @@ fn wide_side_by_side_diff_wraps_long_lines() {
 }
 
 #[test]
-fn renders_branch_and_commit_details() {
-    let branches = Ok(Branches {
-        head: HeadState::Attached(OsString::from("main")),
-        branches: vec![OsString::from("main"), OsString::from("topic")],
-        head_commit: Some("0123456789abcdef0123456789abcdef01234567".to_owned()),
-    });
-    let mut branch_selection = ListState::default();
-    let branch_list = draw(
-        Screen::Branches {
-            branches: Some(&branches),
-            feedback: "",
-            search_prompt: None,
-            selection: &mut branch_selection,
-        },
-        100,
-        24,
-    );
-    assert!(branch_list.contains("Local branches"));
-    assert!(branch_list.contains("topic"));
-    assert!(branch_list.contains("Enter/l"));
-    assert!(!branch_list.contains("quit"));
-    assert!(!branch_list.contains("help"));
-
+fn renders_commit_details() {
     let details = (
         1,
         Some(Ok(CommitDetails {

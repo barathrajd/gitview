@@ -125,12 +125,6 @@ pub enum Screen<'a> {
         entry: &'a Entry,
         pending: bool,
     },
-    Branches {
-        branches: Option<&'a Result<Branches, String>>,
-        feedback: &'a str,
-        search_prompt: Option<SearchPrompt<'a>>,
-        selection: &'a mut ListState,
-    },
     Diff {
         diff: &'a (u64, Option<Result<String, String>>),
         scroll: u16,
@@ -179,6 +173,7 @@ pub enum HelpPage {
     History,
     WorkingTree,
     Branches,
+    Sessions,
     BranchInput,
     BranchConfirmation,
     Commit,

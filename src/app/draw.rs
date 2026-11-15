@@ -90,6 +90,8 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                     ui::HelpPage::BranchConfirmation
                 } else if app.app_state.view() == View::Branches {
                     ui::HelpPage::Branches
+                } else if app.app_state.view() == View::Sessions {
+                    ui::HelpPage::Sessions
                 } else if app.diff_entry.is_some() && app.diff.is_some() {
                     ui::HelpPage::WorktreeDiff
                 } else if app.diff.is_some() {
@@ -312,7 +314,10 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                         | Screen::CommitDetails { .. }
                 );
                 let (screen, centre) = if workspace_only {
-                    (Screen::Cockpit(cockpit!(false)), centre)
+                    // A branch prompt or session review in the centre brings
+                    // its own hints.
+                    let open = centre.is_some();
+                    (Screen::Cockpit(cockpit!(open)), centre)
                 } else if page {
                     (Screen::Cockpit(cockpit!(true)), Some(screen))
                 } else {
@@ -339,8 +344,21 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                             app.border,
                         );
                         if let Some(centre) = centre {
+                            // The page draws without its own hint row; its
+                            // keys go to the workspace's single bottom bar.
                             let rect = ui::cockpit_centre_area(area, &app.workspace);
-                            ui::render_in(&mut viewport.sub(rect), centre, app.border);
+                            let hints = std::cell::RefCell::new(Vec::new());
+                            ui::render_in(
+                                &mut viewport.sub(rect).capture_hints(&hints),
+                                centre,
+                                app.border,
+                            );
+                            let bar = ratatui::layout::Rect {
+                                y: area.bottom().saturating_sub(1),
+                                height: 1,
+                                ..area
+                            };
+                            ui::render_bar(&mut viewport, bar, &hints.into_inner());
                         }
                     } else {
                         ui::render_in(&mut viewport, screen, app.border);

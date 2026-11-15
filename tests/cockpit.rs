@@ -94,10 +94,14 @@ fn renders_responsive_repository_cockpit() {
     assert!(narrow.contains("HISTORY"));
     assert!(narrow.contains("Ship the cockpit"));
     assert!(narrow.contains("Enter/l"));
+    // One hint row: at 80 columns the hints that don't fit fold into `? more`.
+    let bar = |screen: &str| screen.lines().last().unwrap().to_owned();
+    assert!(bar(&narrow).contains("Tab  pane"), "{narrow}");
+    assert!(bar(&narrow).contains("?  more"), "{narrow}");
     assert_eq!(
         narrow
             .lines()
-            .filter(|line| line.contains("pane") || line.contains("help") || line.contains("quit"))
+            .filter(|line| line.contains("Tab  pane"))
             .count(),
         1
     );
@@ -115,12 +119,7 @@ fn renders_responsive_repository_cockpit() {
     assert!(wide.contains("HISTORY"));
     // History takes the width the inspector column used to.
     assert!(!wide.contains("INSPECTOR"));
-    assert_eq!(
-        wide.lines()
-            .filter(|line| line.contains("pane") || line.contains("help") || line.contains("quit"))
-            .count(),
-        1
-    );
+    assert!(bar(&wide).contains("Tab  pane"), "{wide}");
     let worktree_focused = render_cockpit_focused(140, View::WorkingTree, "Primary");
     assert!(worktree_focused.contains("diff"));
     assert!(worktree_focused.contains("commit"));
@@ -272,4 +271,75 @@ fn inline_search_underlines_matches_in_history() {
         rows.iter()
             .any(|row| row.contains("/parser_   match 1 of 1"))
     );
+}
+
+/// The sidebar with `branches` and `sessions`, focused on `focused`.
+fn render_sidebar(
+    branches: Result<Branches, String>,
+    sessions: Option<gitview::sessions_page::SessionSection>,
+    focused: View,
+) -> String {
+    let mut terminal = Terminal::new(TestBackend::new(140, 30)).unwrap();
+    let history = Ok(vec!["* abcdef0 Ship the cockpit".to_owned()]);
+    let status = Ok(Vec::new());
+    let mut branch_selection = ListState::default();
+    branch_selection.select(Some(1));
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                Screen::Cockpit(Cockpit {
+                    repository: Path::new("/work/gitview"),
+                    profile: "office",
+                    branches: Some(&branches),
+                    history: Some(&history),
+                    history_entries: &[],
+                    status: Some(&status),
+                    feedback: "",
+                    search_prompt: None,
+                    focused,
+                    history_selection: &mut ListState::default(),
+                    working_tree_selection: &mut ListState::default(),
+                    branch_selection: &mut branch_selection,
+                    sessions,
+                    page_open: false,
+                }),
+                ratatui::symbols::border::PLAIN,
+            );
+        })
+        .unwrap();
+    terminal
+        .backend()
+        .buffer()
+        .content()
+        .chunks(140)
+        .map(|row| row.iter().map(|cell| cell.symbol()).collect::<String>())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn the_sidebar_lists_branches_and_sessions_and_shows_errors() {
+    let branches = Branches {
+        head: HeadState::Attached(OsString::from("main")),
+        branches: vec![OsString::from("feature"), OsString::from("main")],
+        head_commit: Some("abcdef0123456789".to_owned()),
+    };
+    let sessions = gitview::sessions_page::SessionSection {
+        rows: vec![("session-1".to_owned(), "2 ahead".to_owned())],
+        selected: 0,
+        search: None,
+        loading: false,
+    };
+    let screen = render_sidebar(Ok(branches), Some(sessions), View::Branches);
+    assert!(screen.contains("SESSIONS (1)"), "{screen}");
+    assert!(screen.contains("session-1  2 ahead"), "{screen}");
+    assert!(screen.contains("BRANCHES (2)"), "{screen}");
+    // The focused Branches section marks its selection, `main`.
+    assert!(screen.contains("› * main"), "{screen}");
+    assert!(screen.contains("Enter/l  switch"), "{screen}");
+
+    let screen = render_sidebar(Err("Branch listing failed".to_owned()), None, View::History);
+    assert!(screen.contains("Branch listing failed"), "{screen}");
+    assert!(screen.contains("Loading sessions..."), "{screen}");
 }

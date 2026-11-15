@@ -149,7 +149,7 @@ every panel already handles.
    (selection, details, search, `n`/`N`, MCP) to parsed commits; (4) load
    more pages near the end, drop the 200 cap, measure 100,000 commits;
    (5) `v` raw view with the selection following the commit.
-5. **Sidebar and remaining pages.** Sessions, branches, and changed files in
+5. **Sidebar and remaining pages (complete).** Sessions, branches, and changed files in
    the sidebar; move branches, tags, profiles, objects, and comparison in.
    Decided with the user (November 15, 2026): the sidebar stacks three
    sections, Sessions, Branches, and Changed files, each with a share of
@@ -478,3 +478,21 @@ takes 78 ms. Known: inline search over 100,000 loaded rows costs about
 cap. Help does not list `v` yet (milestone 7). Tests:
 `app_replay_history_graph`, `commit_log`, graph and row unit tests, and
 the ignored `measures_structured_history_on_100k_commits`.
+
+### Milestone 5: sidebar and remaining pages (committed, complete)
+
+Hand-tested by the user slice by slice. The INSPECTOR column is gone; ref
+badges leave the subject 24 columns and fold extras into `+N`. The
+sidebar stacks SESSIONS (short states such as `2 ahead`), BRANCHES, and
+WORKTREE; each section takes what its rows need up to a share of the
+height that doubles while focused, and only the focused section marks
+its selection. Tab moves top to bottom (Sessions, Branches, Files,
+History) after the user's correction; `A`, `b`, `W`, and `H` jump; Esc
+in a section returns to History. Branch prompts and confirmations,
+session reviews, merges and discards, and the pages (commit details,
+diffs, tags, profiles, objects, comparison, path filter) open in the
+centre panel with the sidebar visible; worktree prompts and the full
+search page stay full screen. The old full-screen branch page is removed;
+the worktree section keeps the title WORKTREE. Help lists the new focus
+keys, `/`, `n`/`N`, and `v`, with a Sessions page. Tests:
+`app_replay_sidebar` and the sidebar cockpit test.

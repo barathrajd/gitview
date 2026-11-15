@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Cell, Clear, Paragraph, Row, Table, Wrap},
 };
 
-use super::hints::{hint_row_count, render_key_hints};
+use super::hints::render_key_hints;
 use super::screen::HelpPage;
 use super::theme::{ACCENT, MUTED, page_block};
 
@@ -15,17 +15,21 @@ pub const HELP: &str = concat!(
     "Up/Down             Move list selection                j/k                 Move list selection\n",
     "Enter               Open selected item                 l                   Open selected item\n",
     "Esc                 Back or cancel                     h                   Back or cancel\n",
-    "Tab                 Switch history/worktree pane       q                   Quit outside prompts\n",
+    "Tab                 Next: Sessions, Branches, Worktree, History\n",
+    "q                   Quit outside prompts\n",
+    "Shift-Tab           Previous section; Esc in a section returns to History\n",
     "H                   Open history outside prompts\n",
     "W                   Open working tree outside prompts\n",
     "Ctrl-w +/-          Grow/shrink focused panel (Tab changes focus)\n",
     "Ctrl-w x            Hide focused panel; Ctrl-w = restores all\n",
     "Ctrl-w o            Toggle pane full width (agent too)\n",
-    "?                   Help outside prompts               b                   Browse local branches\n",
+    "?                   Help outside prompts               b                   Focus the Branches section\n",
     "o                   Inspect a local Git object\n",
-    "A                   Agent sessions: review, merge, or discard\n",
+    "A                   Focus Sessions: review, merge, or discard\n",
+    "v                   Toggle the raw git log graph in History\n",
     "f                   Filter history by a literal path; empty clears\n",
-    "/                   Search commit history               s                   Stage selected file\n",
+    "/                   Search the focused list           s                   Stage selected file\n",
+    "n/N                 Next/previous search match\n",
     "u                   Unstage selected file               r                   Refresh worktree\n",
     "S                   Stage all worktree changes\n",
     "U                   Unstage all staged changes\n",
@@ -53,10 +57,17 @@ pub(super) const HELP_ROWS: &[(&str, &str, &str, &str)] = &[
     ),
     ("Enter", "Open selected item", "l", "Open selected item"),
     ("Esc", "Back or cancel", "h", "Back or cancel"),
-    ("Tab", "Switch pane", "q", "Quit outside prompts"),
-    ("?", "Help outside prompts", "b", "Browse local branches"),
+    (
+        "Tab",
+        "Next section, then History",
+        "q",
+        "Quit outside prompts",
+    ),
+    ("Shift-Tab", "Previous section", "A", "Focus sessions"),
+    ("?", "Help outside prompts", "b", "Focus branches"),
     ("p", "Git config profiles", "H", "Open history"),
-    ("/", "Search history", "s", "Stage selected file"),
+    ("/", "Search the focused list", "s", "Stage selected file"),
+    ("n/N", "Next/previous match", "v", "Raw history graph"),
     ("u", "Unstage selected file", "r", "Refresh worktree"),
     (
         "i",
@@ -157,12 +168,15 @@ pub fn render_help_overlay_in(
         ("Up/Down, j/k", "Move through commits"),
         ("Enter, l", "Open selected commit"),
         ("/", "Search commit history"),
+        ("n/N", "Next/previous search match"),
+        ("v", "Toggle the raw git log graph"),
         ("o", "Inspect a local Git object"),
         ("D", "Review comparisons with foldable files"),
         ("f", "Filter history by literal path; empty clears"),
-        ("b", "Browse local branches"),
-        ("Tab", "Open working tree"),
-        ("W", "Open working tree"),
+        ("b", "Focus branches"),
+        ("A", "Focus sessions"),
+        ("Tab", "Focus sessions, top of the sidebar"),
+        ("Shift-Tab, W", "Focus the working tree"),
         ("H", "Return to history"),
         ("q", "Quit Gitview"),
     ];
@@ -185,7 +199,10 @@ pub fn render_help_overlay_in(
         ("S", "Stage all working tree changes"),
         ("U", "Unstage all staged changes"),
         ("r", "Refresh working tree"),
-        ("b", "Browse local branches"),
+        ("/", "Search changed files"),
+        ("n/N", "Next/previous match"),
+        ("b", "Focus branches"),
+        ("Shift-Tab", "Focus branches above"),
         ("Tab, H", "Open history"),
         ("q", "Quit Gitview"),
     ];
@@ -199,8 +216,26 @@ pub fn render_help_overlay_in(
         ("d", "Delete selected branch if Git permits"),
         ("y", "Confirm branch operation"),
         ("n, Esc", "Cancel branch operation"),
-        ("H", "Open history"),
-        ("W", "Open working tree"),
+        ("/", "Search branches"),
+        ("n/N", "Next/previous match"),
+        ("Tab", "Focus the working tree below"),
+        ("Shift-Tab", "Focus sessions above"),
+        ("Esc, H", "Return to history"),
+        ("q", "Quit Gitview"),
+    ];
+    const SESSIONS: &[(&str, &str)] = &[
+        ("Up/Down, j/k", "Select an agent session"),
+        ("Enter", "Review the session in the centre"),
+        ("m", "Merge from the review"),
+        ("d", "Discard the session after a preview"),
+        ("y", "Confirm merge or discard"),
+        ("n, Esc", "Cancel"),
+        ("r", "Refresh sessions"),
+        ("/", "Search sessions"),
+        ("n/N", "Next/previous match"),
+        ("Tab", "Focus branches below"),
+        ("Shift-Tab", "Focus history"),
+        ("Esc, H", "Return to history"),
         ("q", "Quit Gitview"),
     ];
     const BRANCH_INPUT: &[(&str, &str)] = &[
@@ -280,6 +315,7 @@ pub fn render_help_overlay_in(
         HelpPage::History => ("History", HISTORY),
         HelpPage::WorkingTree => ("Working tree", WORKTREE),
         HelpPage::Branches => ("Branches", BRANCHES),
+        HelpPage::Sessions => ("Sessions", SESSIONS),
         HelpPage::BranchInput => ("Branch name", BRANCH_INPUT),
         HelpPage::IgnorePathInput => ("Ignore-rule path", IGNORE_PATH_INPUT),
         HelpPage::BranchConfirmation => ("Confirm branch", BRANCH_CONFIRMATION),
@@ -341,7 +377,7 @@ pub(super) fn render_message_page(
 ) {
     let areas = Layout::vertical([
         Constraint::Min(1),
-        Constraint::Length(hint_row_count(hints, frame.area().width)),
+        Constraint::Length(crate::ui::hints::hint_height(frame, hints)),
     ])
     .split(frame.area());
     frame.render_widget(

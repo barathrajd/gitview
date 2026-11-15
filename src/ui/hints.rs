@@ -7,29 +7,47 @@ use ratatui::{
 
 use super::theme::{ACCENT, BAR_BACKGROUND, BORDER};
 
+/// The hints that fit on one row of `width` columns, in order. When some
+/// don't fit, the row ends with `? more`, since help lists every key.
 pub(super) fn hint_rows<'a>(
     hints: &'a [(&'a str, &'a str)],
     width: u16,
     compact: bool,
 ) -> Vec<Vec<(&'a str, &'a str)>> {
+    if hints.is_empty() {
+        return Vec::new();
+    }
     let width = usize::from(width.max(1));
-    let mut rows = Vec::new();
+    let cost = |hint: &(&str, &str), first: bool| {
+        hint.0.len() + hint.1.len() + if compact { 1 } else { 4 } + usize::from(!first) * 2
+    };
+    let total: usize = hints
+        .iter()
+        .enumerate()
+        .map(|(index, hint)| cost(hint, index == 0))
+        .sum();
+    if total <= width {
+        return vec![hints.to_vec()];
+    }
+    const MORE: (&str, &str) = ("?", "more");
     let mut row = Vec::new();
-    let mut row_width = 0usize;
-    for hint in hints {
-        let hint_width = hint.0.len() + hint.1.len() + if compact { 1 } else { 4 };
-        let separator = usize::from(!row.is_empty()) * 2;
-        if !row.is_empty() && row_width + separator + hint_width > width {
-            rows.push(std::mem::take(&mut row));
-            row_width = 0;
+    let mut used = 0;
+    for hint in hints.iter().filter(|hint| hint.0 != "?") {
+        let next = cost(hint, row.is_empty());
+        if used + next + cost(&MORE, false) > width {
+            break;
         }
-        row_width += usize::from(!row.is_empty()) * 2 + hint_width;
+        used += next;
         row.push(*hint);
     }
-    if !row.is_empty() {
-        rows.push(row);
-    }
-    rows
+    row.push(MORE);
+    vec![row]
+}
+
+/// Rows a page's hint bar takes: one, or none without hints or while the
+/// page's hints go to the workspace's bottom bar.
+pub(crate) fn hint_height(frame: &Viewport<'_, '_>, hints: &[(&str, &str)]) -> u16 {
+    u16::from(!hints.is_empty() && frame.hint_sink().is_none())
 }
 
 pub(crate) fn render_key_hints(
@@ -54,6 +72,14 @@ pub(super) fn render_key_hints_with_spacing(
     hints: &[(&str, &str)],
     compact: bool,
 ) {
+    if let Some(sink) = frame.hint_sink() {
+        sink.borrow_mut().extend(
+            hints
+                .iter()
+                .map(|(key, details)| ((*key).to_owned(), (*details).to_owned())),
+        );
+        return;
+    }
     let rows = hint_rows(hints, area.width, compact);
     let lines = rows
         .iter()
@@ -97,6 +123,15 @@ pub(super) fn render_key_hints_with_spacing(
     );
 }
 
-pub(crate) fn hint_row_count(hints: &[(&str, &str)], width: u16) -> u16 {
-    u16::try_from(hint_rows(hints, width, width <= 80).len()).unwrap_or(u16::MAX)
+/// Draw `hints` as the workspace's one-row bottom bar in `area`.
+pub fn render_bar(
+    frame: &mut Viewport<'_, '_>,
+    area: ratatui::layout::Rect,
+    hints: &[(String, String)],
+) {
+    let hints: Vec<(&str, &str)> = hints
+        .iter()
+        .map(|(key, details)| (key.as_str(), details.as_str()))
+        .collect();
+    render_key_hints_with_spacing(frame, area, &hints, false);
 }

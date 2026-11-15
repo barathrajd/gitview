@@ -9,7 +9,6 @@ use ratatui::{
 };
 use std::path::Path;
 
-use super::branches::render_branches;
 use super::cockpit::render_cockpit;
 use super::commit::{
     AmendConfirmation, CommitWorkspace, render_amend_confirmation, render_commit_workspace,
@@ -381,12 +380,6 @@ pub fn render_in(
             };
             render_key_hints(frame, areas[1], hints);
         }
-        Screen::Branches {
-            branches,
-            feedback,
-            search_prompt,
-            selection,
-        } => render_branches(frame, branches, feedback, search_prompt, selection, border),
         Screen::Diff {
             diff,
             scroll,

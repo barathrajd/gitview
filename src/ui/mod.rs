@@ -1,12 +1,11 @@
 mod agent_pane;
-mod branches;
 mod cockpit;
 mod commit;
 mod diff;
 mod diff_layout;
 mod diff_rows;
 mod help;
-mod hints;
+pub(crate) mod hints;
 pub(crate) mod history_rows;
 mod panels;
 mod prepared;
@@ -21,7 +20,8 @@ pub use agent_pane::{
 };
 pub use diff_layout::diff_hunk_line_positions;
 pub use help::{HELP, render_help_overlay, render_help_overlay_in};
-pub(crate) use hints::{hint_row_count, render_key_hints};
+pub use hints::render_bar;
+pub(crate) use hints::render_key_hints;
 pub use prepared::{DiffView, PreparedDiff};
 pub(crate) use prepared::{
     PreparedComparisonFile, comparison_file_lines, prepare_comparison_file, retained_line_bytes,
@@ -36,5 +36,6 @@ pub(crate) use theme::{
 pub use viewport::{Viewport, split_side_pane};
 
 pub use cockpit::{
-    cockpit_centre_area, render_workspace_cockpit, worktree_display_order, worktree_display_row,
+    cockpit_centre_area, render_workspace_cockpit, sidebar_sections, worktree_display_order,
+    worktree_display_row,
 };

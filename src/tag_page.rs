@@ -280,9 +280,7 @@ impl TagPage {
             );
             return;
         }
-        use crate::ui::{
-            ACCENT, MUTED, hint_row_count, page_block, render_key_hints, selection_style,
-        };
+        use crate::ui::{ACCENT, MUTED, page_block, render_key_hints, selection_style};
         let hints: &[(&str, &str)] = if self.pending {
             &[("Working", "operation in progress")]
         } else if self.verification.is_some() {
@@ -307,7 +305,7 @@ impl TagPage {
         };
         let areas = Layout::vertical([
             Constraint::Min(1),
-            Constraint::Length(hint_row_count(hints, frame.area().width)),
+            Constraint::Length(crate::ui::hints::hint_height(frame, hints)),
         ])
         .split(frame.area());
         let (title, body) = if let Some(text) = &self.verification {

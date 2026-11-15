@@ -12,7 +12,7 @@ use super::diff_layout::{
     styled_numbered_unified,
 };
 use super::diff_rows::cached_ide_diff_rows;
-use super::hints::{hint_row_count, render_key_hints};
+use super::hints::render_key_hints;
 use super::prepared::{DiffView, PreparedDiff};
 use super::theme::page_block;
 
@@ -94,7 +94,7 @@ pub(super) fn render_diff(
     };
     let sections = Layout::vertical([
         Constraint::Min(1),
-        Constraint::Length(hint_row_count(&hints, frame.area().width)),
+        Constraint::Length(crate::ui::hints::hint_height(frame, &hints)),
     ])
     .split(frame.area());
     if let Some(Ok(text)) = &diff.1 {
