@@ -50,7 +50,12 @@ pub fn render_workspace_cockpit(
         history_selection,
         working_tree_selection,
     } = cockpit;
-    let highlight = search_prompt.as_ref().map_or("", |prompt| prompt.query);
+    // Only the focused list is searched.
+    let query = search_prompt.as_ref().map_or("", |prompt| prompt.query);
+    let (highlight, worktree_highlight) = match focused {
+        View::History => (query, ""),
+        View::WorkingTree => ("", query),
+    };
     let mut hints = match focused {
         View::History => vec![
             ("Tab", "pane"),
@@ -74,11 +79,15 @@ pub fn render_workspace_cockpit(
             ("a", "amend HEAD"),
             ("r", "refresh"),
             ("p", "profiles"),
+            ("/", "search"),
         ],
     };
     hints.extend([("j/k", "move"), ("?", "help"), ("q", "quit")]);
     if search_prompt.is_some() {
-        hints = vec![("Enter", "stay"), ("Esc", "back"), ("Tab", "full list")];
+        hints = vec![("Enter", "stay"), ("Esc", "back")];
+        if focused == View::History {
+            hints.push(("Tab", "full list"));
+        }
     }
     let sections = Layout::vertical([
         Constraint::Length(3),
@@ -116,6 +125,7 @@ pub fn render_workspace_cockpit(
                 status,
                 working_tree_selection,
                 true,
+                worktree_highlight,
                 border,
             );
         }
@@ -128,6 +138,7 @@ pub fn render_workspace_cockpit(
             status,
             working_tree_selection,
             focused == View::WorkingTree,
+            worktree_highlight,
             border,
         );
         render_history_panel(
@@ -151,6 +162,7 @@ pub fn render_workspace_cockpit(
             status,
             working_tree_selection,
             focused == View::WorkingTree,
+            worktree_highlight,
             border,
         );
         render_history_panel(
@@ -205,9 +217,10 @@ pub(super) fn render_worktree_panel(
     status: Option<&Result<Vec<Entry>, String>>,
     selection: &mut ListState,
     focused: bool,
+    highlight: &str,
     border: ratatui::symbols::border::Set<'static>,
 ) {
-    let (items, selection_index) = worktree_items(status);
+    let (items, selection_index) = worktree_items(status, highlight);
     let highlight = worktree_selection_style(status, selection.selected());
     let mut display_selection = ListState::default();
     display_selection.select(
@@ -239,11 +252,20 @@ pub fn worktree_display_row(
     status: Option<&Result<Vec<Entry>, String>>,
     index: usize,
 ) -> Option<usize> {
-    worktree_items(status).1.get(index).copied().flatten()
+    worktree_items(status, "").1.get(index).copied().flatten()
+}
+
+/// Entry indices in the order the list shows them, staged files first.
+pub fn worktree_display_order(status: Option<&Result<Vec<Entry>, String>>) -> Vec<usize> {
+    let rows = worktree_items(status, "").1;
+    let mut order: Vec<usize> = (0..rows.len()).filter(|&i| rows[i].is_some()).collect();
+    order.sort_by_key(|&index| rows[index]);
+    order
 }
 
 pub(super) fn worktree_items(
     status: Option<&Result<Vec<Entry>, String>>,
+    highlight: &str,
 ) -> (Vec<ListItem<'static>>, Vec<Option<usize>>) {
     let entries = match status {
         None => return (vec![ListItem::new("Loading working tree...")], Vec::new()),
@@ -254,6 +276,7 @@ pub(super) fn worktree_items(
         return (vec![ListItem::new("Working tree clean")], Vec::new());
     }
 
+    let mut finder = history::MatchFinder::new(highlight);
     let mut items = Vec::with_capacity(entries.len() + 2);
     let mut entry_rows = vec![None; entries.len()];
     for (title, section, color) in [
@@ -284,11 +307,16 @@ pub(super) fn worktree_items(
                 Section::Untracked => ("NEW", Color::Rgb(147, 197, 253)),
             };
             entry_rows[index] = Some(items.len());
-            items.push(ListItem::new(Line::from(vec![
+            let path = entry.path.to_string_lossy();
+            let mut spans = vec![
                 Span::raw("  "),
                 Span::styled(format!("{label} "), Style::default().fg(color).bold()),
-                Span::raw(entry.path.to_string_lossy().into_owned()),
-            ])));
+            ];
+            spans.extend(crate::ui::highlighted_spans(
+                &path,
+                &finder.positions(&path),
+            ));
+            items.push(ListItem::new(Line::from(spans)));
         }
     }
     (items, entry_rows)

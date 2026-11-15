@@ -120,7 +120,7 @@ fn measures_tag_page_with_many_tags() {
         let mut samples = Vec::new();
         for _ in 0..100 {
             for _ in 0..97 {
-                page.key(root.path(), KeyCode::Char('j'));
+                page.key(root.path(), KeyCode::Char('j'), &mut String::new());
             }
             samples.push(draw(&mut terminal, Screen::Tags(&page)));
         }

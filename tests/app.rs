@@ -85,7 +85,10 @@ fn history_and_working_tree_keys_map_to_testable_actions() {
         app.handle_key(KeyCode::Char('r'), false),
         Some(AppAction::RefreshWorkingTree)
     );
-    assert_eq!(app.handle_key(KeyCode::Char('/'), false), None);
+    assert_eq!(
+        app.handle_key(KeyCode::Char('/'), false),
+        Some(AppAction::StartSearch)
+    );
 }
 
 #[test]

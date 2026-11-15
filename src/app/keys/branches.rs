@@ -3,7 +3,7 @@ use std::io;
 use crate::app::{
     BranchAction,
     helpers::*,
-    model::App,
+    model::{App, SearchList},
     run::{Env, Flow, Host},
 };
 use crossterm::event::{KeyCode, KeyEvent};
@@ -120,6 +120,17 @@ pub(in crate::app) fn handle<H: Host>(
             return Ok(Flow::Handled);
         }
         match navigation_key(key) {
+            KeyCode::Char('/') => {
+                app.query.clear();
+                app.inline_search = Some(crate::app::model::InlineSearch {
+                    list: SearchList::Branches,
+                    origin: app.branch_selection.selected(),
+                    matches: Vec::new(),
+                });
+            }
+            KeyCode::Char(letter @ ('n' | 'N')) => {
+                super::search::step_list(app, SearchList::Branches, letter == 'n');
+            }
             KeyCode::Char('t') => {
                 app.tag_page = Some(crate::tag_page::TagPage::open(root));
             }

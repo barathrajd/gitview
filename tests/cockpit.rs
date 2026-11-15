@@ -174,6 +174,7 @@ fn replacing_the_cockpit_with_commit_details_clears_old_panes() {
                 frame,
                 Screen::CommitDetails {
                     details: &details,
+                    search_prompt: None,
                     selection: &mut file_selection,
                 },
                 ratatui::symbols::border::PLAIN,

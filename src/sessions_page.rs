@@ -8,7 +8,7 @@ use crossterm::event::KeyCode;
 use ratatui::{
     layout::{Constraint, Layout},
     style::Style,
-    text::{Line, Text},
+    text::{Line, Span, Text},
     widgets::{Paragraph, Wrap},
 };
 use std::{
@@ -45,6 +45,7 @@ pub struct SessionsPage {
     mode: Mode,
     feedback: String,
     pending: bool,
+    search: Option<crate::list_search::InlineSearch>,
     sender: mpsc::Sender<Reply>,
     receiver: mpsc::Receiver<Reply>,
 }
@@ -58,6 +59,7 @@ impl SessionsPage {
             mode: Mode::List,
             feedback: String::new(),
             pending: false,
+            search: None,
             sender,
             receiver,
         };
@@ -127,7 +129,17 @@ impl SessionsPage {
     /// True when the page browses a list or a review, so vim motions apply.
     /// Confirmations and a running Git job take plain keys only.
     pub fn takes_motions(&self) -> bool {
-        !self.pending && matches!(self.mode, Mode::List | Mode::Review { .. })
+        !self.pending
+            && self.search.is_none()
+            && matches!(self.mode, Mode::List | Mode::Review { .. })
+    }
+
+    /// Session names, which `/` matches.
+    fn names(&self) -> Vec<String> {
+        self.entries
+            .iter()
+            .map(|entry| entry.session.name.clone())
+            .collect()
     }
 
     /// Move the list selection or scroll the review, `page` rows at a time.
@@ -148,9 +160,20 @@ impl SessionsPage {
         }
     }
 
-    /// Return false when the user leaves the page.
-    pub fn key(&mut self, root: &Path, key: KeyCode) -> bool {
+    /// Return false when the user leaves the page. `/` searches session
+    /// names; Enter saves the query in `last_search` for `n`/`N`.
+    pub fn key(&mut self, root: &Path, key: KeyCode, last_search: &mut String) -> bool {
         if self.pending {
+            return true;
+        }
+        if self.search.is_some() {
+            let names = self.names();
+            let Some(search) = &mut self.search else {
+                return true;
+            };
+            if !search.key(key, &names, &mut self.selected, last_search) {
+                self.search = None;
+            }
             return true;
         }
         match std::mem::replace(&mut self.mode, Mode::List) {
@@ -212,6 +235,19 @@ impl SessionsPage {
                         }
                     }
                     KeyCode::Char('r') => self.run(root.to_path_buf(), Request::Refresh),
+                    KeyCode::Char('/') => {
+                        self.search = Some(crate::list_search::InlineSearch::start(self.selected));
+                    }
+                    KeyCode::Char(letter @ ('n' | 'N')) => {
+                        if let Some(index) = crate::list_search::step(
+                            &self.names(),
+                            last_search,
+                            self.selected,
+                            letter == 'n',
+                        ) {
+                            self.selected = index;
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -224,14 +260,19 @@ impl SessionsPage {
         frame: &mut Viewport<'_, '_>,
         border: ratatui::symbols::border::Set<'static>,
     ) {
-        use crate::ui::{MUTED, hint_row_count, page_block, render_key_hints, selection_style};
+        use crate::ui::{
+            ACCENT, MUTED, hint_row_count, page_block, render_key_hints, selection_style,
+        };
         let hints: &[(&str, &str)] = if self.pending {
             &[("Working", "Git is running")]
+        } else if self.search.is_some() {
+            &[("Enter", "stay"), ("Esc", "back")]
         } else {
             match &self.mode {
                 Mode::List => &[
                     ("j/k", "select"),
                     ("Enter", "review"),
+                    ("/", "search"),
                     ("d", "discard"),
                     ("r", "refresh"),
                     ("Esc", "back"),
@@ -263,18 +304,29 @@ impl SessionsPage {
                         muted,
                     ));
                 }
+                let mut finder = crate::history::MatchFinder::new(
+                    self.search
+                        .as_ref()
+                        .map_or("", |search| search.query.as_str()),
+                );
                 for (index, entry) in self.entries.iter().enumerate() {
-                    let text = format!(
-                        "{} {}  {}",
-                        if index == self.selected { "›" } else { " " },
-                        entry.session.name,
-                        describe(entry)
-                    );
-                    lines.push(if index == self.selected {
-                        Line::styled(text, selection_style())
+                    let selected = index == self.selected;
+                    let name = &entry.session.name;
+                    let mut spans = vec![Span::raw(if selected { "› " } else { "  " })];
+                    spans.extend(crate::ui::highlighted_spans(name, &finder.positions(name)));
+                    spans.push(Span::raw(format!("  {}", describe(entry))));
+                    lines.push(Line::from(spans).style(if selected {
+                        selection_style()
                     } else {
-                        Line::raw(text)
-                    });
+                        Style::default()
+                    }));
+                }
+                if let Some(search) = &self.search {
+                    lines.push(Line::raw(""));
+                    lines.push(Line::styled(
+                        search.line(self.selected),
+                        Style::default().fg(ACCENT),
+                    ));
                 }
                 ("AGENT SESSIONS", 0)
             }

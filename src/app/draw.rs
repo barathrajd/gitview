@@ -5,7 +5,7 @@ use ratatui::layout::Rect;
 use super::{
     helpers::*,
     input::Focus,
-    model::App,
+    model::{App, SearchList},
     run::{Env, Flow, Host},
 };
 use crate::{
@@ -96,6 +96,7 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                 } else {
                     ui::HelpPage::History
                 };
+                let prompt_line = search_line(app);
                 let screen = if let Some(context) = app.pending_preview {
                     Screen::PreviewLoading {
                         message: context.label(),
@@ -203,6 +204,10 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                     Screen::Branches {
                         branches: app.branches.as_ref(),
                         feedback: &app.branch_feedback,
+                        search_prompt: prompt_line.clone().map(|line| ui::SearchPrompt {
+                            line,
+                            query: &app.query,
+                        }),
                         selection: &mut app.branch_selection,
                     }
                 } else if let (Some(diff), Some(prepared)) = (&app.diff, &app.prepared_diff) {
@@ -227,6 +232,10 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                 } else if let Some(details) = &app.details {
                     Screen::CommitDetails {
                         details,
+                        search_prompt: prompt_line.clone().map(|line| ui::SearchPrompt {
+                            line,
+                            query: &app.query,
+                        }),
                         selection: &mut app.file_selection,
                     }
                 } else if app.searching {
@@ -251,22 +260,9 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                         history: app.history.as_ref(),
                         status: app.status.as_ref(),
                         feedback: &workspace_feedback,
-                        search_prompt: app.inline_search.as_ref().map(|search| {
-                            let status = if app.query.trim().is_empty() {
-                                String::new()
-                            } else if let Some(position) = app
-                                .selection
-                                .selected()
-                                .and_then(|row| search.matches.iter().position(|&m| m == row))
-                            {
-                                format!("match {} of {}", position + 1, search.matches.len())
-                            } else {
-                                "no match".to_owned()
-                            };
-                            ui::SearchPrompt {
-                                line: format!("/{}_   {status}", app.query),
-                                query: &app.query,
-                            }
+                        search_prompt: prompt_line.clone().map(|line| ui::SearchPrompt {
+                            line,
+                            query: &app.query,
                         }),
                         focused: app.app_state.view(),
                         history_selection: &mut app.selection,
@@ -323,4 +319,26 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
         app.needs_redraw = false;
     }
     Ok(Flow::Next)
+}
+
+/// The status line while `/` searches inline: the query and which match is
+/// selected.
+fn search_line(app: &App) -> Option<String> {
+    let search = app.inline_search.as_ref()?;
+    let selected = match search.list {
+        SearchList::History => app.selection.selected(),
+        SearchList::Worktree => app.status_selection.selected(),
+        SearchList::CommitFiles => app.file_selection.selected(),
+        SearchList::Branches => app.branch_selection.selected(),
+    };
+    let status = if app.query.trim().is_empty() {
+        String::new()
+    } else if let Some(position) =
+        selected.and_then(|row| search.matches.iter().position(|&m| m == row))
+    {
+        format!("match {} of {}", position + 1, search.matches.len())
+    } else {
+        "no match".to_owned()
+    };
+    Some(format!("/{}_   {status}", app.query))
 }

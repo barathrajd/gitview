@@ -124,9 +124,17 @@ every panel already handles.
    opens the SEARCH page; long result rows wrap. After a filtered search,
    `n`/`N` step through the commits it found, and filtered results refresh
    on repository changes, keeping the selected commit.
-3b. **Search beyond History.** Bring `/` to the other lists where it helps
+3b. **Search beyond History (complete).** Bring `/` to the other lists where it helps
    (worktree files, commit files, branches, tags, sessions, and others found
-   in an audit). Scoped with the user after milestone 3; not started.
+   in an audit). Scoped with the user after milestone 3.
+   Scope (agreed November 15, 2026): worktree files, commit files,
+   branches, tags, and sessions. `/` behaves like inline History search:
+   it jumps to the best fuzzy match and highlights matches, `n`/`N` step
+   through them, and every row stays visible (no filtering). Esc returns
+   to the starting row; Enter keeps the selection. File lists match the
+   full path. `n` keeps meaning "no" inside confirm prompts. One list per
+   slice, sharing one list-search component. One last search is shared
+   by every list, as in Vim.
 4. **Structured history.** Parse commits with parents, page them, draw the
    lanes and columns, keep `v` for raw; graph tests with merges, octopus
    merges, and long-lived branches; measure scrolling on 100,000 commits.
@@ -411,3 +419,13 @@ the playground: `msg:`, `path:`, wrapping, and an empty filter key. The
 refresh on repository changes (`App.last_filtered`) are covered by
 `app_replay_search_filters` and were hand-tested by the user. Next is milestone 3b
 (search beyond History), scoped with the user first.
+
+### Milestone 3b: search beyond History (committed, complete)
+
+Each list got its own slice, all hand-tested by the user: worktree
+files, commit files, branches, tags, and sessions. `src/list_search.rs`
+holds the matching, `first_from`, and `InlineSearch` (for the tag and
+session pages, which own their lists). The app's own lists go through
+`SearchList` in `src/app/keys/search.rs`. Typed letters edit the query,
+so page actions such as `d` don't run while searching. Tests:
+`app_replay_search_lists` (11) and `list_search` unit tests.

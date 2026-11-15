@@ -19,6 +19,7 @@ use super::theme::page_block;
 pub(super) fn render_commit_details(
     frame: &mut Viewport<'_, '_>,
     details: &(u64, Option<Result<CommitDetails, String>>),
+    search_prompt: Option<super::screen::SearchPrompt<'_>>,
     selection: &mut ListState,
     border: ratatui::symbols::border::Set<'static>,
 ) {
@@ -34,16 +35,22 @@ pub(super) fn render_commit_details(
             render_message_page(frame, "COMMIT ERROR", error, border, &[("Esc/h", "back")])
         }
         Some(Ok(commit)) => {
-            let hints = [
-                ("j/k", "select"),
-                ("Enter/l", "diff"),
-                ("Esc/h", "back"),
-                ("H", "history"),
-            ];
+            let hints: &[(&str, &str)] = if search_prompt.is_some() {
+                &[("Enter", "stay"), ("Esc", "back")]
+            } else {
+                &[
+                    ("j/k", "select"),
+                    ("Enter/l", "diff"),
+                    ("/", "search"),
+                    ("Esc/h", "back"),
+                    ("H", "history"),
+                ]
+            };
             let sections = Layout::vertical([
                 Constraint::Length(6),
                 Constraint::Min(3),
-                Constraint::Length(hint_row_count(&hints, frame.area().width)),
+                Constraint::Length(u16::from(search_prompt.is_some())),
+                Constraint::Length(hint_row_count(hints, frame.area().width)),
             ])
             .split(frame.area());
             let meta = format!(
@@ -54,10 +61,18 @@ pub(super) fn render_commit_details(
                 Paragraph::new(meta).block(page_block("COMMIT", border)),
                 sections[0],
             );
+            let mut finder =
+                history::MatchFinder::new(search_prompt.as_ref().map_or("", |prompt| prompt.query));
             let items = commit
                 .files
                 .iter()
-                .map(|file| ListItem::new(file.to_string_lossy().into_owned()))
+                .map(|file| {
+                    let path = file.to_string_lossy();
+                    ListItem::new(ratatui::text::Line::from(super::highlighted_spans(
+                        &path,
+                        &finder.positions(&path),
+                    )))
+                })
                 .collect::<Vec<_>>();
             let list = List::new(items)
                 .block(page_block("CHANGED FILES", border))
@@ -69,7 +84,14 @@ pub(super) fn render_commit_details(
                         .bold(),
                 );
             frame.render_stateful_widget(list, sections[1], selection);
-            render_key_hints(frame, sections[2], &hints);
+            if let Some(prompt) = &search_prompt {
+                frame.render_widget(
+                    Paragraph::new(format!(" {}", prompt.line))
+                        .style(Style::default().fg(super::ACCENT)),
+                    sections[2],
+                );
+            }
+            render_key_hints(frame, sections[3], hints);
         }
     }
 }
@@ -80,7 +102,7 @@ pub(super) fn render_working_tree(
     selection: &mut ListState,
     border: ratatui::symbols::border::Set<'static>,
 ) {
-    let (items, selection_index) = worktree_items(status);
+    let (items, selection_index) = worktree_items(status, "");
     let hints = [
         ("j/k", "move"),
         ("Enter", "diff"),

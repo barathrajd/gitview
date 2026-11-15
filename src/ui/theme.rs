@@ -57,9 +57,17 @@ pub(crate) fn highlighted_history_row(
     finder: &mut crate::history::MatchFinder,
 ) -> Line<'static> {
     let visible = crate::history::display_row(row);
-    let positions = finder.positions(row);
+    Line::from(highlighted_spans(visible, &finder.positions(row)))
+}
+
+/// `text` as spans with the characters at byte offsets `positions` (sorted)
+/// underlined in the accent color.
+pub(crate) fn highlighted_spans(
+    text: &str,
+    positions: &[usize],
+) -> Vec<ratatui::text::Span<'static>> {
     if positions.is_empty() {
-        return Line::raw(visible.to_owned());
+        return vec![ratatui::text::Span::raw(text.to_owned())];
     }
     let matched = Style::default()
         .fg(ACCENT)
@@ -67,7 +75,7 @@ pub(crate) fn highlighted_history_row(
     let mut spans: Vec<ratatui::text::Span<'static>> = Vec::new();
     let mut run = String::new();
     let mut run_matched = false;
-    for (index, character) in visible.char_indices() {
+    for (index, character) in text.char_indices() {
         let is_match = positions.binary_search(&index).is_ok();
         if is_match != run_matched && !run.is_empty() {
             let text = std::mem::take(&mut run);
@@ -87,5 +95,5 @@ pub(crate) fn highlighted_history_row(
             ratatui::text::Span::raw(run)
         });
     }
-    Line::from(spans)
+    spans
 }

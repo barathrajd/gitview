@@ -172,7 +172,17 @@ pub(super) struct FilteredSearch {
     pub(super) truncated: bool,
 }
 
+/// The list an inline `/` search runs over.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SearchList {
+    History,
+    Worktree,
+    CommitFiles,
+    Branches,
+}
+
 pub(super) struct InlineSearch {
+    pub(super) list: SearchList,
     pub(super) origin: Option<usize>,
     pub(super) matches: Vec<usize>,
 }
