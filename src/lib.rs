@@ -10,6 +10,7 @@ pub mod details;
 pub mod diff;
 pub mod diff_loader;
 pub mod editor;
+pub mod graph;
 pub mod history;
 pub mod list_search;
 pub mod motion;

@@ -160,3 +160,36 @@ fn a_path_limits_the_page_and_rejects_parent_components() {
         .is_err()
     );
 }
+
+#[test]
+fn a_whole_history_with_merges_closes_every_lane() {
+    let repository = Repo::new();
+    repository.write("a.txt", "a\n");
+    repository.commit_all("Base");
+    for branch in ["one", "two", "three"] {
+        repository.git(&["switch", "-qc", branch, "main"]);
+        repository.write(&format!("{branch}.txt"), "x\n");
+        repository.commit_all(branch);
+    }
+    repository.git(&["switch", "-q", "main"]);
+    repository.write("main.txt", "m\n");
+    repository.commit_all("Main moves on");
+    repository.git(&["merge", "-q", "--no-ff", "--no-edit", "one"]);
+    repository.git(&["merge", "-q", "--no-ff", "--no-edit", "two", "three"]);
+    repository.git(&["tag", "v1"]);
+
+    let commits = page(&repository, 0, 100).commits;
+    let mut layout = gitview::graph::Layout::new();
+    let rows: Vec<String> = commits
+        .iter()
+        .map(|commit| layout.push(commit).text(false))
+        .collect();
+    assert_eq!(layout.open_lanes(), 0, "{rows:#?}");
+    assert_eq!(rows.len(), 7, "{rows:#?}");
+    assert!(
+        rows.iter().all(|row| row.matches('●').count() == 1),
+        "{rows:#?}"
+    );
+    // The octopus merge opens two lanes.
+    assert!(rows[0].starts_with("●─╮─╮"), "{rows:#?}");
+}
