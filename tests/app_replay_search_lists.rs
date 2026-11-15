@@ -436,3 +436,98 @@ fn n_and_shift_n_step_through_tag_matches() {
         );
     }
 }
+
+/// Three agent sessions, listed in creation order, and their names.
+fn sessions() -> (Repo, Vec<String>) {
+    let repository = Repo::with_history();
+    let names = (0..3)
+        .map(|_| gitview::sessions::create(&repository.path()).unwrap().name)
+        .collect();
+    (repository, names)
+}
+
+/// The session the sessions page marks as selected.
+fn selected_session(screen: &str) -> Option<String> {
+    let line = screen.lines().find(|line| line.contains("› session-"))?;
+    let (_, rest) = line.split_once("› ")?;
+    rest.split_whitespace().next().map(str::to_owned)
+}
+
+fn sessions_screen(repository: &Repo, names: &[String], keys: Vec<replay::Step>) -> String {
+    let mut steps = vec![
+        WaitFor("Change library"),
+        Char('A'),
+        WaitFor(names[2].clone().leak()),
+    ];
+    steps.extend(keys);
+    steps.push(Pause(Duration::from_millis(200)));
+    replay_sized(&repository.path(), 140, 24, steps)
+}
+
+#[test]
+fn slash_jumps_through_sessions_and_esc_restores_the_selection() {
+    let (repository, names) = sessions();
+    // The full name of the last session matches only that session.
+    let query: &'static str = names[2].clone().leak();
+    let start = || vec![Char('j'), Char('/'), Text(query)];
+
+    let screen = sessions_screen(&repository, &names, start());
+    assert_eq!(
+        selected_session(&screen).as_deref(),
+        Some(query),
+        "{screen}"
+    );
+    assert!(screen.contains(&format!("/{query}_")), "{screen}");
+    assert!(screen.contains("match 1 of 1"), "{screen}");
+    assert!(screen.contains(&names[0]), "{screen}");
+
+    let mut keys = start();
+    keys.push(Key(Esc));
+    let screen = sessions_screen(&repository, &names, keys);
+    assert_eq!(
+        selected_session(&screen),
+        Some(names[1].clone()),
+        "{screen}"
+    );
+    // Esc closed only the search, not the sessions page.
+    assert!(screen.contains("AGENT SESSIONS"), "{screen}");
+
+    // Enter keeps the match without opening its review.
+    let mut keys = start();
+    keys.push(Key(Enter));
+    let screen = sessions_screen(&repository, &names, keys);
+    assert_eq!(
+        selected_session(&screen).as_deref(),
+        Some(query),
+        "{screen}"
+    );
+    assert!(!screen.contains("REVIEW SESSION"), "{screen}");
+
+    // Typed letters edit the query instead of running session actions.
+    let mut keys = start();
+    keys.push(Text("dr"));
+    let screen = sessions_screen(&repository, &names, keys);
+    assert!(screen.contains("no match"), "{screen}");
+    assert!(!screen.contains("CONFIRM DISCARD"), "{screen}");
+    assert_eq!(
+        selected_session(&screen),
+        Some(names[1].clone()),
+        "{screen}"
+    );
+}
+
+#[test]
+fn n_and_shift_n_step_through_session_matches() {
+    let (repository, names) = sessions();
+    let query: &'static str = names[2].clone().leak();
+    for keys in ["n", "N"] {
+        // From the first session, the only match is the last.
+        let steps = vec![Char('/'), Text(query), Key(Enter), Text("gg"), Text(keys)];
+        let screen = sessions_screen(&repository, &names, steps);
+        assert_eq!(
+            selected_session(&screen).as_deref(),
+            Some(query),
+            "{keys:?}\n{screen}"
+        );
+    }
+}

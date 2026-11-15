@@ -158,7 +158,7 @@ pub(in crate::app) fn handle<H: Host>(
         } else {
             app.page_motions.reset();
         }
-        if !page.key(root, plain_code(key)) {
+        if !page.key(root, plain_code(key), &mut app.last_search) {
             app.sessions_page = None;
         }
         return Ok(Flow::Handled);
