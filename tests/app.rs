@@ -2,14 +2,40 @@ use crossterm::event::KeyCode;
 use gitview::app::{AppAction, AppState, View, move_down, move_up};
 
 #[test]
-fn working_tree_is_the_default_and_tab_switches_to_history() {
+fn tab_moves_down_the_sidebar_then_to_history() {
     let mut app = AppState::default();
 
+    // Files is the default; Tab goes Files, History, Sessions, Branches.
     assert_eq!(app.view(), View::WorkingTree);
     assert_eq!(app.handle_tab(false), Some(AppAction::ReturnToHistory));
     assert_eq!(app.view(), View::History);
+    assert_eq!(app.handle_tab(false), Some(AppAction::OpenSessions));
+    assert_eq!(app.view(), View::Sessions);
+    assert_eq!(app.handle_tab(false), Some(AppAction::OpenBranches));
+    assert_eq!(app.view(), View::Branches);
     assert_eq!(app.handle_tab(false), Some(AppAction::LoadWorkingTree));
     assert_eq!(app.view(), View::WorkingTree);
+
+    // Shift-Tab goes up the sidebar.
+    assert_eq!(app.handle_back_tab(false), Some(AppAction::OpenBranches));
+    assert_eq!(app.handle_back_tab(false), Some(AppAction::OpenSessions));
+    assert_eq!(app.handle_back_tab(false), Some(AppAction::ReturnToHistory));
+    assert_eq!(
+        app.handle_key(KeyCode::BackTab, false),
+        Some(AppAction::LoadWorkingTree)
+    );
+    assert_eq!(app.handle_tab(true), None);
+    assert_eq!(app.view(), View::WorkingTree);
+}
+
+#[test]
+fn b_focuses_the_branches_section() {
+    let mut app = AppState::default();
+    assert_eq!(
+        app.handle_key(KeyCode::Char('b'), false),
+        Some(AppAction::OpenBranches)
+    );
+    assert_eq!(app.view(), View::Branches);
 }
 
 #[test]
@@ -70,8 +96,10 @@ fn history_and_working_tree_keys_map_to_testable_actions() {
         app.handle_key(KeyCode::Char('b'), false),
         Some(AppAction::OpenBranches)
     );
+    // `b` focused Branches, where `s` stages nothing.
     assert_eq!(app.handle_key(KeyCode::Char('s'), false), None);
 
+    // Tab from Branches reaches the working tree below it.
     assert_eq!(app.handle_tab(false), Some(AppAction::LoadWorkingTree));
     assert_eq!(
         app.handle_key(KeyCode::Char('s'), false),

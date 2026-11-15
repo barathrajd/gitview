@@ -26,6 +26,8 @@ pub(crate) const AUTHOR_WIDTH: usize = 14;
 const AGE_WIDTH: usize = 4;
 /// The widest a ref badge's name gets before it shortens.
 const BADGE_WIDTH: usize = 24;
+/// Columns ref badges leave for the subject.
+const SUBJECT_RESERVE: usize = 24;
 /// Below these widths the age, then the author, drop out.
 const AGE_MIN_WIDTH: usize = 72;
 const AUTHOR_MIN_WIDTH: usize = 56;
@@ -104,10 +106,27 @@ pub(crate) fn history_line(
     // a few columns.
     let mut room = layout.width.saturating_sub(used + right);
 
-    for range in &entry.refs {
+    // Badges leave the subject at least SUBJECT_RESERVE columns (or its
+    // whole width, if shorter); badges that don't fit fold into `+N`.
+    let subject_width = row[entry.subject.clone()].width();
+    let reserve = subject_width.min(SUBJECT_RESERVE);
+    for (index, range) in entry.refs.iter().enumerate() {
         let (name, matches) = field(range);
-        let budget = BADGE_WIDTH.min(room.saturating_sub(12));
-        if budget < 4 {
+        let left = entry.refs.len() - index - 1;
+        // Room for this badge, keeping space for a `+N` after it.
+        let fold = if left > 0 {
+            format!("+{left} ").width()
+        } else {
+            0
+        };
+        let available = room.saturating_sub(reserve + fold + 3);
+        let budget = BADGE_WIDTH.min(available).min(name.width());
+        if budget < name.width().min(4) || budget == 0 {
+            let more = format!("+{} ", entry.refs.len() - index);
+            if room >= reserve + more.width() {
+                room -= more.width();
+                spans.push(Span::styled(more, Style::default().fg(MUTED)));
+            }
             break;
         }
         spans.push(Span::styled("(", Style::default().fg(MUTED)));
@@ -293,9 +312,32 @@ mod tests {
             &layout(80),
             &mut MatchFinder::new(""),
         ));
-        assert!(text.contains("(feature/a-very-long-bra…)"), "{text:?}");
-        assert!(text.contains("abcdefghijabcdefghij…"), "{text:?}");
+        // The badge shortens so the subject keeps 24 columns.
+        assert!(text.contains("(feature/a-very-long-…)"), "{text:?}");
+        assert!(text.contains(" abcdefghijabcdefghijabc… "), "{text:?}");
         assert_eq!(text.width(), 80, "{text:?}");
+    }
+
+    #[test]
+    fn many_badges_fold_into_a_count_and_leave_the_subject_room() {
+        let refs = [
+            "HEAD -> main",
+            "topic-beta",
+            "release-alpha",
+            "fix-beta",
+            "feature-alpha",
+        ];
+        let (row, entry) = entry(&refs, "Change library", "Test", 0);
+        let text = text(&history_line(
+            &row,
+            &entry,
+            &layout(96),
+            &mut MatchFinder::new(""),
+        ));
+        assert!(text.contains("Change library"), "{text:?}");
+        assert!(text.contains("(HEAD -> main)"), "{text:?}");
+        assert!(text.contains(" +"), "{text:?}");
+        assert_eq!(text.width(), 96, "{text:?}");
     }
 
     #[test]

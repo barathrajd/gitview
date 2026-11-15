@@ -36,7 +36,7 @@ fn wait_for_git(repository: &Repo, args: &[&str], check: impl Fn(&str) -> bool) 
 }
 
 fn branch_steps() -> Vec<Step> {
-    vec![WaitFor("Change library"), Char('b'), WaitFor("feature")]
+    vec![WaitFor("Change library"), Char('b'), WaitFor("BRANCHES (")]
 }
 
 fn tag_steps() -> Vec<Step> {
@@ -347,7 +347,7 @@ fn dash_returns_to_the_previous_checkout_after_confirmation() {
         Key(Enter),
         WaitFor("Switch to local branch \"feature\"?"),
         Char('y'),
-        WaitFor("current: feature"),
+        WaitFor("branch: feature"),
         Char('-'),
         WaitFor("Return to local branch main"),
         Char('y'),

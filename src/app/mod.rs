@@ -19,6 +19,20 @@ pub enum View {
     History,
     #[default]
     WorkingTree,
+    /// The sidebar's Branches section.
+    Branches,
+    /// The sidebar's Sessions section.
+    Sessions,
+}
+
+impl View {
+    /// The workspace panel that holds this view.
+    pub fn panel(self) -> crate::workspace::Panel {
+        match self {
+            View::History => crate::workspace::Panel::Center,
+            View::WorkingTree | View::Branches | View::Sessions => crate::workspace::Panel::Sidebar,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -103,22 +117,46 @@ impl AppState {
         self.view = view;
     }
 
-    /// Apply Tab when the active screen permits workspace navigation.
+    /// Apply Tab when the active screen permits workspace navigation:
+    /// Sessions, Branches, Files, History, and back to Sessions, top to
+    /// bottom as the sidebar draws them.
     pub fn handle_tab(&mut self, blocked: bool) -> Option<AppAction> {
+        self.cycle(blocked, true)
+    }
+
+    /// Apply Shift-Tab: the Tab cycle in reverse.
+    pub fn handle_back_tab(&mut self, blocked: bool) -> Option<AppAction> {
+        self.cycle(blocked, false)
+    }
+
+    fn cycle(&mut self, blocked: bool, forward: bool) -> Option<AppAction> {
         if blocked {
             return None;
         }
-
-        match self.view {
-            View::History => {
-                self.view = View::WorkingTree;
-                Some(AppAction::LoadWorkingTree)
-            }
-            View::WorkingTree => {
-                self.view = View::History;
-                Some(AppAction::ReturnToHistory)
-            }
-        }
+        // Top to bottom as the sidebar draws them, then History:
+        // Sessions, Branches, Files, History, and back to Sessions.
+        const ORDER: [View; 4] = [
+            View::Sessions,
+            View::Branches,
+            View::WorkingTree,
+            View::History,
+        ];
+        let index = ORDER
+            .iter()
+            .position(|&view| view == self.view)
+            .unwrap_or(0);
+        let next = if forward {
+            index + 1
+        } else {
+            index + ORDER.len() - 1
+        };
+        self.view = ORDER[next % ORDER.len()];
+        Some(match self.view {
+            View::WorkingTree => AppAction::LoadWorkingTree,
+            View::History => AppAction::ReturnToHistory,
+            View::Branches => AppAction::OpenBranches,
+            View::Sessions => AppAction::OpenSessions,
+        })
     }
 
     /// Translate a Ctrl-modified letter into a page motion. Other Ctrl
@@ -141,6 +179,10 @@ impl AppState {
             self.motions.reset();
             return self.handle_tab(blocked);
         }
+        if key == KeyCode::BackTab {
+            self.motions.reset();
+            return self.handle_back_tab(blocked);
+        }
         if blocked {
             self.motions.reset();
             return None;
@@ -161,8 +203,14 @@ impl AppState {
         }
 
         match (self.view, key) {
-            (_, KeyCode::Char('b')) => Some(AppAction::OpenBranches),
-            (_, KeyCode::Char('A')) => Some(AppAction::OpenSessions),
+            (_, KeyCode::Char('b')) => {
+                self.view = View::Branches;
+                Some(AppAction::OpenBranches)
+            }
+            (_, KeyCode::Char('A')) => {
+                self.view = View::Sessions;
+                Some(AppAction::OpenSessions)
+            }
             (View::History, KeyCode::Char('o')) => Some(AppAction::InspectObject),
             (View::History, KeyCode::Char('D')) => Some(AppAction::OpenComparison),
             (View::History, KeyCode::Char('f')) => Some(AppAction::StartPathHistory),

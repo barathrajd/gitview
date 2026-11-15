@@ -14,7 +14,7 @@ pub(in crate::app) fn handle<H: Host>(
     key: KeyEvent,
 ) -> io::Result<Flow> {
     let Env { root, .. } = env;
-    if app.branch_view && !app.help {
+    if app.app_state.view() == crate::app::View::Branches && !app.help {
         if app.mutation_pending {
             return Ok(Flow::Handled);
         }
@@ -182,12 +182,10 @@ pub(in crate::app) fn handle<H: Host>(
             }
             KeyCode::Char('q') => return Ok(Flow::Quit),
             KeyCode::Char('?') => app.help = true,
-            KeyCode::Esc | KeyCode::Char('b') => app.branch_view = false,
-            KeyCode::Char('H') => {
-                app.branch_view = false;
-                let _ = app.app_state.handle_key(KeyCode::Char('H'), false);
-            }
-            _ => {}
+            // Esc hands focus back to History.
+            KeyCode::Esc => app.app_state.show(crate::app::View::History),
+            // Tab, workspace chords, and other views' keys pass through.
+            _ => return Ok(Flow::Next),
         }
         return Ok(Flow::Handled);
     }

@@ -90,7 +90,6 @@ pub(super) struct App {
     pub(super) diff_side_by_side: bool,
     pub(super) diff_entry: Option<crate::worktree::Entry>,
     pub(super) selected_hunk: usize,
-    pub(super) branch_view: bool,
     pub(super) object_page: Option<crate::object_page::ObjectPage>,
     pub(super) comparison_page: Option<crate::comparison_page::ComparisonPage>,
     pub(super) tag_page: Option<crate::tag_page::TagPage>,

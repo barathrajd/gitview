@@ -151,7 +151,7 @@ fn selected_file(screen: &str) -> Option<String> {
 fn commit_files_screen(repository: &Repo, keys: Vec<replay::Step>) -> String {
     let mut steps = vec![
         WaitFor("Add notes"),
-        Key(crossterm::event::KeyCode::Tab),
+        Char('H'),
         Key(Enter),
         WaitFor("CHANGED FILES"),
     ];
@@ -246,7 +246,8 @@ fn branches() -> Repo {
 
 /// The branch the branch page marks as selected.
 fn selected_branch(screen: &str) -> Option<String> {
-    let line = screen.lines().find(|line| line.contains("› "))?;
+    // The sidebar's selected row, not History's.
+    let line = screen.lines().find(|line| line.starts_with("│›"))?;
     let (_, rest) = line.split_once("› ")?;
     rest.trim_start_matches(['*', ' '])
         .split_whitespace()
@@ -258,7 +259,7 @@ fn branches_screen(repository: &Repo, keys: Vec<replay::Step>) -> String {
     let mut steps = vec![
         WaitFor("Change library"),
         Char('b'),
-        WaitFor("topic-beta"),
+        WaitFor("BRANCHES ("),
         Text("gg"),
     ];
     steps.extend(keys);
@@ -291,7 +292,7 @@ fn slash_jumps_through_branches_and_esc_restores_the_selection() {
         "{screen}"
     );
     // Esc closed only the search, not the branch page.
-    assert!(screen.contains("Local branches"), "{screen}");
+    assert!(screen.contains("BRANCHES ("), "{screen}");
     assert!(!screen.contains("/alpha_"), "{screen}");
 
     // Enter keeps the match without asking to switch.
@@ -359,7 +360,7 @@ fn tags_screen(repository: &Repo, keys: Vec<replay::Step>) -> String {
     let mut steps = vec![
         WaitFor("Change library"),
         Char('b'),
-        WaitFor("Local branches"),
+        WaitFor("BRANCHES ("),
         Char('t'),
         WaitFor("v4-beta"),
     ];
@@ -457,6 +458,7 @@ fn sessions_screen(repository: &Repo, names: &[String], keys: Vec<replay::Step>)
     let mut steps = vec![
         WaitFor("Change library"),
         Char('A'),
+        WaitFor("SESSIONS ("),
         WaitFor(names[2].clone().leak()),
     ];
     steps.extend(keys);
@@ -490,7 +492,7 @@ fn slash_jumps_through_sessions_and_esc_restores_the_selection() {
         "{screen}"
     );
     // Esc closed only the search, not the sessions page.
-    assert!(screen.contains("AGENT SESSIONS"), "{screen}");
+    assert!(screen.contains("SESSIONS ("), "{screen}");
 
     // Enter keeps the match without opening its review.
     let mut keys = start();

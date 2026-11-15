@@ -30,6 +30,12 @@ pub struct Cockpit<'a> {
     pub focused: View,
     pub history_selection: &'a mut ListState,
     pub working_tree_selection: &'a mut ListState,
+    /// The sidebar's Branches section selection.
+    pub branch_selection: &'a mut ListState,
+    /// The sidebar's Sessions section, once the sessions have been read.
+    pub sessions: Option<crate::sessions_page::SessionSection>,
+    /// A page covers the centre panel and takes the keys.
+    pub page_open: bool,
 }
 
 pub enum Screen<'a> {
@@ -119,12 +125,6 @@ pub enum Screen<'a> {
         entry: &'a Entry,
         pending: bool,
     },
-    Branches {
-        branches: Option<&'a Result<Branches, String>>,
-        feedback: &'a str,
-        search_prompt: Option<SearchPrompt<'a>>,
-        selection: &'a mut ListState,
-    },
     Diff {
         diff: &'a (u64, Option<Result<String, String>>),
         scroll: u16,
@@ -173,6 +173,7 @@ pub enum HelpPage {
     History,
     WorkingTree,
     Branches,
+    Sessions,
     BranchInput,
     BranchConfirmation,
     Commit,

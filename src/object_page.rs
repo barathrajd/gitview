@@ -1,7 +1,7 @@
 use crate::ui::Viewport;
 use crate::{
     object::{self, ObjectDescription},
-    ui::{ACCENT, MUTED, hint_row_count, page_block, render_key_hints},
+    ui::{ACCENT, MUTED, page_block, render_key_hints},
 };
 use crossterm::event::KeyCode;
 use ratatui::{
@@ -125,7 +125,7 @@ impl ObjectPage {
         };
         let areas = Layout::vertical([
             Constraint::Min(1),
-            Constraint::Length(hint_row_count(hints, frame.area().width)),
+            Constraint::Length(crate::ui::hints::hint_height(frame, hints)),
         ])
         .split(frame.area());
         let mut lines = Vec::new();

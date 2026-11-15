@@ -4,7 +4,7 @@
 #[path = "support/replay.rs"]
 mod replay;
 
-use crossterm::event::KeyCode::{Enter, Tab};
+use crossterm::event::KeyCode::Enter;
 use replay::{Repo, Step::*, replay_sized};
 
 /// main: Base, Main work, then a merge of `feature` (Feature work), tagged.
@@ -23,16 +23,19 @@ fn merged() -> Repo {
     repository
 }
 
-/// The HISTORY panel's rows, from the wide layout's middle column.
+/// The HISTORY panel's rows: each line from the panel's left border on.
 fn history_rows(screen: &str) -> Vec<String> {
+    let column = screen
+        .lines()
+        .find_map(|line| {
+            let byte = line.find("┌HISTORY")?;
+            Some(line[..byte].chars().count())
+        })
+        .unwrap_or(0);
     screen
         .lines()
-        .filter_map(|line| {
-            let mut panels = line.split("││");
-            panels.next()?;
-            let history = panels.next()?;
-            Some(history.trim_end().to_owned())
-        })
+        .map(|line| line.chars().skip(column + 1).collect::<String>())
+        .map(|row| row.trim_end().to_owned())
         .filter(|row| row.contains('●'))
         .collect()
 }
@@ -44,7 +47,7 @@ fn history_draws_merge_lanes_badges_and_columns() {
         &repository.path(),
         160,
         20,
-        [WaitFor("Feature work"), Key(Tab)],
+        [WaitFor("Feature work"), Char('H')],
     );
     let rows = history_rows(&screen);
     assert_eq!(rows.len(), 4, "{screen}");
@@ -88,7 +91,7 @@ fn enter_opens_the_selected_parsed_commit() {
         24,
         [
             WaitFor("Feature work"),
-            Key(Tab),
+            Char('H'),
             Text("gg"),
             Char('/'),
             Text("feature work"),
@@ -146,7 +149,7 @@ fn history_loads_more_commits_past_the_first_page() {
         20,
         [
             WaitFor("c649"),
-            Key(Tab),
+            Char('H'),
             Char('G'),
             WaitFor("c150"),
             Pause(std::time::Duration::from_millis(500)),
@@ -168,7 +171,7 @@ fn v_switches_to_the_raw_graph_and_back_keeping_the_commit() {
     let select_feature = || {
         vec![
             WaitFor("Feature work"),
-            Key(Tab),
+            Char('H'),
             Char('/'),
             Text("feature work"),
             Key(Enter),

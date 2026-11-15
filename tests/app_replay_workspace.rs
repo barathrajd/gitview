@@ -89,7 +89,7 @@ fn default_sidebar_keeps_ordinary_filenames_readable() {
 fn resizing_history_changes_the_focused_panel_in_both_directions() {
     let repository = Repo::with_changes();
     let render = |resize| {
-        let mut steps = vec![WaitFor("notes.txt"), Key(Tab)];
+        let mut steps = vec![WaitFor("notes.txt"), Char('H')];
         if let Some(key) = resize {
             steps.extend([Ctrl('w'), Char(key)]);
         }

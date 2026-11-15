@@ -4,7 +4,7 @@
 #[path = "support/replay.rs"]
 mod replay;
 
-use crossterm::event::KeyCode::{Enter, Esc, Tab};
+use crossterm::event::KeyCode::{Enter, Esc};
 use replay::{Repo, Step, Step::*, replay, replay_sized};
 
 /// `with_changes` plus a `feature` branch and an annotated `v2.0` tag.
@@ -18,12 +18,12 @@ fn repository() -> Repo {
 /// Opens the branch list. `feature` sorts above the current `main`, and the
 /// first row starts selected.
 fn branch_steps() -> Vec<Step> {
-    vec![WaitFor("Change library"), Char('b'), WaitFor("feature")]
+    vec![WaitFor("Change library"), Char('b'), WaitFor("BRANCHES (")]
 }
 
 /// Opens the History pane, where the page-launching keys live.
 fn history_steps() -> Vec<Step> {
-    vec![WaitFor("Change library"), Key(Tab)]
+    vec![WaitFor("Change library"), Char('H')]
 }
 
 fn current_branch(repository: &Repo) -> String {
@@ -39,12 +39,10 @@ fn branch_list_marks_the_current_branch() {
 
     let screen = replay(&repository.path(), branch_steps());
 
-    assert!(
-        screen.contains("Local branches - current: main"),
-        "{screen}"
-    );
+    assert!(screen.contains("BRANCHES (2)"), "{screen}");
     assert!(screen.contains("* main"), "{screen}");
-    let selected = screen.lines().find(|line| line.contains('›')).unwrap();
+    // The sidebar's selected row, not History's.
+    let selected = screen.lines().find(|line| line.starts_with("│›")).unwrap();
     assert!(selected.contains("feature"), "{screen}");
 }
 
@@ -67,7 +65,7 @@ fn switching_a_branch_needs_confirmation() {
         Key(Enter),
         WaitFor("Switch to local branch \"feature\"?"),
         Char('y'),
-        WaitFor("current: feature"),
+        WaitFor("branch: feature"),
     ]);
     replay(&repository.path(), steps);
     assert_eq!(current_branch(&repository), "feature");
@@ -95,7 +93,7 @@ fn creating_a_branch_asks_for_a_name_then_confirmation() {
         Key(Enter),
         WaitFor("Create and switch to local branch \"topic\""),
         Char('y'),
-        WaitFor("current: topic"),
+        WaitFor("branch: topic"),
     ]);
 
     replay(&repository.path(), steps);
@@ -112,7 +110,7 @@ fn deleting_a_branch_needs_confirmation_and_never_forces() {
         WaitFor("Delete local branch \"feature\"?"),
         WaitFor("No force deletion is used."),
         Char('y'),
-        WaitFor("Local branches - current: main"),
+        WaitFor("BRANCHES ("),
         WaitForGone("feature"),
     ]);
 
@@ -134,7 +132,7 @@ fn tag_page_lists_tags_by_kind_and_escape_returns_to_branches() {
         WaitFor("LOCAL TAGS"),
         WaitFor("[annotated]"),
         Key(Esc),
-        WaitFor("Local branches - current: main"),
+        WaitFor("BRANCHES ("),
     ]);
 
     replay(&repository.path(), steps);
@@ -232,7 +230,7 @@ fn many_branches() -> Repo {
 
 /// The branch the list marks as selected.
 fn selected_branch(screen: &str) -> Option<&str> {
-    let line = screen.lines().find(|line| line.contains('›'))?;
+    let line = screen.lines().find(|line| line.starts_with("│›"))?;
     ["main"]
         .into_iter()
         .chain((1..=30).map(|_| "topic-"))
@@ -252,7 +250,7 @@ fn branch_list_accepts_motions() {
         (vec![Ctrl('d')], "topic-10"),
     ];
     for (keys, branch) in cases {
-        let mut steps = vec![WaitFor("Add library"), Char('b'), WaitFor("topic-01")];
+        let mut steps = vec![WaitFor("Add library"), Char('b'), WaitFor("BRANCHES (")];
         steps.extend(keys);
         let screen = replay_sized(&repository.path(), 140, 24, steps);
         assert_eq!(selected_branch(&screen), Some(branch), "{screen}");
@@ -301,7 +299,7 @@ fn comparison_review_motions_scroll_to_the_end_and_back() {
         &repository.path(),
         [
             WaitFor("Add a long file"),
-            Key(Tab),
+            Char('H'),
             Char('D'),
             WaitFor("COMPARE COMMIT SNAPSHOTS"),
             Key(Enter),
@@ -335,7 +333,7 @@ fn object_preview_motions_scroll_to_the_end_and_back() {
         &repository.path(),
         [
             WaitFor("Add a long file"),
-            Key(Tab),
+            Char('H'),
             Char('o'),
             WaitFor("INSPECT GIT OBJECT"),
             // The revision field keeps g and digits as text.
@@ -368,7 +366,7 @@ fn tag_list_motions_jump_to_the_last_and_first_tag() {
         [
             WaitFor("Change library"),
             Char('b'),
-            WaitFor("Local branches"),
+            WaitFor("BRANCHES ("),
             Char('t'),
             WaitFor("› t-01"),
             Char('G'),

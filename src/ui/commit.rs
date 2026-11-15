@@ -12,7 +12,7 @@ use ratatui::{
 use std::path::Path;
 
 use super::cockpit::render_worktree_panel;
-use super::hints::{hint_row_count, render_key_hints};
+use super::hints::render_key_hints;
 use super::theme::{ACCENT, BORDER, MUTED, page_block};
 
 pub(super) struct CommitWorkspace<'a> {
@@ -107,7 +107,7 @@ pub(super) fn render_commit_workspace(
     let sections = Layout::vertical([
         Constraint::Length(3),
         Constraint::Min(4),
-        Constraint::Length(hint_row_count(hints, frame.area().width)),
+        Constraint::Length(crate::ui::hints::hint_height(frame, hints)),
     ])
     .split(frame.area());
     render_repository_header(

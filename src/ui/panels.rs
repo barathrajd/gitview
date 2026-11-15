@@ -12,7 +12,7 @@ use ratatui::{
 
 use super::cockpit::worktree_items;
 use super::help::render_message_page;
-use super::hints::{hint_row_count, render_key_hints};
+use super::hints::render_key_hints;
 use super::screen::HistoryScreen;
 use super::theme::page_block;
 
@@ -50,7 +50,7 @@ pub(super) fn render_commit_details(
                 Constraint::Length(6),
                 Constraint::Min(3),
                 Constraint::Length(u16::from(search_prompt.is_some())),
-                Constraint::Length(hint_row_count(hints, frame.area().width)),
+                Constraint::Length(crate::ui::hints::hint_height(frame, hints)),
             ])
             .split(frame.area());
             let meta = format!(
@@ -116,7 +116,7 @@ pub(super) fn render_working_tree(
     ];
     let sections = Layout::vertical([
         Constraint::Min(1),
-        Constraint::Length(hint_row_count(&hints, frame.area().width)),
+        Constraint::Length(crate::ui::hints::hint_height(frame, &hints)),
     ])
     .split(frame.area());
     let list = List::new(items)
@@ -178,7 +178,7 @@ pub(super) fn render_history(
     };
     let sections = Layout::vertical([
         Constraint::Min(1),
-        Constraint::Length(hint_row_count(hints, frame.area().width)),
+        Constraint::Length(crate::ui::hints::hint_height(frame, hints)),
     ])
     .split(frame.area());
     let title = if screen.searching {
@@ -252,7 +252,7 @@ pub(super) fn render_search(
     ];
     let sections = Layout::vertical([
         Constraint::Min(1),
-        Constraint::Length(hint_row_count(&hints, frame.area().width)),
+        Constraint::Length(crate::ui::hints::hint_height(frame, &hints)),
     ])
     .split(frame.area());
     let list = List::new(items)

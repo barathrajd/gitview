@@ -56,6 +56,13 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                             )
                         })
                         .unwrap_or_else(|| app.commit_feedback.clone())
+                } else if app.app_state.view() == View::Branches && !app.branch_feedback.is_empty()
+                {
+                    app.branch_feedback.clone()
+                } else if let Some(page) = app.sessions_page.as_ref().filter(|page| {
+                    app.app_state.view() == View::Sessions && !page.feedback().is_empty()
+                }) {
+                    page.feedback().to_owned()
                 } else {
                     app.commit_feedback.clone()
                 };
@@ -77,12 +84,14 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                     ui::HelpPage::WorkingTree
                 } else if app.ignore_path_input.is_some() {
                     ui::HelpPage::IgnorePathInput
-                } else if app.branch_view && app.branch_input.is_some() {
+                } else if app.app_state.view() == View::Branches && app.branch_input.is_some() {
                     ui::HelpPage::BranchInput
-                } else if app.branch_view && app.branch_confirm.is_some() {
+                } else if app.app_state.view() == View::Branches && app.branch_confirm.is_some() {
                     ui::HelpPage::BranchConfirmation
-                } else if app.branch_view {
+                } else if app.app_state.view() == View::Branches {
                     ui::HelpPage::Branches
+                } else if app.app_state.view() == View::Sessions {
+                    ui::HelpPage::Sessions
                 } else if app.diff_entry.is_some() && app.diff.is_some() {
                     ui::HelpPage::WorktreeDiff
                 } else if app.diff.is_some() {
@@ -96,7 +105,66 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                 } else {
                     ui::HelpPage::History
                 };
-                let prompt_line = search_line(app);
+                // The Sessions page runs its own search; its prompt shares
+                // the status line with the other lists'.
+                let prompt_line = search_line(app).or_else(|| {
+                    app.sessions_page
+                        .as_ref()
+                        .filter(|_| app.app_state.view() == View::Sessions)
+                        .and_then(|page| page.section().search)
+                        .map(|(_, line)| line)
+                });
+                // Branch prompts and confirmations open over the centre panel,
+                // with the sidebar still visible.
+                let branch_focus = app.app_state.view() == View::Branches;
+                let centre = if branch_focus && app.branch_input.is_some() {
+                    Some(if let Some(preview) = &app.branch_rename {
+                        Screen::RenameBranchInput {
+                            input: app.branch_input.as_deref().unwrap_or(""),
+                            name: preview.name(),
+                        }
+                    } else {
+                        Screen::BranchInput(app.branch_input.as_deref().unwrap_or(""))
+                    })
+                } else if branch_focus && (app.mutation_pending || app.branch_confirm.is_some()) {
+                    Some(Screen::BranchConfirmation {
+                        pending: app.mutation_pending,
+                        action: app.branch_confirm.as_ref(),
+                    })
+                } else if app.app_state.view() == View::Sessions {
+                    // A session review or confirmation.
+                    app.sessions_page
+                        .as_ref()
+                        .filter(|page| page.shows_centre())
+                        .map(Screen::Sessions)
+                } else {
+                    None
+                };
+                // The workspace; `page_open` while a page covers the centre.
+                macro_rules! cockpit {
+                    ($page_open:expr) => {
+                        ui::Cockpit {
+                            repository: root,
+                            profile: &app.profile_label,
+                            branches: app.branches.as_ref(),
+                            history: app.history.as_ref(),
+                            history_entries: &app.history_entries,
+                            status: app.status.as_ref(),
+                            feedback: &workspace_feedback,
+                            search_prompt: prompt_line.clone().map(|line| ui::SearchPrompt {
+                                line,
+                                query: &app.query,
+                            }),
+                            focused: app.app_state.view(),
+                            history_selection: &mut app.selection,
+                            working_tree_selection: &mut app.status_selection,
+                            branch_selection: &mut app.branch_selection,
+                            sessions: app.sessions_page.as_ref().map(|page| page.section()),
+                            page_open: $page_open,
+                        }
+                    };
+                }
+                let mut workspace_only = false;
                 let screen = if let Some(context) = app.pending_preview {
                     Screen::PreviewLoading {
                         message: context.label(),
@@ -111,8 +179,6 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                     Screen::PathHistoryInput { path }
                 } else if let Some(page) = &app.tag_page {
                     Screen::Tags(page)
-                } else if let Some(page) = &app.sessions_page {
-                    Screen::Sessions(page)
                 } else if app.profiles_view {
                     Screen::Profiles {
                         profiles,
@@ -185,31 +251,6 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                         entries: app.status.as_ref(),
                         pending: app.mutation_pending,
                     }
-                } else if app.branch_view && app.branch_input.is_some() {
-                    if let Some(preview) = &app.branch_rename {
-                        Screen::RenameBranchInput {
-                            input: app.branch_input.as_deref().unwrap_or(""),
-                            name: preview.name(),
-                        }
-                    } else {
-                        Screen::BranchInput(app.branch_input.as_deref().unwrap_or(""))
-                    }
-                } else if app.branch_view && (app.mutation_pending || app.branch_confirm.is_some())
-                {
-                    Screen::BranchConfirmation {
-                        pending: app.mutation_pending,
-                        action: app.branch_confirm.as_ref(),
-                    }
-                } else if app.branch_view {
-                    Screen::Branches {
-                        branches: app.branches.as_ref(),
-                        feedback: &app.branch_feedback,
-                        search_prompt: prompt_line.clone().map(|line| ui::SearchPrompt {
-                            line,
-                            query: &app.query,
-                        }),
-                        selection: &mut app.branch_selection,
-                    }
                 } else if let (Some(diff), Some(prepared)) = (&app.diff, &app.prepared_diff) {
                     Screen::PreparedDiff {
                         diff,
@@ -253,22 +294,34 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                         selection: &mut app.search_selection,
                     }
                 } else {
-                    Screen::Cockpit(ui::Cockpit {
-                        repository: root,
-                        profile: &app.profile_label,
-                        branches: app.branches.as_ref(),
-                        history: app.history.as_ref(),
-                        history_entries: &app.history_entries,
-                        status: app.status.as_ref(),
-                        feedback: &workspace_feedback,
-                        search_prompt: prompt_line.clone().map(|line| ui::SearchPrompt {
-                            line,
-                            query: &app.query,
-                        }),
-                        focused: app.app_state.view(),
-                        history_selection: &mut app.selection,
-                        working_tree_selection: &mut app.status_selection,
-                    })
+                    // The workspace is built below, once nothing else
+                    // borrows its selections.
+                    workspace_only = true;
+                    Screen::PreviewLoading { message: "" }
+                };
+                // Pages open in the centre panel over the workspace, with the
+                // sidebar still visible; prompts and confirmations above stay
+                // full screen.
+                let page = matches!(
+                    screen,
+                    Screen::Object(_)
+                        | Screen::Comparison(_)
+                        | Screen::Tags(_)
+                        | Screen::Profiles { .. }
+                        | Screen::PathHistoryInput { .. }
+                        | Screen::PreparedDiff { .. }
+                        | Screen::Diff { .. }
+                        | Screen::CommitDetails { .. }
+                );
+                let (screen, centre) = if workspace_only {
+                    // A branch prompt or session review in the centre brings
+                    // its own hints.
+                    let open = centre.is_some();
+                    (Screen::Cockpit(cockpit!(open)), centre)
+                } else if page {
+                    (Screen::Cockpit(cockpit!(true)), Some(screen))
+                } else {
+                    (screen, centre)
                 };
                 let gitview_area = match layout {
                     ui::AgentLayout::GitviewOnly(area) => Some(area),
@@ -280,10 +333,7 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                 if let Some(area) = gitview_area {
                     let mut viewport = ui::Viewport::new(frame, area);
                     if let Screen::Cockpit(cockpit) = screen {
-                        let panel = match cockpit.focused {
-                            View::History => crate::workspace::Panel::Center,
-                            View::WorkingTree => crate::workspace::Panel::Sidebar,
-                        };
+                        let panel = cockpit.focused.panel();
                         app.workspace.show(panel);
                         app.workspace.focus(panel);
                         viewport.render_widget(ratatui::widgets::Clear, area);
@@ -293,6 +343,23 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                             &app.workspace,
                             app.border,
                         );
+                        if let Some(centre) = centre {
+                            // The page draws without its own hint row; its
+                            // keys go to the workspace's single bottom bar.
+                            let rect = ui::cockpit_centre_area(area, &app.workspace);
+                            let hints = std::cell::RefCell::new(Vec::new());
+                            ui::render_in(
+                                &mut viewport.sub(rect).capture_hints(&hints),
+                                centre,
+                                app.border,
+                            );
+                            let bar = ratatui::layout::Rect {
+                                y: area.bottom().saturating_sub(1),
+                                height: 1,
+                                ..area
+                            };
+                            ui::render_bar(&mut viewport, bar, &hints.into_inner());
+                        }
                     } else {
                         ui::render_in(&mut viewport, screen, app.border);
                     }

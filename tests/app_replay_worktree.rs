@@ -211,8 +211,10 @@ fn zz_scrolls_the_selected_file_to_the_middle() {
         ],
     );
 
+    // The worktree section shows six rows below Sessions and Branches;
+    // file-21 sits in their middle.
     let first = screen.find("file-").map(|index| &screen[index..index + 7]);
-    assert_eq!(first, Some("file-15"), "{screen}");
+    assert_eq!(first, Some("file-18"), "{screen}");
     assert!(
         screen.contains("› ") && screen.contains("file-21"),
         "{screen}"

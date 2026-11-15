@@ -32,10 +32,7 @@ pub(super) fn toggle_focus(app: &mut App) {
     app.workspace_prefix = false;
     app.focus = match app.focus {
         Focus::Agent => {
-            let panel = match app.app_state.view() {
-                View::WorkingTree => Panel::Sidebar,
-                View::History => Panel::Center,
-            };
+            let panel = app.app_state.view().panel();
             app.workspace.show(panel);
             app.workspace.focus(panel);
             Focus::Gitview

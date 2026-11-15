@@ -17,7 +17,7 @@ fn history_selects(screen: &str, subject: &str) -> bool {
 
 /// Opens the History pane (the app starts on the working tree).
 fn history_steps() -> Vec<replay::Step> {
-    vec![WaitFor("Change library"), Key(Tab)]
+    vec![WaitFor("Change library"), Char('H')]
 }
 
 /// History pane, then the "Change library" commit's `src/lib.rs` diff.
@@ -282,11 +282,13 @@ fn hunk_keys_scroll_a_working_tree_diff_to_each_change() {
     };
     repository.write("src/lib.rs", &lines("first edited", "last edited"));
 
-    // On a short terminal the second hunk is off screen until `]` scrolls to it.
+    // On a short terminal the second hunk is off screen until `]` scrolls to
+    // it. The diff opens in the centre panel, below the header and above the
+    // status and hint rows.
     let screen = replay_sized(
         &repository.path(),
         140,
-        9,
+        14,
         [
             WaitFor("src/lib.rs"),
             Key(Enter),
@@ -350,7 +352,7 @@ fn history_page_keys_move_by_the_visible_rows() {
         (vec![Char('G'), Ctrl('b')], "Commit 14"),
     ];
     for (keys, subject) in cases {
-        let mut steps = vec![WaitFor("Commit 40"), Key(Tab)];
+        let mut steps = vec![WaitFor("Commit 40"), Char('H')];
         steps.extend(keys);
         let screen = replay_sized(&repository.path(), 140, 20, steps);
         assert!(history_selects(&screen, subject), "{subject}\n{screen}");
@@ -360,7 +362,7 @@ fn history_page_keys_move_by_the_visible_rows() {
 #[test]
 fn zz_scrolls_the_selected_commit_to_the_middle() {
     let repository = long_history();
-    let mut steps = vec![WaitFor("Commit 40"), Key(Tab)];
+    let mut steps = vec![WaitFor("Commit 40"), Char('H')];
     steps.extend([Char('2'), Char('0'), Char('j'), Char('z'), Char('z')]);
     let screen = replay_sized(&repository.path(), 140, 20, steps);
 
@@ -399,7 +401,7 @@ fn commit_file_list_accepts_motions() {
     for (keys, file) in cases {
         let mut steps = vec![
             WaitFor("Add notes"),
-            Key(Tab),
+            Char('H'),
             Key(Enter),
             WaitFor("CHANGED FILES"),
         ];
@@ -440,7 +442,7 @@ fn search_results_page_without_typing_into_the_query() {
     let open = || {
         vec![
             WaitFor("Commit 40"),
-            Key(Tab),
+            Char('H'),
             Char('/'),
             // Tab at the inline prompt opens the full results page.
             Key(Tab),
@@ -523,7 +525,7 @@ fn n_and_shift_n_move_between_search_matches_in_history_order() {
     let search = || {
         vec![
             WaitFor("Fifth beta"),
-            Key(Tab),
+            Char('H'),
             Char('/'),
             Text("alpha"),
             Key(Enter),
@@ -580,7 +582,7 @@ fn slash_searches_inline_and_esc_restores_the_selection() {
     let start = || {
         vec![
             WaitFor("Fifth beta"),
-            Key(Tab),
+            Char('H'),
             Text("gg2j"),
             Pause(std::time::Duration::from_millis(100)),
             Char('/'),

@@ -15,17 +15,44 @@ const MIN_SIDE_WIDTH: u16 = 20;
 pub struct Viewport<'a, 'f> {
     frame: &'a mut Frame<'f>,
     area: Rect,
+    /// While set, key hints are collected here instead of drawn, so a page
+    /// in the centre panel hands its keys to the workspace's bottom bar.
+    hints: Option<&'a std::cell::RefCell<Vec<(String, String)>>>,
 }
 
 impl<'a, 'f> Viewport<'a, 'f> {
     /// Limits `frame` to `area`, which is cut down to the frame's own bounds.
     pub fn new(frame: &'a mut Frame<'f>, area: Rect) -> Self {
         let area = area.intersection(frame.area());
-        Self { frame, area }
+        Self {
+            frame,
+            area,
+            hints: None,
+        }
     }
 
     pub fn area(&self) -> Rect {
         self.area
+    }
+
+    /// A viewport over part of this one, for a page drawn inside a panel.
+    pub fn sub(&mut self, area: Rect) -> Viewport<'_, 'f> {
+        Viewport {
+            area: area.intersection(self.area),
+            frame: self.frame,
+            hints: None,
+        }
+    }
+
+    /// Collect key hints into `sink` instead of drawing them.
+    pub fn capture_hints(mut self, sink: &'a std::cell::RefCell<Vec<(String, String)>>) -> Self {
+        self.hints = Some(sink);
+        self
+    }
+
+    /// The hint collector, while hints are captured.
+    pub(crate) fn hint_sink(&self) -> Option<&std::cell::RefCell<Vec<(String, String)>>> {
+        self.hints
     }
 
     /// Places the terminal cursor, unless `position` is outside the viewport.

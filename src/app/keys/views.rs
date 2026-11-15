@@ -15,12 +15,7 @@ pub(in crate::app) fn handle<H: Host>(
     env: &mut Env<'_, H>,
     key: KeyEvent,
 ) -> io::Result<Flow> {
-    let Env {
-        terminal,
-        root,
-        profiles,
-        ..
-    } = env;
+    let Env { root, profiles, .. } = env;
     if !app.help && (app.diff.is_some() || app.details.is_some()) {
         match app.page_motions.key(key) {
             Parsed::Pending => return Ok(Flow::Handled),
@@ -65,7 +60,6 @@ pub(in crate::app) fn handle<H: Host>(
         && !app.mutation_pending
         && app.details.is_none()
         && app.diff.is_none()
-        && !app.branch_view
     {
         app.profile_selection.select(
             profiles
@@ -147,6 +141,9 @@ pub(in crate::app) fn handle<H: Host>(
                 let list = match app.app_state.view() {
                     View::History => SearchList::History,
                     View::WorkingTree => SearchList::Worktree,
+                    View::Branches => SearchList::Branches,
+                    // The Sessions page runs its own search.
+                    View::Sessions => return Ok(Flow::Handled),
                 };
                 app.inline_search = Some(crate::app::model::InlineSearch {
                     list,
@@ -154,12 +151,15 @@ pub(in crate::app) fn handle<H: Host>(
                     matches: Vec::new(),
                 });
             }
-            AppAction::OpenSessions => {
-                app.sessions_page = Some(crate::sessions_page::SessionsPage::open(root));
-            }
+            AppAction::OpenSessions => match &mut app.sessions_page {
+                Some(page) => page.refresh(root),
+                None => {
+                    app.sessions_page = Some(crate::sessions_page::SessionsPage::open(root));
+                }
+            },
             AppAction::OpenBranches => {
-                app.branch_view = true;
-                app.branches = None;
+                // Keep the loaded list on screen until the reload arrives, so
+                // branch keys work at once.
                 app.branch_feedback.clear();
                 app.branch_request += 1;
                 let id = app.branch_request;
@@ -379,6 +379,8 @@ pub(in crate::app) fn handle<H: Host>(
                             *app.status_selection.offset_mut() = row.saturating_sub(rows / 2);
                         }
                     }
+                    // The sidebar sections handle their own motions.
+                    View::Branches | View::Sessions => {}
                 }
             }
         }
@@ -484,7 +486,7 @@ pub(in crate::app) fn handle<H: Host>(
                     text,
                     app.diff_raw_view,
                     app.diff_side_by_side,
-                    terminal.size().map_or(80, |size| size.width),
+                    diff_width(app),
                 );
                 if !positions.is_empty() {
                     app.selected_hunk = (app.selected_hunk + 1).min(positions.len() - 1);
@@ -505,7 +507,7 @@ pub(in crate::app) fn handle<H: Host>(
                     text,
                     app.diff_raw_view,
                     app.diff_side_by_side,
-                    terminal.size().map_or(80, |size| size.width),
+                    diff_width(app),
                 );
                 if !positions.is_empty() {
                     app.selected_hunk = app.selected_hunk.saturating_sub(1);
@@ -528,7 +530,7 @@ pub(in crate::app) fn handle<H: Host>(
                             text,
                             app.diff_raw_view,
                             app.diff_side_by_side,
-                            terminal.size().map_or(80, |size| size.width),
+                            diff_width(app),
                         )
                         .len())
             {
@@ -621,6 +623,13 @@ fn move_selection(app: &mut App, motion: impl FnOnce(Option<usize>, usize) -> Op
                 app.status_selection.select(selected);
             }
         }
+        View::Sessions => {}
+        View::Branches => {
+            if let Some(Ok(data)) = &app.branches {
+                let selected = motion(app.branch_selection.selected(), data.branches.len());
+                app.branch_selection.select(selected);
+            }
+        }
     }
 }
 
@@ -652,15 +661,35 @@ fn page_rows(app: &App) -> usize {
     let Some(area) = app.gitview_area else {
         return 1;
     };
+    // Below the three-row header; the status line and the one-row hint
+    // bar sit underneath, and the layout model reserves the status row.
     let panels = ratatui::layout::Rect {
         y: area.y.saturating_add(3),
         height: area.height.saturating_sub(4),
         ..area
     };
     let layout = app.workspace.gitview_layout(panels);
-    let panel = match app.app_state.view() {
-        View::History => layout.center,
-        View::WorkingTree => layout.sidebar,
+    let view = app.app_state.view();
+    let panel = match view.panel() {
+        crate::workspace::Panel::Center => layout.center,
+        // The focused section of the stacked sidebar.
+        _ => layout.sidebar.map(|sidebar| {
+            let sessions = app
+                .sessions_page
+                .as_ref()
+                .map_or(1, |page| page.section().rows.len());
+            let branches = match &app.branches {
+                Some(Ok(data)) => data.branches.len(),
+                _ => 1,
+            };
+            let [sessions_area, branches_area, files] =
+                crate::ui::sidebar_sections(sidebar, sessions, branches, view);
+            match view {
+                View::Sessions => sessions_area,
+                View::Branches => branches_area,
+                _ => files,
+            }
+        }),
     };
     panel.map_or(1, |panel| {
         usize::from(panel.height.saturating_sub(2)).max(1)
@@ -741,4 +770,11 @@ pub(in crate::app) fn worktree_search_order(
         .into_iter()
         .map(|index| (index, entries[index].path.to_string_lossy().into_owned()))
         .collect()
+}
+
+/// The width the open diff is drawn at: the centre panel it opens in.
+fn diff_width(app: &App) -> u16 {
+    app.gitview_area.map_or(80, |area| {
+        crate::ui::cockpit_centre_area(area, &app.workspace).width
+    })
 }
