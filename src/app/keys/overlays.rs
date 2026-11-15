@@ -105,7 +105,7 @@ pub(in crate::app) fn handle<H: Host>(
                 std::thread::spawn(move || {
                     let _ = sender.send((
                         id,
-                        crate::history::load_history_for_path(&path, filter.as_deref()),
+                        crate::history::load_structured(&path, filter.as_deref()),
                     ));
                 });
             }
@@ -138,7 +138,7 @@ pub(in crate::app) fn handle<H: Host>(
             std::thread::spawn(move || {
                 let _ = sender.send((
                     id,
-                    crate::history::load_history_for_path(&path, requested_history_path.as_deref()),
+                    crate::history::load_structured(&path, requested_history_path.as_deref()),
                 ));
             });
         }

@@ -68,6 +68,13 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
             .and_then(|(rows, index)| rows.get(index))
             .and_then(|row| crate::history::commit_id(row))
             .map(str::to_owned);
+        let result = result.map(|structured| {
+            app.history_entries = structured.entries;
+            structured.rows
+        });
+        if result.is_err() {
+            app.history_entries.clear();
+        }
         if let Ok(rows) = &result
             && !rows.is_empty()
         {
@@ -372,7 +379,7 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
         std::thread::spawn(move || {
             let _ = sender.send((
                 id,
-                crate::history::load_history_for_path(&path, requested_history_path.as_deref()),
+                crate::history::load_structured(&path, requested_history_path.as_deref()),
             ));
         });
         app.status_request += 1;
@@ -418,10 +425,7 @@ pub(super) fn drain_results<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io:
                 std::thread::spawn(move || {
                     let _ = sender.send((
                         id,
-                        crate::history::load_history_for_path(
-                            &path,
-                            requested_history_path.as_deref(),
-                        ),
+                        crate::history::load_structured(&path, requested_history_path.as_deref()),
                     ));
                 });
                 app.status_request += 1;

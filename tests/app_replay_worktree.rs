@@ -102,7 +102,7 @@ fn commit_composer_commits_the_staged_files_with_the_typed_subject() {
             WaitFor("COMMIT MESSAGE · ACTIVE"),
             Text("Add staged file"),
             Key(Enter),
-            WaitFor("Add staged file - Test"),
+            WaitFor("(HEAD -> main) Add staged file"),
         ],
     );
 

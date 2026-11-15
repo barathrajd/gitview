@@ -55,6 +55,9 @@ pub fn load_page(
             "log",
             "--all",
             "--topo-order",
+            // Rewrite parents to the commits a path filter keeps, so the
+            // graph's lanes end at commits that are listed.
+            "--parents",
             "-z",
             "--decorate=short",
             "--format=%H%x00%P%x00%D%x00%an%x00%at%x00%s",

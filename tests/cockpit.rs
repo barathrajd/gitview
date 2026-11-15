@@ -48,6 +48,7 @@ fn render_cockpit_with_feedback(
                     profile,
                     branches: Some(&Ok(branches)),
                     history: Some(&history),
+                    history_entries: &[],
                     status: Some(&status),
                     feedback,
                     search_prompt: None,
@@ -145,6 +146,7 @@ fn replacing_the_cockpit_with_commit_details_clears_old_panes() {
                     profile: "Primary",
                     branches: Some(&Ok(branches)),
                     history: Some(&history),
+                    history_entries: &[],
                     status: Some(&status),
                     feedback: "",
                     search_prompt: None,
@@ -213,6 +215,7 @@ fn inline_search_underlines_matches_in_history() {
                     profile: "office",
                     branches: None,
                     history: Some(&history),
+                    history_entries: &[],
                     status: Some(&status),
                     feedback: "",
                     search_prompt: Some(gitview::ui::SearchPrompt {

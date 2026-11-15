@@ -7,6 +7,7 @@ mod diff_layout;
 mod diff_rows;
 mod help;
 mod hints;
+pub(crate) mod history_rows;
 mod panels;
 mod prepared;
 mod render;

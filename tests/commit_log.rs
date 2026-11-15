@@ -150,6 +150,22 @@ fn a_path_limits_the_page_and_rejects_parent_components() {
     .unwrap();
     assert_eq!(loaded.commits.len(), 1);
     assert_eq!(loaded.commits[0].subject, "Touch a");
+
+    // Parents skip commits the path filter hides.
+    repository.write("a.txt", "a2\n");
+    repository.commit_all("Touch a again");
+    let loaded = load_page(
+        &repository.path(),
+        Some(std::path::Path::new("a.txt")),
+        0,
+        10,
+    )
+    .unwrap();
+    let [again, first] = loaded.commits.as_slice() else {
+        panic!("{:?}", loaded.commits);
+    };
+    assert_eq!(again.parents, std::slice::from_ref(&first.hash));
+    assert!(first.parents.is_empty());
     assert!(
         load_page(
             &repository.path(),

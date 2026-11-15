@@ -43,6 +43,7 @@ pub fn render_workspace_cockpit(
         profile,
         branches,
         history,
+        history_entries,
         status,
         focused,
         feedback,
@@ -111,6 +112,7 @@ pub fn render_workspace_cockpit(
                 frame,
                 area,
                 history,
+                history_entries,
                 history_selection,
                 true,
                 highlight,
@@ -145,6 +147,7 @@ pub fn render_workspace_cockpit(
             frame,
             panes[1],
             history,
+            history_entries,
             history_selection,
             focused == View::History,
             highlight,
@@ -169,6 +172,7 @@ pub fn render_workspace_cockpit(
             frame,
             panes[1],
             history,
+            history_entries,
             history_selection,
             focused == View::History,
             highlight,
@@ -326,6 +330,7 @@ pub(super) fn render_history_panel(
     frame: &mut Viewport<'_, '_>,
     area: ratatui::layout::Rect,
     history: Option<&Result<Vec<String>, String>>,
+    entries: &[Option<history::Entry>],
     selection: &mut ListState,
     focused: bool,
     highlight: &str,
@@ -335,13 +340,41 @@ pub(super) fn render_history_panel(
         None => vec![ListItem::new("Loading history...")],
         Some(Err(error)) => vec![ListItem::new(error.as_str())],
         Some(Ok(rows)) if rows.is_empty() => vec![ListItem::new("No commits yet")],
-        Some(Ok(rows)) => rows
-            .iter()
-            .map({
-                let mut finder = history::MatchFinder::new(highlight);
-                move |row| ListItem::new(crate::ui::highlighted_history_row(row, &mut finder))
-            })
-            .collect(),
+        Some(Ok(rows)) => {
+            let mut finder = history::MatchFinder::new(highlight);
+            // Borders and the selection marker take four columns.
+            let layout = crate::ui::history_rows::RowLayout {
+                graph_width: entries
+                    .iter()
+                    .flatten()
+                    .map(|entry| entry.graph.cells.len())
+                    .max()
+                    .unwrap_or(0),
+                width: usize::from(area.width.saturating_sub(4)),
+                author_width: entries
+                    .iter()
+                    .flatten()
+                    .map(|entry| {
+                        unicode_width::UnicodeWidthStr::width(entry.commit.author.as_str())
+                    })
+                    .max()
+                    .unwrap_or(0),
+                ascii: border == crate::ui::ASCII_BORDER,
+                now: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |elapsed| elapsed.as_secs() as i64),
+            };
+            rows.iter()
+                .enumerate()
+                .map(|(index, row)| match entries.get(index) {
+                    Some(Some(entry)) if entries.len() == rows.len() => ListItem::new(
+                        crate::ui::history_rows::history_line(row, entry, &layout, &mut finder),
+                    ),
+                    // A notice row, or raw rows without parsed commits.
+                    _ => ListItem::new(crate::ui::highlighted_history_row(row, &mut finder)),
+                })
+                .collect()
+        }
     };
     render_panel_list(
         frame,

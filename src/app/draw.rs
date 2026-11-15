@@ -258,6 +258,7 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                         profile: &app.profile_label,
                         branches: app.branches.as_ref(),
                         history: app.history.as_ref(),
+                        history_entries: &app.history_entries,
                         status: app.status.as_ref(),
                         feedback: &workspace_feedback,
                         search_prompt: prompt_line.clone().map(|line| ui::SearchPrompt {

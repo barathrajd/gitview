@@ -52,6 +52,7 @@ fn measure(size: usize, refs: usize, width: u16, height: u16, focused: View) -> 
                         profile: "Primary",
                         branches: Some(&branches),
                         history: Some(&history),
+                        history_entries: &[],
                         status: Some(&status),
                         feedback: "",
                         search_prompt: None,

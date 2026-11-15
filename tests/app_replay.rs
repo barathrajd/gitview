@@ -12,7 +12,7 @@ use replay::{Repo, Step::*, replay, replay_sized};
 fn history_selects(screen: &str, subject: &str) -> bool {
     screen
         .lines()
-        .any(|line| line.contains("› * ") && line.contains(subject))
+        .any(|line| line.contains("› ● ") && line.contains(subject))
 }
 
 /// Opens the History pane (the app starts on the working tree).

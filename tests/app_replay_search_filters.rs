@@ -141,7 +141,7 @@ fn n_and_shift_n_repeat_a_filtered_search_through_its_results() {
         let screen = replay::replay_sized(&repository.path(), 140, 20, steps);
         let selected = screen
             .lines()
-            .any(|line| line.contains("› * ") && line.contains(subject));
+            .any(|line| line.contains("› ● ") && line.contains(subject));
         assert!(selected, "{keys:?} {subject}\n{screen}");
         assert!(screen.contains(status), "{keys:?} {status}\n{screen}");
     }

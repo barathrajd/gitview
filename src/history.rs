@@ -213,3 +213,159 @@ pub fn display_row(row: &str) -> &str {
     row.rsplit_once('\u{1f}')
         .map_or(row, |(visible, _)| visible)
 }
+
+/// History drawn from parsed commits: each row's search text, in the
+/// format the raw rows use, beside the commit and its graph cells.
+#[derive(Debug, Default)]
+pub struct Structured {
+    /// One per row: `* <short> (<refs>) <subject> - <author>` with the full
+    /// hash after a unit separator, which search, `n`/`N`, and commit
+    /// lookups read.
+    pub rows: Vec<String>,
+    /// The commit on each row; `None` for a notice row.
+    pub entries: Vec<Option<Entry>>,
+}
+
+/// A commit on a History row and where its fields sit in the row's text.
+#[derive(Clone, Debug)]
+pub struct Entry {
+    pub commit: crate::commit_log::Commit,
+    pub graph: crate::graph::GraphRow,
+    /// Byte ranges in the row text of the short hash, each ref, the
+    /// subject, and the author, for highlighting search matches.
+    pub hash: std::ops::Range<usize>,
+    pub refs: Vec<std::ops::Range<usize>>,
+    pub subject: std::ops::Range<usize>,
+    pub author: std::ops::Range<usize>,
+}
+
+/// The most commits History loads.
+pub const HISTORY_LIMIT: usize = 200;
+
+/// Load History as parsed commits with graph lanes, optionally limited to
+/// commits touching `path`. A notice row comes first when more commits
+/// exist than History shows.
+pub fn load_structured(root: &Path, path: Option<&Path>) -> Result<Structured, String> {
+    let page = crate::commit_log::load_page(root, path, 0, HISTORY_LIMIT)?;
+    let mut structured = Structured::default();
+    if page.more {
+        structured
+            .rows
+            .push(format!("[history truncated to {HISTORY_LIMIT} commits]"));
+        structured.entries.push(None);
+    }
+    let rest = structured_from(page.commits);
+    structured.rows.extend(rest.rows);
+    structured.entries.extend(rest.entries);
+    Ok(structured)
+}
+
+/// Rows and graph cells for `commits`, newest first.
+pub fn structured_from(commits: Vec<crate::commit_log::Commit>) -> Structured {
+    let mut structured = Structured::default();
+    let mut layout = crate::graph::Layout::new();
+    for commit in commits {
+        let graph = layout.push(&commit);
+        let (row, entry) = row_text(commit, graph);
+        structured.rows.push(row);
+        structured.entries.push(Some(entry));
+    }
+    structured
+}
+
+/// A commit's row text and the field ranges within it.
+fn row_text(commit: crate::commit_log::Commit, graph: crate::graph::GraphRow) -> (String, Entry) {
+    use std::fmt::Write;
+    let mut row = String::from("* ");
+    let span = |row: &mut String, text: &str| {
+        let start = row.len();
+        row.push_str(text);
+        start..row.len()
+    };
+    let hash = span(&mut row, commit.short_hash());
+    let mut refs = Vec::new();
+    if !commit.refs.is_empty() {
+        row.push_str(" (");
+        for (index, name) in commit.refs.iter().enumerate() {
+            if index > 0 {
+                row.push_str(", ");
+            }
+            refs.push(span(&mut row, name));
+        }
+        row.push(')');
+    }
+    row.push(' ');
+    let subject = span(&mut row, &commit.subject);
+    row.push_str(" - ");
+    let author = span(&mut row, &commit.author);
+    let _ = write!(row, "\u{1f}{}", commit.hash);
+    (
+        row,
+        Entry {
+            commit,
+            graph,
+            hash,
+            refs,
+            subject,
+            author,
+        },
+    )
+}
+
+/// A compact age such as `now`, `5m`, `2h`, `3d`, `5w`, or `1y`.
+pub fn compact_age(seconds: i64, now: i64) -> String {
+    let age = now.saturating_sub(seconds).max(0);
+    match age {
+        0..60 => "now".to_owned(),
+        60..3_600 => format!("{}m", age / 60),
+        3_600..86_400 => format!("{}h", age / 3_600),
+        86_400..604_800 => format!("{}d", age / 86_400),
+        604_800..31_536_000 => format!("{}w", age / 604_800),
+        _ => format!("{}y", age / 31_536_000),
+    }
+}
+
+#[cfg(test)]
+mod structured_tests {
+    use super::*;
+
+    #[test]
+    fn compact_ages_use_the_largest_whole_unit() {
+        let now = 1_000_000_000;
+        assert_eq!(compact_age(now, now), "now");
+        assert_eq!(compact_age(now + 30, now), "now");
+        assert_eq!(compact_age(now - 59, now), "now");
+        assert_eq!(compact_age(now - 60, now), "1m");
+        assert_eq!(compact_age(now - 7_200, now), "2h");
+        assert_eq!(compact_age(now - 3 * 86_400, now), "3d");
+        assert_eq!(compact_age(now - 35 * 86_400, now), "5w");
+        assert_eq!(compact_age(now - 400 * 86_400, now), "1y");
+    }
+
+    #[test]
+    fn row_text_matches_the_search_format_and_records_fields() {
+        let commit = crate::commit_log::Commit {
+            hash: "0123456789abcdef0123456789abcdef01234567".to_owned(),
+            parents: Vec::new(),
+            refs: vec!["HEAD -> main".to_owned(), "tag: v1".to_owned()],
+            author: "Zoë".to_owned(),
+            time: 0,
+            subject: "Fix ünïcode".to_owned(),
+        };
+        let graph = crate::graph::Layout::new().push(&commit);
+        let (row, entry) = row_text(commit, graph);
+        assert_eq!(
+            row,
+            "* 0123456 (HEAD -> main, tag: v1) Fix ünïcode - Zoë\u{1f}0123456789abcdef0123456789abcdef01234567"
+        );
+        assert_eq!(&row[entry.hash.clone()], "0123456");
+        assert_eq!(&row[entry.refs[1].clone()], "tag: v1");
+        assert_eq!(&row[entry.subject.clone()], "Fix ünïcode");
+        assert_eq!(&row[entry.author.clone()], "Zoë");
+        assert_eq!(commit_id(&row), Some("0123456"));
+        assert_eq!(
+            full_hash(&row),
+            Some("0123456789abcdef0123456789abcdef01234567")
+        );
+    }
+}

@@ -38,6 +38,7 @@ fn with_cockpit(draw_it: impl FnOnce(Screen<'_>)) {
         profile: "office",
         branches: Some(&branches),
         history: Some(&history),
+        history_entries: &[],
         status: Some(&status),
         feedback: "",
         search_prompt: None,

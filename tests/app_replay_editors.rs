@@ -81,7 +81,7 @@ fn external_editors_feed_the_composer_and_the_profile_registry() {
             WaitFor("COMMIT MESSAGE · ACTIVE"),
             Text("draft"),
             Ctrl('e'),
-            WaitFor("Edited in editor - Test"),
+            WaitFor("(HEAD -> main) Edited in editor"),
         ],
     );
     assert_eq!(commit_subject(&repository), "Edited in editor");

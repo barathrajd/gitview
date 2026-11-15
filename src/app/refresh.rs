@@ -265,7 +265,7 @@ fn start_wanted(app: &mut App, root: &std::path::Path) {
         let path = root.to_path_buf();
         let filter = app.history_filter.clone();
         thread::spawn(move || {
-            let result = crate::history::load_history_for_path(&path, filter.as_deref());
+            let result = crate::history::load_structured(&path, filter.as_deref());
             completion.mark();
             let _ = sender.send((id, result));
         });
