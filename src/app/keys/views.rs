@@ -147,6 +147,8 @@ pub(in crate::app) fn handle<H: Host>(
                     View::History => SearchList::History,
                     View::WorkingTree => SearchList::Worktree,
                     View::Branches => SearchList::Branches,
+                    // The Sessions page runs its own search.
+                    View::Sessions => return Ok(Flow::Handled),
                 };
                 app.inline_search = Some(crate::app::model::InlineSearch {
                     list,
@@ -154,9 +156,12 @@ pub(in crate::app) fn handle<H: Host>(
                     matches: Vec::new(),
                 });
             }
-            AppAction::OpenSessions => {
-                app.sessions_page = Some(crate::sessions_page::SessionsPage::open(root));
-            }
+            AppAction::OpenSessions => match &mut app.sessions_page {
+                Some(page) => page.refresh(root),
+                None => {
+                    app.sessions_page = Some(crate::sessions_page::SessionsPage::open(root));
+                }
+            },
             AppAction::OpenBranches => {
                 // Keep the loaded list on screen until the reload arrives, so
                 // branch keys work at once.
@@ -379,8 +384,8 @@ pub(in crate::app) fn handle<H: Host>(
                             *app.status_selection.offset_mut() = row.saturating_sub(rows / 2);
                         }
                     }
-                    // The Branches section handles its own motions.
-                    View::Branches => {}
+                    // The sidebar sections handle their own motions.
+                    View::Branches | View::Sessions => {}
                 }
             }
         }
@@ -623,6 +628,7 @@ fn move_selection(app: &mut App, motion: impl FnOnce(Option<usize>, usize) -> Op
                 app.status_selection.select(selected);
             }
         }
+        View::Sessions => {}
         View::Branches => {
             if let Some(Ok(data)) = &app.branches {
                 let selected = motion(app.branch_selection.selected(), data.branches.len());

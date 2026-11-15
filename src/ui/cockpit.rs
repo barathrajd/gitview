@@ -46,6 +46,7 @@ pub fn render_workspace_cockpit(
         history_selection,
         working_tree_selection,
         branch_selection,
+        sessions,
     } = cockpit;
     // Only the focused list is searched.
     let query = search_prompt.as_ref().map_or("", |prompt| prompt.query);
@@ -53,6 +54,7 @@ pub fn render_workspace_cockpit(
         View::History => (query, "", ""),
         View::WorkingTree => ("", query, ""),
         View::Branches => ("", "", query),
+        View::Sessions => ("", "", ""),
     };
     let mut hints = match focused {
         View::History => vec![
@@ -88,6 +90,13 @@ pub fn render_workspace_cockpit(
             ("d", "delete"),
             ("-", "previous checkout"),
             ("t", "tags"),
+            ("/", "search"),
+        ],
+        View::Sessions => vec![
+            ("Tab", "pane"),
+            ("Enter", "review"),
+            ("d", "discard"),
+            ("r", "refresh"),
             ("/", "search"),
         ],
     };
@@ -132,6 +141,7 @@ pub fn render_workspace_cockpit(
                 frame,
                 area,
                 Sidebar {
+                    sessions: sessions.as_ref(),
                     branches,
                     branch_selection,
                     branch_highlight,
@@ -150,6 +160,7 @@ pub fn render_workspace_cockpit(
             frame,
             sidebar,
             Sidebar {
+                sessions: sessions.as_ref(),
                 branches,
                 branch_selection,
                 branch_highlight,
@@ -472,6 +483,7 @@ pub(super) fn status_counts(status: Option<&Result<Vec<Entry>, String>>) -> (usi
 
 /// What the sidebar's stacked sections draw.
 struct Sidebar<'a, 'b> {
+    sessions: Option<&'a crate::sessions_page::SessionSection>,
     branches: Option<&'a Result<crate::branches::Branches, String>>,
     branch_selection: &'b mut ListState,
     branch_highlight: &'a str,
@@ -498,6 +510,7 @@ fn render_sidebar(
     border: ratatui::symbols::border::Set<'static>,
 ) {
     let Sidebar {
+        sessions,
         branches,
         branch_selection,
         branch_highlight,
@@ -507,17 +520,32 @@ fn render_sidebar(
         focused,
         sidebar_focused,
     } = sidebar;
+    // Sessions, then Branches, each sized to its rows up to a share of the
+    // height that is larger while focused; the working tree takes the rest.
+    let fit = |rows: usize, share: u16, focus: View| {
+        let share = if focused == focus { share * 2 } else { share };
+        section_rows(rows).min(area.height * share / 100).max(3)
+    };
+    let session_rows = sessions.map_or(1, |section| section.rows.len());
     let branch_count = match branches {
         Some(Ok(data)) => data.branches.len(),
         _ => 1,
     };
-    let share = if focused == View::Branches { 60 } else { 30 };
-    let branch_height = section_rows(branch_count)
-        .min(area.height * share / 100)
-        .max(3)
-        .min(area.height.saturating_sub(3));
-    let [branch_area, files_area] =
-        Layout::vertical([Constraint::Length(branch_height), Constraint::Min(3)]).areas(area);
+    let session_height = fit(session_rows, 20, View::Sessions);
+    let branch_height = fit(branch_count, 30, View::Branches);
+    let [session_area, branch_area, files_area] = Layout::vertical([
+        Constraint::Length(session_height),
+        Constraint::Length(branch_height),
+        Constraint::Min(3),
+    ])
+    .areas(area);
+    render_session_section(
+        frame,
+        session_area,
+        sessions,
+        sidebar_focused && focused == View::Sessions,
+        border,
+    );
     render_branch_section(
         frame,
         branch_area,
@@ -620,4 +648,68 @@ pub fn cockpit_centre_area(
         ..body
     });
     layout.center.or(layout.sidebar).unwrap_or(body)
+}
+
+/// The Sessions section: each agent session's name and state.
+fn render_session_section(
+    frame: &mut Viewport<'_, '_>,
+    area: ratatui::layout::Rect,
+    section: Option<&crate::sessions_page::SessionSection>,
+    focused: bool,
+    border: ratatui::symbols::border::Set<'static>,
+) {
+    let mut selection = ListState::default();
+    let (title, items) = match section {
+        None => (
+            "SESSIONS".to_owned(),
+            vec![ListItem::new("Loading sessions...")],
+        ),
+        Some(section) if section.loading => (
+            "SESSIONS".to_owned(),
+            vec![ListItem::new("Loading sessions...")],
+        ),
+        Some(section) if section.rows.is_empty() => (
+            "SESSIONS".to_owned(),
+            vec![ListItem::new(Line::styled(
+                "No agent sessions",
+                Style::default().fg(MUTED),
+            ))],
+        ),
+        Some(section) => {
+            let query = section
+                .search
+                .as_ref()
+                .map_or("", |(query, _)| query.as_str());
+            let mut finder = history::MatchFinder::new(query);
+            let items: Vec<ListItem<'static>> = section
+                .rows
+                .iter()
+                .map(|(name, state)| {
+                    let mut spans = crate::ui::highlighted_spans(name, &finder.positions(name));
+                    spans.push(Span::styled(
+                        format!("  {state}"),
+                        Style::default().fg(MUTED),
+                    ));
+                    ListItem::new(Line::from(spans))
+                })
+                .collect();
+            if focused {
+                selection.select(Some(section.selected));
+            }
+            (format!("SESSIONS ({})", section.rows.len()), items)
+        }
+    };
+    render_panel_list(
+        frame,
+        area,
+        &title,
+        items,
+        &mut selection,
+        focused,
+        border,
+        Style::default()
+            .bg(Color::Rgb(25, 43, 52))
+            .fg(Color::Rgb(241, 245, 249))
+            .bold(),
+    );
 }

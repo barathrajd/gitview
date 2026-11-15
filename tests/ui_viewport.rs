@@ -46,6 +46,7 @@ fn with_cockpit(draw_it: impl FnOnce(Screen<'_>)) {
         history_selection: &mut history_selection,
         working_tree_selection: &mut working_tree_selection,
         branch_selection: &mut ListState::default(),
+        sessions: None,
     }));
 }
 

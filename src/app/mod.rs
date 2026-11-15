@@ -21,6 +21,8 @@ pub enum View {
     WorkingTree,
     /// The sidebar's Branches section.
     Branches,
+    /// The sidebar's Sessions section.
+    Sessions,
 }
 
 impl View {
@@ -28,7 +30,7 @@ impl View {
     pub fn panel(self) -> crate::workspace::Panel {
         match self {
             View::History => crate::workspace::Panel::Center,
-            View::WorkingTree | View::Branches => crate::workspace::Panel::Sidebar,
+            View::WorkingTree | View::Branches | View::Sessions => crate::workspace::Panel::Sidebar,
         }
     }
 }
@@ -116,7 +118,7 @@ impl AppState {
     }
 
     /// Apply Tab when the active screen permits workspace navigation:
-    /// Files, Branches, History, and back to Files.
+    /// Files, Branches, Sessions, History, and back to Files.
     pub fn handle_tab(&mut self, blocked: bool) -> Option<AppAction> {
         self.cycle(blocked, true)
     }
@@ -130,15 +132,28 @@ impl AppState {
         if blocked {
             return None;
         }
-        self.view = match (self.view, forward) {
-            (View::WorkingTree, true) | (View::History, false) => View::Branches,
-            (View::Branches, true) | (View::WorkingTree, false) => View::History,
-            (View::History, true) | (View::Branches, false) => View::WorkingTree,
+        // Files, Branches, Sessions, History, and back to Files.
+        const ORDER: [View; 4] = [
+            View::WorkingTree,
+            View::Branches,
+            View::Sessions,
+            View::History,
+        ];
+        let index = ORDER
+            .iter()
+            .position(|&view| view == self.view)
+            .unwrap_or(0);
+        let next = if forward {
+            index + 1
+        } else {
+            index + ORDER.len() - 1
         };
+        self.view = ORDER[next % ORDER.len()];
         Some(match self.view {
             View::WorkingTree => AppAction::LoadWorkingTree,
             View::History => AppAction::ReturnToHistory,
             View::Branches => AppAction::OpenBranches,
+            View::Sessions => AppAction::OpenSessions,
         })
     }
 
@@ -190,7 +205,10 @@ impl AppState {
                 self.view = View::Branches;
                 Some(AppAction::OpenBranches)
             }
-            (_, KeyCode::Char('A')) => Some(AppAction::OpenSessions),
+            (_, KeyCode::Char('A')) => {
+                self.view = View::Sessions;
+                Some(AppAction::OpenSessions)
+            }
             (View::History, KeyCode::Char('o')) => Some(AppAction::InspectObject),
             (View::History, KeyCode::Char('D')) => Some(AppAction::OpenComparison),
             (View::History, KeyCode::Char('f')) => Some(AppAction::StartPathHistory),

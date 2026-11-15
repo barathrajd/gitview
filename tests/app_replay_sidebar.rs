@@ -35,7 +35,7 @@ fn the_sidebar_stacks_branches_above_the_working_tree() {
 }
 
 #[test]
-fn tab_and_shift_tab_cycle_files_branches_and_history() {
+fn tab_and_shift_tab_cycle_files_branches_sessions_and_history() {
     let repository = repository();
     let start = || vec![WaitFor("BRANCHES (2)"), WaitFor("staged.txt")];
 
@@ -58,9 +58,18 @@ fn tab_and_shift_tab_cycle_files_branches_and_history() {
     );
     assert!(screen.contains("Enter/l  switch"), "{screen}");
 
-    // Tab again: History.
+    // Tab again: Sessions, then History.
     let mut steps = start();
     steps.extend([
+        Key(Tab),
+        Key(Tab),
+        Pause(std::time::Duration::from_millis(200)),
+    ]);
+    let screen = replay_sized(&repository.path(), 140, 30, steps);
+    assert!(screen.contains("Enter  review"), "{screen}");
+    let mut steps = start();
+    steps.extend([
+        Key(Tab),
         Key(Tab),
         Key(Tab),
         Pause(std::time::Duration::from_millis(200)),
@@ -110,5 +119,58 @@ fn a_branch_prompt_opens_in_the_centre_and_esc_returns_to_history() {
         ],
     );
     assert!(screen.contains("HISTORY"), "{screen}");
+    assert!(screen.contains("Enter/l  details"), "{screen}");
+}
+
+#[test]
+fn sessions_sit_above_branches_and_a_focuses_them() {
+    let repository = repository();
+    let session = gitview::sessions::create(&repository.path()).unwrap();
+    let screen = replay_sized(
+        &repository.path(),
+        140,
+        30,
+        [
+            WaitFor("SESSIONS (1)"),
+            Char('A'),
+            Pause(std::time::Duration::from_millis(200)),
+        ],
+    );
+    let sessions = screen.find("SESSIONS (1)").unwrap();
+    let branches = screen.find("BRANCHES (").unwrap();
+    assert!(sessions < branches, "{screen}");
+    assert!(screen.contains("clean"), "{screen}");
+    assert!(
+        sidebar_selection(&screen)
+            .unwrap()
+            .starts_with(&session.name),
+        "{screen}"
+    );
+    assert!(screen.contains("Enter  review"), "{screen}");
+
+    // Esc hands focus back to History, and Tab passes through the list.
+    let screen = replay_sized(
+        &repository.path(),
+        140,
+        30,
+        [
+            WaitFor("SESSIONS (1)"),
+            Char('A'),
+            Key(Esc),
+            Pause(std::time::Duration::from_millis(200)),
+        ],
+    );
+    assert!(screen.contains("Enter/l  details"), "{screen}");
+    let screen = replay_sized(
+        &repository.path(),
+        140,
+        30,
+        [
+            WaitFor("SESSIONS (1)"),
+            Char('A'),
+            Key(Tab),
+            Pause(std::time::Duration::from_millis(200)),
+        ],
+    );
     assert!(screen.contains("Enter/l  details"), "{screen}");
 }

@@ -59,6 +59,10 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                 } else if app.app_state.view() == View::Branches && !app.branch_feedback.is_empty()
                 {
                     app.branch_feedback.clone()
+                } else if let Some(page) = app.sessions_page.as_ref().filter(|page| {
+                    app.app_state.view() == View::Sessions && !page.feedback().is_empty()
+                }) {
+                    page.feedback().to_owned()
                 } else {
                     app.commit_feedback.clone()
                 };
@@ -99,7 +103,15 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                 } else {
                     ui::HelpPage::History
                 };
-                let prompt_line = search_line(app);
+                // The Sessions page runs its own search; its prompt shares
+                // the status line with the other lists'.
+                let prompt_line = search_line(app).or_else(|| {
+                    app.sessions_page
+                        .as_ref()
+                        .filter(|_| app.app_state.view() == View::Sessions)
+                        .and_then(|page| page.section().search)
+                        .map(|(_, line)| line)
+                });
                 // Branch prompts and confirmations open over the centre panel,
                 // with the sidebar still visible.
                 let branch_focus = app.app_state.view() == View::Branches;
@@ -117,6 +129,12 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                         pending: app.mutation_pending,
                         action: app.branch_confirm.as_ref(),
                     })
+                } else if app.app_state.view() == View::Sessions {
+                    // A session review or confirmation.
+                    app.sessions_page
+                        .as_ref()
+                        .filter(|page| page.shows_centre())
+                        .map(Screen::Sessions)
                 } else {
                     None
                 };
@@ -134,8 +152,6 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                     Screen::PathHistoryInput { path }
                 } else if let Some(page) = &app.tag_page {
                     Screen::Tags(page)
-                } else if let Some(page) = &app.sessions_page {
-                    Screen::Sessions(page)
                 } else if app.profiles_view {
                     Screen::Profiles {
                         profiles,
@@ -267,6 +283,7 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                         history_selection: &mut app.selection,
                         working_tree_selection: &mut app.status_selection,
                         branch_selection: &mut app.branch_selection,
+                        sessions: app.sessions_page.as_ref().map(|page| page.section()),
                     })
                 };
                 let gitview_area = match layout {

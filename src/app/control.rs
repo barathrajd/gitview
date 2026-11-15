@@ -127,7 +127,9 @@ fn close_views(app: &mut App) {
     app.object_page = None;
     app.comparison_page = None;
     app.tag_page = None;
-    app.sessions_page = None;
+    if let Some(page) = &mut app.sessions_page {
+        page.back_to_list();
+    }
     app.details = None;
     app.diff = None;
     app.prepared_diff = None;

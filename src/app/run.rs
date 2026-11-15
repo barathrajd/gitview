@@ -328,7 +328,8 @@ pub fn run_app_with_agent<H: Host>(
         object_page,
         comparison_page,
         tag_page,
-        sessions_page: None,
+        // The sidebar lists sessions from the start.
+        sessions_page: Some(crate::sessions_page::SessionsPage::open(root)),
         profiles_view,
         profile_selection,
         profile_feedback,

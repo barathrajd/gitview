@@ -5,7 +5,7 @@ use crate::app::{
     model::App,
     run::{Env, Flow, Host},
 };
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 pub(in crate::app) fn handle<H: Host>(
     app: &mut App,
@@ -146,13 +146,32 @@ pub(in crate::app) fn handle<H: Host>(
         }
         return Ok(Flow::Handled);
     }
-    if let Some(page) = &mut app.sessions_page {
+    // On the plain session list, workspace keys pass through: Tab and
+    // Shift-Tab, the section and page letters, and Ctrl-w chords.
+    let workspace_key = app.workspace_prefix
+        || matches!(
+            key.code,
+            KeyCode::Tab
+                | KeyCode::BackTab
+                | KeyCode::Char('W' | 'H' | 'b' | 'A' | 'p' | 'q' | '?')
+        ) && !key.modifiers.contains(KeyModifiers::CONTROL)
+        || (key.code == KeyCode::Char('w') && key.modifiers.contains(KeyModifiers::CONTROL));
+    if let Some(page) = &mut app.sessions_page
+        && app.app_state.view() == crate::app::View::Sessions
+        && !app.help
+        && !(page.in_list() && workspace_key)
+    {
         if page.takes_motions() {
             use crate::motion::Parsed;
             match app.page_motions.key(key) {
                 Parsed::Pending => return Ok(Flow::Handled),
                 Parsed::Motion(motion) => {
-                    page.motion(motion, screen_page_rows(app.gitview_area, PAGE_CHROME));
+                    // The review sits in the centre panel; its border and
+                    // hint row take three rows.
+                    let centre = app
+                        .gitview_area
+                        .map(|area| crate::ui::cockpit_centre_area(area, &app.workspace));
+                    page.motion(motion, screen_page_rows(centre, 3));
                     return Ok(Flow::Handled);
                 }
                 Parsed::Other => {}
@@ -160,8 +179,9 @@ pub(in crate::app) fn handle<H: Host>(
         } else {
             app.page_motions.reset();
         }
+        // Esc on the list hands focus back to History; the page stays.
         if !page.key(root, plain_code(key), &mut app.last_search) {
-            app.sessions_page = None;
+            app.app_state.show(crate::app::View::History);
         }
         return Ok(Flow::Handled);
     }

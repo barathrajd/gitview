@@ -46,12 +46,14 @@ fn the_page_lists_sessions_with_their_state() {
         &repository.path(),
         [
             Char('A'),
-            WaitFor("AGENT SESSIONS"),
+            WaitFor("SESSIONS ("),
+            WaitFor("SESSIONS ("),
             WaitFor(session.name.clone().leak()),
         ],
     );
 
-    assert!(screen.contains("1 commit ahead of main"), "{screen}");
+    // The sidebar's short state; the review shows the full description.
+    assert!(screen.contains("1 ahead"), "{screen}");
 }
 
 #[test]
@@ -62,8 +64,10 @@ fn review_then_merge_brings_the_work_into_main() {
         &repository.path(),
         [
             Char('A'),
+            WaitFor("SESSIONS ("),
             WaitFor(session.name.clone().leak()),
             Key(Enter),
+            WaitFor("REVIEW SESSION"),
             WaitFor("Agent adds a file"),
             WaitFor("+from the agent"),
             Char('m'),
@@ -86,6 +90,7 @@ fn discard_shows_what_is_lost_and_removes_the_session() {
         &repository.path(),
         [
             Char('A'),
+            WaitFor("SESSIONS ("),
             WaitFor(session.name.clone().leak()),
             Char('d'),
             WaitFor("Agent adds a file"),
@@ -113,8 +118,10 @@ fn a_refused_merge_explains_why() {
         &repository.path(),
         [
             Char('A'),
+            WaitFor("SESSIONS ("),
             WaitFor(session.name.clone().leak()),
             Key(Enter),
+            WaitFor("REVIEW SESSION"),
             WaitFor("Agent adds a file"),
             Char('m'),
             Char('y'),
@@ -152,6 +159,7 @@ fn list_motions_jump_to_the_last_and_first_session() {
         &repository.path(),
         [
             Char('A'),
+            WaitFor("SESSIONS ("),
             WaitFor(first),
             Char('G'),
             WaitFor(last),
@@ -176,6 +184,7 @@ fn ctrl_d_moves_the_list_instead_of_previewing_a_discard() {
         &repository.path(),
         [
             Char('A'),
+            WaitFor("SESSIONS ("),
             WaitFor(session.name.clone().leak()),
             Ctrl('d'),
             WaitFor(last),
@@ -220,8 +229,10 @@ fn review_motions_scroll_to_the_end_and_back() {
         &repository.path(),
         [
             Char('A'),
+            WaitFor("SESSIONS ("),
             WaitFor(session.name.clone().leak()),
             Key(Enter),
+            WaitFor("REVIEW SESSION"),
             WaitFor("Agent adds a long file"),
             Char('G'),
             WaitFor("+line 120"),

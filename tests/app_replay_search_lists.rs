@@ -458,6 +458,7 @@ fn sessions_screen(repository: &Repo, names: &[String], keys: Vec<replay::Step>)
     let mut steps = vec![
         WaitFor("Change library"),
         Char('A'),
+        WaitFor("SESSIONS ("),
         WaitFor(names[2].clone().leak()),
     ];
     steps.extend(keys);
@@ -491,7 +492,7 @@ fn slash_jumps_through_sessions_and_esc_restores_the_selection() {
         "{screen}"
     );
     // Esc closed only the search, not the sessions page.
-    assert!(screen.contains("AGENT SESSIONS"), "{screen}");
+    assert!(screen.contains("SESSIONS ("), "{screen}");
 
     // Enter keeps the match without opening its review.
     let mut keys = start();

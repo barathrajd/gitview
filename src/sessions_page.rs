@@ -39,12 +39,24 @@ enum Mode {
     ConfirmDiscard(DiscardPreview),
 }
 
+/// The Sessions section's rows: each session's name and state, the
+/// selection, and an open `/` search's query and prompt line.
+#[derive(Clone, Debug, Default)]
+pub struct SessionSection {
+    pub rows: Vec<(String, String)>,
+    pub selected: usize,
+    pub search: Option<(String, String)>,
+    pub loading: bool,
+}
+
 pub struct SessionsPage {
     entries: Vec<SessionStatus>,
     selected: usize,
     mode: Mode,
     feedback: String,
     pending: bool,
+    /// The list is reloading; unlike `pending`, keys still work.
+    refreshing: bool,
     search: Option<crate::list_search::InlineSearch>,
     sender: mpsc::Sender<Reply>,
     receiver: mpsc::Receiver<Reply>,
@@ -59,6 +71,7 @@ impl SessionsPage {
             mode: Mode::List,
             feedback: String::new(),
             pending: false,
+            refreshing: false,
             search: None,
             sender,
             receiver,
@@ -67,8 +80,73 @@ impl SessionsPage {
         page
     }
 
+    /// Reload the list, unless Git is already working.
+    pub fn refresh(&mut self, root: &Path) {
+        if !self.pending && !self.refreshing {
+            self.run(root.to_path_buf(), Request::Refresh);
+        }
+    }
+
+    /// True on the plain list, where workspace keys such as Tab pass
+    /// through, even while the list reloads; a review, confirmation, or
+    /// search takes every key.
+    pub fn in_list(&self) -> bool {
+        matches!(self.mode, Mode::List) && self.search.is_none()
+    }
+
+    /// Keys the list uses; [`SessionsPage::key`] handles them.
+    pub fn uses_list_key(key: KeyCode) -> bool {
+        matches!(
+            key,
+            KeyCode::Esc
+                | KeyCode::Enter
+                | KeyCode::Up
+                | KeyCode::Down
+                | KeyCode::Char('j' | 'k' | 'd' | 'r' | '/' | 'n' | 'N')
+        )
+    }
+
+    /// The page opens in the centre panel for a review or a confirmation;
+    /// the list itself is the sidebar's Sessions section.
+    pub fn shows_centre(&self) -> bool {
+        !matches!(self.mode, Mode::List)
+    }
+
+    /// Back to the list, as the agent's control channel asks.
+    pub fn back_to_list(&mut self) {
+        self.mode = Mode::List;
+        self.search = None;
+    }
+
+    /// The last merge, discard, or error message.
+    pub fn feedback(&self) -> &str {
+        &self.feedback
+    }
+
+    /// What the sidebar's Sessions section draws.
+    pub fn section(&self) -> SessionSection {
+        SessionSection {
+            rows: self
+                .entries
+                .iter()
+                .map(|entry| (entry.session.name.clone(), describe_short(entry)))
+                .collect(),
+            selected: self.selected,
+            search: self
+                .search
+                .as_ref()
+                .map(|search| (search.query.clone(), search.line(self.selected))),
+            loading: self.refreshing && self.entries.is_empty(),
+        }
+    }
+
     fn run(&mut self, root: PathBuf, request: Request) {
-        self.pending = true;
+        // A reload leaves the list usable; reviews and writes block keys.
+        if matches!(request, Request::Refresh) {
+            self.refreshing = true;
+        } else {
+            self.pending = true;
+        }
         let sender = self.sender.clone();
         std::thread::spawn(move || {
             let reply = match request {
@@ -100,7 +178,11 @@ impl SessionsPage {
         let mut changed = false;
         while let Ok(reply) = self.receiver.try_recv() {
             changed = true;
-            self.pending = false;
+            if matches!(reply, Reply::Listed(_)) {
+                self.refreshing = false;
+            } else {
+                self.pending = false;
+            }
             match reply {
                 Reply::Listed(entries) => self.set_entries(entries),
                 Reply::Reviewed(Ok(review)) => self.mode = Mode::Review { review, scroll: 0 },
@@ -427,5 +509,60 @@ fn describe(entry: &SessionStatus) -> String {
             }
             text
         }
+    }
+}
+
+/// The state in a few words for the narrow Sessions section: `2 ahead`,
+/// `clean`, `+ edits`, or what needs cleaning up. The review shows the
+/// full description.
+fn describe_short(entry: &SessionStatus) -> String {
+    match entry.health {
+        Health::MissingWorktree => "no worktree".into(),
+        Health::MissingBranch => "no branch".into(),
+        Health::Unrecorded => "left behind".into(),
+        Health::Ready => {
+            let mut text = match entry.ahead {
+                0 => "clean".to_owned(),
+                count => format!("{count} ahead"),
+            };
+            if entry.dirty {
+                text.push_str(" + edits");
+            }
+            text
+        }
+    }
+}
+
+#[cfg(test)]
+mod short_tests {
+    use super::*;
+
+    fn entry(health: Health, ahead: usize, dirty: bool) -> SessionStatus {
+        SessionStatus {
+            session: Session {
+                name: "session-1".into(),
+                branch: "gitview/session-1".into(),
+                base_branch: "main".into(),
+                path: PathBuf::from("/tmp/session-1"),
+                base_commit: String::new(),
+            },
+            health,
+            dirty,
+            ahead,
+        }
+    }
+
+    #[test]
+    fn short_states_fit_the_sidebar() {
+        assert_eq!(describe_short(&entry(Health::Ready, 0, false)), "clean");
+        assert_eq!(describe_short(&entry(Health::Ready, 2, false)), "2 ahead");
+        assert_eq!(
+            describe_short(&entry(Health::Ready, 1, true)),
+            "1 ahead + edits"
+        );
+        assert_eq!(
+            describe_short(&entry(Health::MissingWorktree, 0, false)),
+            "no worktree"
+        );
     }
 }

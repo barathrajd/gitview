@@ -2,12 +2,14 @@ use crossterm::event::KeyCode;
 use gitview::app::{AppAction, AppState, View, move_down, move_up};
 
 #[test]
-fn working_tree_is_the_default_and_tab_cycles_files_branches_history() {
+fn working_tree_is_the_default_and_tab_cycles_files_branches_sessions_history() {
     let mut app = AppState::default();
 
     assert_eq!(app.view(), View::WorkingTree);
     assert_eq!(app.handle_tab(false), Some(AppAction::OpenBranches));
     assert_eq!(app.view(), View::Branches);
+    assert_eq!(app.handle_tab(false), Some(AppAction::OpenSessions));
+    assert_eq!(app.view(), View::Sessions);
     assert_eq!(app.handle_tab(false), Some(AppAction::ReturnToHistory));
     assert_eq!(app.view(), View::History);
     assert_eq!(app.handle_tab(false), Some(AppAction::LoadWorkingTree));
@@ -15,6 +17,7 @@ fn working_tree_is_the_default_and_tab_cycles_files_branches_history() {
 
     // Shift-Tab goes the other way.
     assert_eq!(app.handle_back_tab(false), Some(AppAction::ReturnToHistory));
+    assert_eq!(app.handle_back_tab(false), Some(AppAction::OpenSessions));
     assert_eq!(app.handle_back_tab(false), Some(AppAction::OpenBranches));
     assert_eq!(
         app.handle_key(KeyCode::BackTab, false),

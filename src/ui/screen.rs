@@ -32,6 +32,8 @@ pub struct Cockpit<'a> {
     pub working_tree_selection: &'a mut ListState,
     /// The sidebar's Branches section selection.
     pub branch_selection: &'a mut ListState,
+    /// The sidebar's Sessions section, once the sessions have been read.
+    pub sessions: Option<crate::sessions_page::SessionSection>,
 }
 
 pub enum Screen<'a> {
