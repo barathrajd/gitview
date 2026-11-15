@@ -151,6 +151,21 @@ every panel already handles.
    (5) `v` raw view with the selection following the commit.
 5. **Sidebar and remaining pages.** Sessions, branches, and changed files in
    the sidebar; move branches, tags, profiles, objects, and comparison in.
+   Decided with the user (November 15, 2026): the sidebar stacks three
+   sections, Sessions, Branches, and Changed files, each with a share of
+   the height that grows when focused. Tags, profiles, the object
+   inspector, comparison, and branch and session actions open in the
+   centre panel in place of History, with the sidebar and agent still
+   visible; Esc returns to History. The wide-terminal INSPECTOR column is
+   removed. Tab cycles Files, Branches, Sessions, History and wraps;
+   Shift-Tab reverses; `b`, `A`, `W`, and `H` jump to Branches, Sessions,
+   Files, and History. Slices: (1) remove the inspector and make the
+   sidebar a stack holding Files, with Tab/Shift-Tab focus; (2) the
+   Branches section with today's branch keys, prompts and confirmations in
+   the centre; (3) the Sessions section, with review, merge, and discard in
+   the centre; (4) tags, profiles, objects, comparison, commit details, and
+   diffs in the centre panel; (5) narrow and agent layouts, help, and the
+   full suite.
 6. **Agent-driven panels.** Select tools target panels, `search_history`,
    changed-file marks; rerun the live agent suite.
 7. **Docs and release.** Help, README, website, screenshots, and the full

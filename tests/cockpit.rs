@@ -110,7 +110,8 @@ fn renders_responsive_repository_cockpit() {
     let wide = render_cockpit(140);
     assert!(wide.contains("WORKTREE"));
     assert!(wide.contains("HISTORY"));
-    assert!(wide.contains("INSPECTOR"));
+    // History takes the width the inspector column used to.
+    assert!(!wide.contains("INSPECTOR"));
     assert_eq!(
         wide.lines()
             .filter(|line| line.contains("pane") || line.contains("help") || line.contains("quit"))

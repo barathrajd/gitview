@@ -1,7 +1,6 @@
 use crate::ui::Viewport;
 use crate::{
     app::View,
-    branches::{Branches, HeadState},
     history,
     worktree::{Entry, Section},
 };
@@ -9,15 +8,14 @@ use ratatui::{
     layout::{Constraint, Layout},
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{Block, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{Block, List, ListItem, ListState, Paragraph},
 };
-use std::path::Path;
 
 use super::commit::render_repository_header;
 use super::hints::render_key_hints_padded;
 use super::panels::worktree_selection_style;
 use super::screen::Cockpit;
-use super::theme::{ACCENT, BORDER, MUTED, page_block};
+use super::theme::{ACCENT, BORDER, MUTED};
 
 pub(super) fn render_cockpit(
     frame: &mut Viewport<'_, '_>,
@@ -132,36 +130,10 @@ pub fn render_workspace_cockpit(
                 border,
             );
         }
-    } else if let Some((sidebar, center)) = side_by_side.filter(|_| frame.area().width < 128) {
-        let panes = [sidebar, center];
-        render_worktree_panel(
-            frame,
-            panes[0],
-            "WORKTREE",
-            status,
-            working_tree_selection,
-            focused == View::WorkingTree,
-            worktree_highlight,
-            border,
-        );
-        render_history_panel(
-            frame,
-            panes[1],
-            history,
-            history_entries,
-            history_selection,
-            focused == View::History,
-            highlight,
-            border,
-        );
     } else if let Some((sidebar, center)) = side_by_side {
-        let center_panes =
-            Layout::horizontal([Constraint::Percentage(60), Constraint::Percentage(40)])
-                .split(center);
-        let panes = [sidebar, center_panes[0], center_panes[1]];
         render_worktree_panel(
             frame,
-            panes[0],
+            sidebar,
             "WORKTREE",
             status,
             working_tree_selection,
@@ -171,24 +143,12 @@ pub fn render_workspace_cockpit(
         );
         render_history_panel(
             frame,
-            panes[1],
+            center,
             history,
             history_entries,
             history_selection,
             focused == View::History,
             highlight,
-            border,
-        );
-        render_inspector(
-            frame,
-            panes[2],
-            Inspector {
-                repository,
-                branches,
-                history,
-                status,
-                selected: history_selection.selected(),
-            },
             border,
         );
     }
@@ -443,78 +403,6 @@ pub(super) fn visible_window(
         selection.select(Some(selected));
     }
     offset..(offset + height).min(len)
-}
-
-pub(super) struct Inspector<'a> {
-    pub(super) repository: &'a Path,
-    pub(super) branches: Option<&'a Result<Branches, String>>,
-    pub(super) history: Option<&'a Result<Vec<String>, String>>,
-    pub(super) status: Option<&'a Result<Vec<Entry>, String>>,
-    pub(super) selected: Option<usize>,
-}
-
-pub(super) fn render_inspector(
-    frame: &mut Viewport<'_, '_>,
-    area: ratatui::layout::Rect,
-    inspector: Inspector<'_>,
-    border: ratatui::symbols::border::Set<'static>,
-) {
-    let Inspector {
-        repository,
-        branches,
-        history,
-        status,
-        selected,
-    } = inspector;
-    let branch = match branches {
-        Some(Ok(data)) => match &data.head {
-            HeadState::Attached(name) => name.to_string_lossy().into_owned(),
-            HeadState::Detached => "detached HEAD".to_owned(),
-            HeadState::Unborn(name) => format!("{} (unborn)", name.to_string_lossy()),
-        },
-        Some(Err(_)) => "Unavailable".to_owned(),
-        None => "Loading...".to_owned(),
-    };
-    let (staged, unstaged, untracked) = status_counts(status);
-    let selected_commit = history
-        .and_then(|rows| rows.as_ref().ok())
-        .and_then(|rows| selected.and_then(|index| rows.get(index)));
-    let commit = selected_commit
-        .map(|row| history::display_row(row))
-        .unwrap_or("No commit selected");
-    let content = vec![
-        Line::styled(
-            "REPOSITORY",
-            Style::default().fg(Color::Rgb(94, 234, 212)).bold(),
-        ),
-        Line::raw(repository.display().to_string()),
-        Line::raw(""),
-        Line::styled(
-            "BRANCH",
-            Style::default().fg(Color::Rgb(94, 234, 212)).bold(),
-        ),
-        Line::raw(branch),
-        Line::raw(""),
-        Line::styled(
-            "SELECTED COMMIT",
-            Style::default().fg(Color::Rgb(94, 234, 212)).bold(),
-        ),
-        Line::raw(commit),
-        Line::raw(""),
-        Line::styled(
-            "WORKTREE SUMMARY",
-            Style::default().fg(Color::Rgb(94, 234, 212)).bold(),
-        ),
-        Line::raw(format!("{staged} staged")),
-        Line::raw(format!("{unstaged} changed")),
-        Line::raw(format!("{untracked} untracked")),
-    ];
-    frame.render_widget(
-        Paragraph::new(content)
-            .wrap(Wrap { trim: true })
-            .block(page_block("INSPECTOR", border)),
-        area,
-    );
 }
 
 pub(super) fn render_panel_list(
