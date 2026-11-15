@@ -198,7 +198,6 @@ pub fn run_app_with_agent<H: Host>(
     let diff_side_by_side = true;
     let diff_entry: Option<crate::worktree::Entry> = None;
     let selected_hunk = 0usize;
-    let branch_view = false;
     let object_page: Option<crate::object_page::ObjectPage> = None;
     let comparison_page: Option<crate::comparison_page::ComparisonPage> = None;
     let tag_page: Option<crate::tag_page::TagPage> = None;
@@ -326,7 +325,6 @@ pub fn run_app_with_agent<H: Host>(
         diff_side_by_side,
         diff_entry,
         selected_hunk,
-        branch_view,
         object_page,
         comparison_page,
         tag_page,

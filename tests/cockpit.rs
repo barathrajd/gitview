@@ -55,6 +55,7 @@ fn render_cockpit_with_feedback(
                     focused,
                     history_selection: &mut history_selection,
                     working_tree_selection: &mut working_tree_selection,
+                    branch_selection: &mut ListState::default(),
                 }),
                 ratatui::symbols::border::PLAIN,
             );
@@ -154,6 +155,7 @@ fn replacing_the_cockpit_with_commit_details_clears_old_panes() {
                     focused: View::History,
                     history_selection: &mut history_selection,
                     working_tree_selection: &mut working_tree_selection,
+                    branch_selection: &mut ListState::default(),
                 }),
                 ratatui::symbols::border::PLAIN,
             );
@@ -226,6 +228,7 @@ fn inline_search_underlines_matches_in_history() {
                     focused: View::History,
                     history_selection: &mut history_selection,
                     working_tree_selection: &mut working_tree_selection,
+                    branch_selection: &mut ListState::default(),
                 }),
                 ratatui::symbols::border::PLAIN,
             );

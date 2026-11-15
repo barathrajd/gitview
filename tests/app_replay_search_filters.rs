@@ -3,11 +3,11 @@
 #[path = "support/replay.rs"]
 mod replay;
 
-use crossterm::event::KeyCode::{Enter, Esc, Tab};
+use crossterm::event::KeyCode::{Enter, Esc};
 use replay::{Repo, Step::*, replay};
 
 fn history_steps() -> Vec<replay::Step> {
-    vec![WaitFor("Change library"), Key(Tab)]
+    vec![WaitFor("Change library"), Char('H')]
 }
 
 #[test]
@@ -119,7 +119,7 @@ fn n_and_shift_n_repeat_a_filtered_search_through_its_results() {
     let search = || {
         vec![
             WaitFor("Fifth beta"),
-            Key(Tab),
+            Char('H'),
             Char('/'),
             Text("msg:alpha"),
             WaitFor("2 matches"),
@@ -153,7 +153,7 @@ fn filtered_results_refresh_when_the_repository_changes() {
     let root = repository.path();
     let mut steps = vec![
         WaitFor("Change library"),
-        Key(Tab),
+        Char('H'),
         Char('/'),
         Text("msg:library"),
         WaitFor("2 matches"),

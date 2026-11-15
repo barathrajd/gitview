@@ -28,6 +28,14 @@ impl<'a, 'f> Viewport<'a, 'f> {
         self.area
     }
 
+    /// A viewport over part of this one, for a page drawn inside a panel.
+    pub fn sub(&mut self, area: Rect) -> Viewport<'_, 'f> {
+        Viewport {
+            area: area.intersection(self.area),
+            frame: self.frame,
+        }
+    }
+
     /// Places the terminal cursor, unless `position` is outside the viewport.
     pub fn set_cursor_position(&mut self, position: Position) {
         if self.area.contains(position) {

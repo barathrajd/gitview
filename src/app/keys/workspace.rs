@@ -20,10 +20,7 @@ pub(in crate::app) fn handle(app: &mut App, key: KeyEvent) -> io::Result<Flow> {
     if !std::mem::take(&mut app.workspace_prefix) {
         return Ok(Flow::Next);
     }
-    let current = match app.app_state.view() {
-        View::WorkingTree => Panel::Sidebar,
-        View::History => Panel::Center,
-    };
+    let current = app.app_state.view().panel();
     app.workspace.focus(current);
     match key.code {
         KeyCode::Char('+') => app.workspace.resize(current, 4),

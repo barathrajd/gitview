@@ -35,4 +35,6 @@ pub(crate) use theme::{
 };
 pub use viewport::{Viewport, split_side_pane};
 
-pub use cockpit::{render_workspace_cockpit, worktree_display_order, worktree_display_row};
+pub use cockpit::{
+    cockpit_centre_area, render_workspace_cockpit, worktree_display_order, worktree_display_row,
+};

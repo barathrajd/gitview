@@ -30,6 +30,8 @@ pub struct Cockpit<'a> {
     pub focused: View,
     pub history_selection: &'a mut ListState,
     pub working_tree_selection: &'a mut ListState,
+    /// The sidebar's Branches section selection.
+    pub branch_selection: &'a mut ListState,
 }
 
 pub enum Screen<'a> {

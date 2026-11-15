@@ -19,6 +19,18 @@ pub enum View {
     History,
     #[default]
     WorkingTree,
+    /// The sidebar's Branches section.
+    Branches,
+}
+
+impl View {
+    /// The workspace panel that holds this view.
+    pub fn panel(self) -> crate::workspace::Panel {
+        match self {
+            View::History => crate::workspace::Panel::Center,
+            View::WorkingTree | View::Branches => crate::workspace::Panel::Sidebar,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -103,22 +115,31 @@ impl AppState {
         self.view = view;
     }
 
-    /// Apply Tab when the active screen permits workspace navigation.
+    /// Apply Tab when the active screen permits workspace navigation:
+    /// Files, Branches, History, and back to Files.
     pub fn handle_tab(&mut self, blocked: bool) -> Option<AppAction> {
+        self.cycle(blocked, true)
+    }
+
+    /// Apply Shift-Tab: the Tab cycle in reverse.
+    pub fn handle_back_tab(&mut self, blocked: bool) -> Option<AppAction> {
+        self.cycle(blocked, false)
+    }
+
+    fn cycle(&mut self, blocked: bool, forward: bool) -> Option<AppAction> {
         if blocked {
             return None;
         }
-
-        match self.view {
-            View::History => {
-                self.view = View::WorkingTree;
-                Some(AppAction::LoadWorkingTree)
-            }
-            View::WorkingTree => {
-                self.view = View::History;
-                Some(AppAction::ReturnToHistory)
-            }
-        }
+        self.view = match (self.view, forward) {
+            (View::WorkingTree, true) | (View::History, false) => View::Branches,
+            (View::Branches, true) | (View::WorkingTree, false) => View::History,
+            (View::History, true) | (View::Branches, false) => View::WorkingTree,
+        };
+        Some(match self.view {
+            View::WorkingTree => AppAction::LoadWorkingTree,
+            View::History => AppAction::ReturnToHistory,
+            View::Branches => AppAction::OpenBranches,
+        })
     }
 
     /// Translate a Ctrl-modified letter into a page motion. Other Ctrl
@@ -141,6 +162,10 @@ impl AppState {
             self.motions.reset();
             return self.handle_tab(blocked);
         }
+        if key == KeyCode::BackTab {
+            self.motions.reset();
+            return self.handle_back_tab(blocked);
+        }
         if blocked {
             self.motions.reset();
             return None;
@@ -161,7 +186,10 @@ impl AppState {
         }
 
         match (self.view, key) {
-            (_, KeyCode::Char('b')) => Some(AppAction::OpenBranches),
+            (_, KeyCode::Char('b')) => {
+                self.view = View::Branches;
+                Some(AppAction::OpenBranches)
+            }
             (_, KeyCode::Char('A')) => Some(AppAction::OpenSessions),
             (View::History, KeyCode::Char('o')) => Some(AppAction::InspectObject),
             (View::History, KeyCode::Char('D')) => Some(AppAction::OpenComparison),

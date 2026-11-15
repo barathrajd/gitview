@@ -42,7 +42,7 @@ fn outside_git_step(root: PathBuf, args: &'static [&'static str]) -> Step {
 
 fn history_steps() -> Vec<Step> {
     // Wait for the commits themselves: a key pressed before they load is lost.
-    vec![WaitFor("Change library"), Key(Tab)]
+    vec![WaitFor("Change library"), Char('H')]
 }
 
 #[test]
@@ -251,7 +251,7 @@ fn what_an_agent_in_the_pane_does_shows_up_in_the_views() {
     let script = "sleep 2.5; echo hi > by-agent.txt; git add by-agent.txt; \
                   git commit -qm 'Committed by the agent'; sleep 30";
     let mut steps = vec![WaitFor("Working tree clean")];
-    steps.extend([Key(Tab), WaitFor("Committed by the agent")]);
+    steps.extend([Key(Tab), Key(Tab), WaitFor("Committed by the agent")]);
 
     // 80 columns leaves Gitview one pane at a time; Tab shows history.
     let screen = replay::replay_with_agent(&root, Some(&["sh", "-c", script]), 140, 40, steps);

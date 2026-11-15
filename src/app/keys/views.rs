@@ -65,7 +65,6 @@ pub(in crate::app) fn handle<H: Host>(
         && !app.mutation_pending
         && app.details.is_none()
         && app.diff.is_none()
-        && !app.branch_view
     {
         app.profile_selection.select(
             profiles
@@ -147,6 +146,7 @@ pub(in crate::app) fn handle<H: Host>(
                 let list = match app.app_state.view() {
                     View::History => SearchList::History,
                     View::WorkingTree => SearchList::Worktree,
+                    View::Branches => SearchList::Branches,
                 };
                 app.inline_search = Some(crate::app::model::InlineSearch {
                     list,
@@ -158,8 +158,8 @@ pub(in crate::app) fn handle<H: Host>(
                 app.sessions_page = Some(crate::sessions_page::SessionsPage::open(root));
             }
             AppAction::OpenBranches => {
-                app.branch_view = true;
-                app.branches = None;
+                // Keep the loaded list on screen until the reload arrives, so
+                // branch keys work at once.
                 app.branch_feedback.clear();
                 app.branch_request += 1;
                 let id = app.branch_request;
@@ -379,6 +379,8 @@ pub(in crate::app) fn handle<H: Host>(
                             *app.status_selection.offset_mut() = row.saturating_sub(rows / 2);
                         }
                     }
+                    // The Branches section handles its own motions.
+                    View::Branches => {}
                 }
             }
         }
@@ -621,6 +623,12 @@ fn move_selection(app: &mut App, motion: impl FnOnce(Option<usize>, usize) -> Op
                 app.status_selection.select(selected);
             }
         }
+        View::Branches => {
+            if let Some(Ok(data)) = &app.branches {
+                let selected = motion(app.branch_selection.selected(), data.branches.len());
+                app.branch_selection.select(selected);
+            }
+        }
     }
 }
 
@@ -658,9 +666,9 @@ fn page_rows(app: &App) -> usize {
         ..area
     };
     let layout = app.workspace.gitview_layout(panels);
-    let panel = match app.app_state.view() {
-        View::History => layout.center,
-        View::WorkingTree => layout.sidebar,
+    let panel = match app.app_state.view().panel() {
+        crate::workspace::Panel::Center => layout.center,
+        _ => layout.sidebar,
     };
     panel.map_or(1, |panel| {
         usize::from(panel.height.saturating_sub(2)).max(1)

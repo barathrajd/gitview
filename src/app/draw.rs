@@ -56,6 +56,9 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                             )
                         })
                         .unwrap_or_else(|| app.commit_feedback.clone())
+                } else if app.app_state.view() == View::Branches && !app.branch_feedback.is_empty()
+                {
+                    app.branch_feedback.clone()
                 } else {
                     app.commit_feedback.clone()
                 };
@@ -77,11 +80,11 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                     ui::HelpPage::WorkingTree
                 } else if app.ignore_path_input.is_some() {
                     ui::HelpPage::IgnorePathInput
-                } else if app.branch_view && app.branch_input.is_some() {
+                } else if app.app_state.view() == View::Branches && app.branch_input.is_some() {
                     ui::HelpPage::BranchInput
-                } else if app.branch_view && app.branch_confirm.is_some() {
+                } else if app.app_state.view() == View::Branches && app.branch_confirm.is_some() {
                     ui::HelpPage::BranchConfirmation
-                } else if app.branch_view {
+                } else if app.app_state.view() == View::Branches {
                     ui::HelpPage::Branches
                 } else if app.diff_entry.is_some() && app.diff.is_some() {
                     ui::HelpPage::WorktreeDiff
@@ -97,6 +100,26 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                     ui::HelpPage::History
                 };
                 let prompt_line = search_line(app);
+                // Branch prompts and confirmations open over the centre panel,
+                // with the sidebar still visible.
+                let branch_focus = app.app_state.view() == View::Branches;
+                let centre = if branch_focus && app.branch_input.is_some() {
+                    Some(if let Some(preview) = &app.branch_rename {
+                        Screen::RenameBranchInput {
+                            input: app.branch_input.as_deref().unwrap_or(""),
+                            name: preview.name(),
+                        }
+                    } else {
+                        Screen::BranchInput(app.branch_input.as_deref().unwrap_or(""))
+                    })
+                } else if branch_focus && (app.mutation_pending || app.branch_confirm.is_some()) {
+                    Some(Screen::BranchConfirmation {
+                        pending: app.mutation_pending,
+                        action: app.branch_confirm.as_ref(),
+                    })
+                } else {
+                    None
+                };
                 let screen = if let Some(context) = app.pending_preview {
                     Screen::PreviewLoading {
                         message: context.label(),
@@ -185,31 +208,6 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                         entries: app.status.as_ref(),
                         pending: app.mutation_pending,
                     }
-                } else if app.branch_view && app.branch_input.is_some() {
-                    if let Some(preview) = &app.branch_rename {
-                        Screen::RenameBranchInput {
-                            input: app.branch_input.as_deref().unwrap_or(""),
-                            name: preview.name(),
-                        }
-                    } else {
-                        Screen::BranchInput(app.branch_input.as_deref().unwrap_or(""))
-                    }
-                } else if app.branch_view && (app.mutation_pending || app.branch_confirm.is_some())
-                {
-                    Screen::BranchConfirmation {
-                        pending: app.mutation_pending,
-                        action: app.branch_confirm.as_ref(),
-                    }
-                } else if app.branch_view {
-                    Screen::Branches {
-                        branches: app.branches.as_ref(),
-                        feedback: &app.branch_feedback,
-                        search_prompt: prompt_line.clone().map(|line| ui::SearchPrompt {
-                            line,
-                            query: &app.query,
-                        }),
-                        selection: &mut app.branch_selection,
-                    }
                 } else if let (Some(diff), Some(prepared)) = (&app.diff, &app.prepared_diff) {
                     Screen::PreparedDiff {
                         diff,
@@ -268,6 +266,7 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                         focused: app.app_state.view(),
                         history_selection: &mut app.selection,
                         working_tree_selection: &mut app.status_selection,
+                        branch_selection: &mut app.branch_selection,
                     })
                 };
                 let gitview_area = match layout {
@@ -280,10 +279,7 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                 if let Some(area) = gitview_area {
                     let mut viewport = ui::Viewport::new(frame, area);
                     if let Screen::Cockpit(cockpit) = screen {
-                        let panel = match cockpit.focused {
-                            View::History => crate::workspace::Panel::Center,
-                            View::WorkingTree => crate::workspace::Panel::Sidebar,
-                        };
+                        let panel = cockpit.focused.panel();
                         app.workspace.show(panel);
                         app.workspace.focus(panel);
                         viewport.render_widget(ratatui::widgets::Clear, area);
@@ -293,6 +289,10 @@ pub(super) fn draw_screen<H: Host>(app: &mut App, env: &mut Env<'_, H>) -> io::R
                             &app.workspace,
                             app.border,
                         );
+                        if let Some(centre) = centre {
+                            let rect = ui::cockpit_centre_area(area, &app.workspace);
+                            ui::render_in(&mut viewport.sub(rect), centre, app.border);
+                        }
                     } else {
                         ui::render_in(&mut viewport, screen, app.border);
                     }

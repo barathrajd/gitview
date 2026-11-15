@@ -183,10 +183,10 @@ pub(in crate::app) fn handle<H: Host>(
     if key.code == KeyCode::Char('W')
         && !app.help
         && !app.mutation_pending
-        && (!app.branch_view || (app.branch_input.is_none() && app.branch_confirm.is_none()))
+        && (app.app_state.view() != crate::app::View::Branches
+            || (app.branch_input.is_none() && app.branch_confirm.is_none()))
     {
         let _ = app.app_state.handle_key(KeyCode::Char('W'), false);
-        app.branch_view = false;
         app.diff = None;
         app.prepared_diff = None;
         app.ordinary_diff_worker.cancel();

@@ -120,7 +120,9 @@ fn in_prompt(app: &App) -> bool {
 /// Back to the main views, as Esc would take the user.
 fn close_views(app: &mut App) {
     app.help = false;
-    app.branch_view = false;
+    app.branch_input = None;
+    app.branch_rename = None;
+    app.branch_confirm = None;
     app.profiles_view = false;
     app.object_page = None;
     app.comparison_page = None;

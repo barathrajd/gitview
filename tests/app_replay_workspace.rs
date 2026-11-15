@@ -15,7 +15,7 @@ fn narrow_workspace_shows_only_the_focused_panel() {
         &repository.path(),
         118,
         30,
-        [WaitFor("notes.txt"), Key(Tab)],
+        [WaitFor("notes.txt"), Key(Tab), Key(Tab)],
     );
     assert!(screen.contains("HISTORY"));
     assert!(!screen.contains("WORKTREE"));
@@ -89,7 +89,7 @@ fn default_sidebar_keeps_ordinary_filenames_readable() {
 fn resizing_history_changes_the_focused_panel_in_both_directions() {
     let repository = Repo::with_changes();
     let render = |resize| {
-        let mut steps = vec![WaitFor("notes.txt"), Key(Tab)];
+        let mut steps = vec![WaitFor("notes.txt"), Char('H')];
         if let Some(key) = resize {
             steps.extend([Ctrl('w'), Char(key)]);
         }
@@ -329,7 +329,7 @@ fn agent_workspace_shows_only_the_selected_gitview_pane() {
             Some(&["sh", "-c", "echo agent-ready; sleep 30"]),
             width,
             30,
-            [WaitFor("agent-ready"), Key(Tab)],
+            [WaitFor("agent-ready"), Key(Tab), Key(Tab)],
         );
         assert!(history.contains("HISTORY"), "{width}: {history}");
         assert!(!history.contains("WORKTREE"), "{width}: {history}");
