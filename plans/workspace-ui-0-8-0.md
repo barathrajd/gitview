@@ -135,7 +135,7 @@ every panel already handles.
    full path. `n` keeps meaning "no" inside confirm prompts. One list per
    slice, sharing one list-search component. One last search is shared
    by every list, as in Vim.
-4. **Structured history.** Parse commits with parents, page them, draw the
+4. **Structured history (complete).** Parse commits with parents, page them, draw the
    lanes and columns, keep `v` for raw; graph tests with merges, octopus
    merges, and long-lived branches; measure scrolling on 100,000 commits.
    Decided with the user (November 15, 2026): rounded Unicode lanes, one
@@ -440,3 +440,24 @@ session pages, which own their lists). The app's own lists go through
 `SearchList` in `src/app/keys/search.rs`. Typed letters edit the query,
 so page actions such as `d` don't run while searching. Tests:
 `app_replay_search_lists` (11) and `list_search` unit tests.
+
+### Milestone 4: structured history (committed, complete)
+
+Five slices, each hand-tested by the user: `src/commit_log.rs` reads
+pages of commits with parents from NUL-delimited `git log --all
+--topo-order --parents`; `src/graph.rs` lays out lanes with connectors on
+each commit's own row (one row per commit, chosen over separate connector
+rows so selection and search map one row to one commit);
+`src/ui/history_rows.rs` draws the columns; History loads 500 commits at a
+time within 100 rows of the end; `v` toggles raw `git log --graph` rows.
+Search, `n`/`N`, details, and MCP keep reading each row's search text
+(`* <short> (<refs>) <subject> - <author>` plus the full hash).
+
+Measured on 104,000 commits (release): a page costs about 0.2 s without a
+commit-graph file and is instant with one, off the render loop; frame p95
+is 0.15 ms at 140x35 and 0.35 ms at 220x60; laying out all 100,000 rows
+takes 78 ms. Known: inline search over 100,000 loaded rows costs about
+30 ms per keystroke on the UI thread. The raw view keeps its 200-commit
+cap. Help does not list `v` yet (milestone 7). Tests:
+`app_replay_history_graph`, `commit_log`, graph and row unit tests, and
+the ignored `measures_structured_history_on_100k_commits`.
