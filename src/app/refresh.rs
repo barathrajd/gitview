@@ -264,8 +264,14 @@ fn start_wanted(app: &mut App, root: &std::path::Path) {
         let sender = app.history_sender.clone();
         let path = root.to_path_buf();
         let filter = app.history_filter.clone();
+        // Reload as many commits as are loaded, so the selection stays.
+        let count = app
+            .history
+            .as_ref()
+            .and_then(|rows| rows.as_ref().ok())
+            .map_or(0, Vec::len);
         thread::spawn(move || {
-            let result = crate::history::load_structured(&path, filter.as_deref());
+            let result = crate::history::load_structured_count(&path, filter.as_deref(), count);
             completion.mark();
             let _ = sender.send((id, result));
         });

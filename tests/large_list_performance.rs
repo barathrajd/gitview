@@ -133,3 +133,111 @@ fn measures_history_search_on_the_ui_thread() {
     }
     assert!(worst <= 50.0, "history search p95 exceeded 50 ms: {worst}");
 }
+
+/// `count` parsed commits, newest first: a main line where every 100th
+/// commit merges a three-commit side branch, with refs on a few commits.
+fn structured_fixture(count: usize) -> Vec<gitview::commit_log::Commit> {
+    let hash = |index: usize| format!("{index:040x}");
+    let mut commits = Vec::with_capacity(count);
+    let mut index = count;
+    while commits.len() < count {
+        index -= 1;
+        let main_parent = hash(index - 1);
+        let mut commit = gitview::commit_log::Commit {
+            hash: hash(index),
+            parents: vec![main_parent],
+            refs: if index.is_multiple_of(1_000) {
+                vec![format!("tag: v{index}")]
+            } else {
+                Vec::new()
+            },
+            author: "Performance Fixture".to_owned(),
+            time: 1_600_000_000 + index as i64 * 60,
+            subject: format!("Fixture commit number {index}"),
+        };
+        if index.is_multiple_of(100) && index >= 4 {
+            // A merge of a side branch whose commits follow it.
+            let side = |n: usize| format!("{:040x}", (1usize << 40) + index * 4 + n);
+            commit.parents.push(side(0));
+            commits.push(commit);
+            for n in 0..3 {
+                commits.push(gitview::commit_log::Commit {
+                    hash: side(n),
+                    parents: vec![if n == 2 { hash(index - 1) } else { side(n + 1) }],
+                    refs: Vec::new(),
+                    author: "Side Author".to_owned(),
+                    time: 1_600_000_000 + index as i64 * 60 - n as i64,
+                    subject: format!("Side work {n} for {index}"),
+                });
+            }
+        } else {
+            if index == 1 {
+                commit.parents.clear();
+            }
+            commits.push(commit);
+        }
+        if index == 1 {
+            break;
+        }
+    }
+    commits.truncate(count);
+    commits
+}
+
+#[test]
+#[ignore = "isolated release-build timing diagnostic; run with --ignored --nocapture"]
+fn measures_structured_history_on_100k_commits() {
+    let start = Instant::now();
+    let structured = gitview::history::structured_from(structured_fixture(100_000));
+    let layout_ms = start.elapsed().as_secs_f64() * 1000.0;
+    println!("structured layout rows=100000 total_ms={layout_ms:.1}");
+    let history = Ok(structured.rows);
+    let branches = Ok(Branches {
+        head: HeadState::Attached(OsString::from("main")),
+        branches: vec![OsString::from("main")],
+        head_commit: Some("abcdef0123456789".to_owned()),
+    });
+    let status = Ok(Vec::new());
+    let mut worst = 0.0f64;
+    for (width, height) in [(140, 35), (80, 24), (220, 60)] {
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        let mut history_selection = ListState::default();
+        let mut working_tree_selection = ListState::default();
+        let mut samples = Vec::new();
+        // Scroll one row at a time through a window, then jump far.
+        let targets = (0..200).chain((0..100).map(|step| step * 999));
+        for target in targets {
+            history_selection.select(Some(target));
+            let start = Instant::now();
+            terminal
+                .draw(|frame| {
+                    render(
+                        frame,
+                        Screen::Cockpit(Cockpit {
+                            repository: Path::new("/work/gitview"),
+                            profile: "Primary",
+                            branches: Some(&branches),
+                            history: Some(&history),
+                            history_entries: &structured.entries,
+                            status: Some(&status),
+                            feedback: "",
+                            search_prompt: None,
+                            focused: View::History,
+                            history_selection: &mut history_selection,
+                            working_tree_selection: &mut working_tree_selection,
+                        }),
+                        ratatui::symbols::border::PLAIN,
+                    );
+                })
+                .unwrap();
+            samples.push(start.elapsed().as_secs_f64() * 1000.0);
+        }
+        let value = p95(samples);
+        println!("structured history rows=100000 {width}x{height} p95_ms={value:.3}");
+        worst = worst.max(value);
+    }
+    assert!(
+        worst <= 16.0,
+        "structured frame p95 exceeded 16 ms: {worst}"
+    );
+}

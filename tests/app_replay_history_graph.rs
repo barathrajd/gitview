@@ -99,3 +99,65 @@ fn enter_opens_the_selected_parsed_commit() {
     );
     assert!(screen.contains("f.txt"), "{screen}");
 }
+
+/// A linear history of `count` commits, `c0` oldest, built in one
+/// `git fast-import` run.
+fn long_history(count: usize) -> Repo {
+    use std::io::Write;
+    let repository = Repo::new();
+    let mut script = String::new();
+    for index in 0..count {
+        let message = format!("c{index}");
+        script.push_str(&format!(
+            "commit refs/heads/main\ncommitter T <t@e> {} +0000\ndata {}\n{message}\n",
+            1_600_000_000 + index * 60,
+            message.len()
+        ));
+        script.push_str(&format!(
+            "M 644 inline f\ndata {}\n{index}\n\n",
+            index.to_string().len()
+        ));
+    }
+    let mut child = std::process::Command::new("git")
+        .current_dir(repository.path())
+        .args(["fast-import", "--quiet"])
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(script.as_bytes())
+        .unwrap();
+    assert!(child.wait().unwrap().success());
+    repository.git(&["reset", "-q", "--hard", "main"]);
+    repository
+}
+
+#[test]
+fn history_loads_more_commits_past_the_first_page() {
+    let repository = long_history(650);
+    // G reaches the last loaded commit, which loads the next page; G again
+    // reaches the oldest commit.
+    let screen = replay_sized(
+        &repository.path(),
+        160,
+        20,
+        [
+            WaitFor("c649"),
+            Key(Tab),
+            Char('G'),
+            WaitFor("c150"),
+            Pause(std::time::Duration::from_millis(500)),
+            Char('G'),
+            WaitFor("c0 "),
+        ],
+    );
+    assert!(!screen.contains("truncated"), "{screen}");
+    let selected = screen
+        .lines()
+        .find(|line| line.contains("› ●"))
+        .unwrap_or("");
+    assert!(selected.contains(" c0 "), "{screen}");
+}

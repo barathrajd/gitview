@@ -224,6 +224,10 @@ pub struct Structured {
     pub rows: Vec<String>,
     /// The commit on each row; `None` for a notice row.
     pub entries: Vec<Option<Entry>>,
+    /// More commits follow the loaded ones.
+    pub more: bool,
+    /// The lanes after the last row, which the next page continues.
+    pub layout: crate::graph::Layout,
 }
 
 /// A commit on a History row and where its fields sit in the row's text.
@@ -239,37 +243,63 @@ pub struct Entry {
     pub author: std::ops::Range<usize>,
 }
 
-/// The most commits History loads.
-pub const HISTORY_LIMIT: usize = 200;
+/// Commits History loads at a time.
+pub const HISTORY_PAGE: usize = 500;
 
-/// Load History as parsed commits with graph lanes, optionally limited to
-/// commits touching `path`. A notice row comes first when more commits
-/// exist than History shows.
+/// Load the first page of History as parsed commits with graph lanes,
+/// optionally limited to commits touching `path`.
 pub fn load_structured(root: &Path, path: Option<&Path>) -> Result<Structured, String> {
-    let page = crate::commit_log::load_page(root, path, 0, HISTORY_LIMIT)?;
-    let mut structured = Structured::default();
-    if page.more {
-        structured
-            .rows
-            .push(format!("[history truncated to {HISTORY_LIMIT} commits]"));
-        structured.entries.push(None);
-    }
-    let rest = structured_from(page.commits);
-    structured.rows.extend(rest.rows);
-    structured.entries.extend(rest.entries);
+    load_structured_count(root, path, HISTORY_PAGE)
+}
+
+/// Load the newest `count` commits, at least one page, as a reload that
+/// keeps as much History as was loaded.
+pub fn load_structured_count(
+    root: &Path,
+    path: Option<&Path>,
+    count: usize,
+) -> Result<Structured, String> {
+    load_more(
+        root,
+        path,
+        0,
+        count.max(HISTORY_PAGE),
+        crate::graph::Layout::new(),
+    )
+}
+
+/// Load `count` commits after the first `skip`, continuing `layout`'s
+/// lanes from the rows above.
+pub fn load_more(
+    root: &Path,
+    path: Option<&Path>,
+    skip: usize,
+    count: usize,
+    layout: crate::graph::Layout,
+) -> Result<Structured, String> {
+    let page = crate::commit_log::load_page(root, path, skip, count)?;
+    let mut structured = structured_with(page.commits, layout);
+    structured.more = page.more;
     Ok(structured)
 }
 
 /// Rows and graph cells for `commits`, newest first.
 pub fn structured_from(commits: Vec<crate::commit_log::Commit>) -> Structured {
+    structured_with(commits, crate::graph::Layout::new())
+}
+
+fn structured_with(
+    commits: Vec<crate::commit_log::Commit>,
+    mut layout: crate::graph::Layout,
+) -> Structured {
     let mut structured = Structured::default();
-    let mut layout = crate::graph::Layout::new();
     for commit in commits {
         let graph = layout.push(&commit);
         let (row, entry) = row_text(commit, graph);
         structured.rows.push(row);
         structured.entries.push(Some(entry));
     }
+    structured.layout = layout;
     structured
 }
 
